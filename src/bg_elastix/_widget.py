@@ -20,7 +20,8 @@ def register_widget() -> FunctionGui:
         translate_x=dict(widget_type="SpinBox", min=-5000, max=5000),
         translate_y=dict(widget_type="SpinBox", min=-5000, max=5000),
         get_atlas_button=dict(widget_type="PushButton", text="Get Atlas"),
-        move_sample_button=dict(widget_type="PushButton", text="Translate Sample")
+        move_sample_button=dict(widget_type="PushButton", text="Adjust Image"),
+        reset_button=dict(widget_type="PushButton", text="Reset Image")
     )
     def register(
             viewer: "napari.Viewer" = None,
@@ -30,6 +31,7 @@ def register_widget() -> FunctionGui:
             translate_x: int = 0,
             translate_y: int = 0,
             move_sample_button=False,
+            reset_button=False,
             image: "napari.layers.Image" = None,
             atlas_image: "napari.layers.Image" = None,
             rigid=True,
@@ -59,22 +61,29 @@ def register_widget() -> FunctionGui:
 
     @register.move_sample_button.changed.connect
     def move_atlas_button_click():
-        delta_x = getattr(register, "translate_x").value
-        delta_y = getattr(register, "translate_y").value
-        image: "napari.layers.Image" = getattr(register, "image_to_adjust").value
+        translate_image(register.image_to_adjust.value, register.translate_x.value, register.translate_y.value)
 
+    @register.reset_button.changed.connect
+    def reset_button_on_click():
+        curr_location = register.image_to_adjust.value.translate
+        reset_x = -1 * curr_location[1]
+        reset_y = -1 * curr_location[0]
+
+        translate_image(register.image_to_adjust.value, reset_x, reset_y)
+
+    def translate_image(image: "napari.layers.Image", delta_x=0, delta_y=0):
         curr_location = image.translate
-
         image.translate = (curr_location[0] + delta_y, curr_location[1] + delta_x)
+
+        register.translate_x.value = 0
+        register.translate_y.value = 0
 
     @register.get_atlas_button.changed.connect
     def get_atlas_button_click():
-        atlas_name = getattr(register, "atlas_name").value
-        viewer = getattr(register, "viewer").value
-        atlas = get_atlas_by_name(atlas_name)
+        atlas = get_atlas_by_name(register.atlas_name.value)
 
-        viewer.add_image(atlas.reference, name=atlas_name, colormap="red", opacity=0.6, blending="translucent")
-        viewer.add_labels(atlas.annotation, name=atlas_name + "Annotation", visible=False)
-        viewer.grid.enabled = False
+        register.viewer.value.add_image(atlas.reference, name=register.atlas_name.value, colormap="red", opacity=0.6, blending="translucent")
+        register.viewer.value.add_labels(atlas.annotation, name=register.atlas_name.value + "Annotation", visible=False)
+        register.viewer.value.grid.enabled = False
 
     return register
