@@ -2,9 +2,14 @@ name: bg-elastix
 display_name: BrainGlobe Elastix Registration
 contributions:
   commands:
+#    - id: bg-elastix.get_atlas
+#      python_name: bg_elastix._widget:get_atlas
+#      title: BrainGlobe Get Atlas
     - id: bg-elastix.register
-      python_name: bg_elastix._widget:register
+      python_name: bg_elastix._widget:register_widget
       title: BrainGlobe Elastix Registration
   widgets:
+#    - command: bg-elastix.get_atlas
+#      display_name: BrainGlobe Get Atlas
     - command: bg-elastix.register
       display_name: BrainGlobe Elastix Registration

@@ -1,0 +1,237 @@
+//  **********  Affine Transformation  **********
+// --------------------------------------------------------------------------------
+// Optimised Affine transform for Mouse Brain serial section 2-photon datasets
+//
+// Steven J. West, SWC, UCL, UK 2020
+
+
+// **********  ImageTypes  **********
+// --------------------------------------------------------------------------------
+
+(FixedInternalImagePixelType "float") // automatically converted to this type
+(FixedImageDimension 3)
+
+(MovingInternalImagePixelType "float") // automatically converted to this type
+(MovingImageDimension 3)
+
+(UseDirectionCosines "true")
+// Setting it to false means that you choose to ignore important information
+// from the image, which relates voxel coordinates to world coordinates
+// Ignoring it may easily lead to left/right swaps for example, which could
+// screw up a (medical) analysis
+
+
+// **********  Registration  **********
+// --------------------------------------------------------------------------------
+
+(Registration "MultiResolutionRegistration")
+// the default
+
+
+// ********** Pyramid  **********
+// --------------------------------------------------------------------------------
+
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+// Applies gaussian smoothing and no down-sampling
+
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+// Applies gaussian smoothing and no down-sampling
+
+(NumberOfResolutions 4)
+// 4 levels
+
+(ImagePyramidSchedule 8 8 8 4 4 4 2 2 2 1 1 1)
+// sigma: 8/2 XYZ, 4/2 XYZ, 2/2 XYZ, 1/2 XYZ
+
+(ErodeMask "false" )
+// information from inside any mask will flow into the ROI due to the
+// smoothing step
+
+
+// ********** Metric  **********
+// --------------------------------------------------------------------------------
+
+(Metric "AdvancedMattesMutualInformation")
+// Cost Function Metric
+// quantifies the "amount of information" (in units of shannons, commonly called
+//   bits) obtained about one random variable through observing the other random
+//   variable
+// only a relation between the probability distributions of the intensities of
+//   the fixed and moving image is assumed
+// often a good choice for image registration
+
+(NumberOfHistogramBins 32 )
+(NumberOfFixedHistogramBins 32 )
+(NumberOfMovingHistogramBins 32 )
+// The size of the histogram. Must be given for each resolution, or for all
+//  resolutions at once
+
+(FixedKernelBSplineOrder 3)
+(MovingKernelBSplineOrder 3)
+// The B-spline order of the Parzen window, used to estimate the joint histogram
+
+(FixedLimitRangeRatio 0.0)
+(MovingLimitRangeRatio 0.0)
+// The relative extension of the intensity range of the fixed image.
+//  0.0 - turned off
+
+
+(ShowExactMetricValue "false" "false" "false" "false")
+// get exact metric on final resolution
+// computes the exact metric value (computed on all voxels rather than on the
+//  set of spatial samples) and shows it each iteration
+//  Must be given for each resolution
+//  This is very SLOW for large images
+
+
+(UseMultiThreadingForMetrics "true")
+// Whether to compute metric with multi-threading
+
+(UseFastAndLowMemoryVersion "true")
+// select between two methods for computing mutual information metric
+//  false : computes the derivatives of the joint histogram to each transformation
+//    parameter
+//  true : computes the mutual information via another route
+
+(UseJacobianPreconditioning "false")
+// whether to implement the preconditioning technique by Nicholas Tustison:
+//  "Directly Manipulated Freeform Deformations"
+
+(FiniteDifferenceDerivative "false")
+// Experimental feature, do not use.
+
+(ASGDParameterEstimationMethod "Original")
+// ASGD parameter estimation method used in this optimizer
+
+
+// ********** ImageSampler  **********
+// --------------------------------------------------------------------------------
+
+(ImageSampler "RandomCoordinate")
+
+(NumberOfSpatialSamples 4000 )
+// Number of spatial samples used to compute
+//  the mutual information in each resolution level
+
+(NewSamplesEveryIteration "true" "true" "true" "true")
+// whether to select a new set of spatial samples in every iteration
+
+(UseRandomSampleRegion "false")
+// whether to randomly select a subregion of the image in each iteration
+
+(CheckNumberOfSamples "true")
+// whether to check if at least a certain fraction (default 1/4) of the samples map
+//  inside the moving image.
+
+(MaximumNumberOfSamplingAttempts 10 10 10 10)
+// maximum number of sampling attempts
+
+
+// ********** Interpolator and Resampler  **********
+// --------------------------------------------------------------------------------
+
+(Interpolator "BSplineInterpolator")
+// The interpolator to use during registration process
+// BSpline : Evaluates the Values of non-voxel Positions in the Moving Image
+//  Basis Function for Splines - set of Piecewise Polynomial Lines
+
+(BSplineInterpolationOrder 3)
+// Order of B-Spline interpolation used in each resolution level
+//  0 Nearest Neighbour, 1 Linear interpolation,
+//  2+ non-linear curves with increasing degrees of freedom/power
+
+
+// Order of B-Spline interpolation used when interpolating the fixed
+  // image - if using MultiInputRandomCoordinate sampler
+(FixedImageBSplineInterpolationOrder 3)
+
+//Default pixel value for pixels that come from outside the picture:
+(DefaultPixelValue 0)
+
+(Resampler "DefaultResampler")
+// Either DefaultResampler or OpenCLResampler
+
+(ResampleInterpolator "FinalBSplineInterpolator")
+// The interpolator to use to generate the resulting deformed moving image
+// BSpline : Evaluates the Values of non-voxel Positions in the Moving Image
+//  Basis Function for Splines - set of Piecewise Polynomial Lines
+
+(FinalBSplineInterpolationOrder 3)
+// Order of B-Spline interpolation used for applying the final deformation
+//  0 Nearest Neighbour, 1 Linear interpolation,
+//  2+ non-linear curves with increasing degrees of freedom/power
+
+
+// ********** Transform  **********
+// --------------------------------------------------------------------------------
+
+(Transform "AffineTransform")
+// translate, rotate, scale, shear
+
+(AutomaticScalesEstimation "true")
+// if "true" the Scales parameter is ignored and the scales are determined
+//  automatically.
+
+(AutomaticTransformInitialization "true")
+// whether the initial translation between images should be estimated as the
+//  distance between their centers.
+
+(AutomaticTransformInitializationMethod "GeometricalCenter")
+// how to initialize this transform
+
+(HowToCombineTransforms "Compose")
+// Always use Compose for combining transforms
+
+
+// ********** Optimizer  **********
+// --------------------------------------------------------------------------------
+
+(Optimizer "AdaptiveStochasticGradientDescent")
+// take the search direction as the negative gradient of the cost function
+//  Adaptive version: requires less parameters to be set and tends to be
+//  more robust.
+
+(MaximumNumberOfIterations 500 500 500 500)
+// Maximum number of iterations in each resolution level
+
+(SP_A 20.0)
+// SP: Param_A in each resolution level. a_k = a/(A+k+1)^alpha
+
+(SigmoidInitialTime 0.0)
+// initial time input for the sigmoid
+//  When increased, the optimization starts with smaller steps
+//  If set to 0.0, the method starts with with the largest step allowed
+
+(MaxBandCovSize 192)
+(NumberOfBandStructureSamples 10)
+(UseAdaptiveStepSizes "true")
+(AutomaticParameterEstimation "true")
+(UseConstantStep "false")
+(MaximumStepLengthRatio 1)
+(NumberOfGradientMeasurements 0)
+(NumberOfJacobianMeasurements 1000)
+(NumberOfSamplesForExactGradient 100000)
+(SigmoidScaleFactor 0.1)
+
+
+// ********** Output  **********
+// --------------------------------------------------------------------------------
+
+(WriteResultImage "true")
+// Whether to write the final deformed image when elastix has optimised the
+//  transformation.
+
+(ResultImageFormat "tiff") // commented out as not writing any images
+// What image format to write the image as
+//  can use: "tiff" "dcm" "nrrd" "png"
+
+// (CompressResultImage "false")
+// whether lossless compression of the written image is performed
+
+
+(WriteTransformParametersEachIteration "false")
+// whether to save a transform parameter file to disk in every iteration
+
+(WriteResultImageAfterEachResolution "false" "false" "false" "false")
+// whether the intermediate result image is resampled and written after
+//  each resolution
