@@ -21,29 +21,31 @@ def register_widget() -> FunctionGui:
         translate_y=dict(widget_type="SpinBox", min=-5000, max=5000),
         rotate=dict(widget_type="SpinBox", min=-180, max=180),
         get_atlas_button=dict(widget_type="PushButton", text="Get Atlas"),
-        start_alignment_button=dict(widget_type="PushButton", text="Start Alignment"),
+        start_alignment_button=dict(
+            widget_type="PushButton", text="Start Alignment"
+        ),
         move_sample_button=dict(widget_type="PushButton", text="Adjust Image"),
-        reset_button=dict(widget_type="PushButton", text="Reset Image")
+        reset_button=dict(widget_type="PushButton", text="Reset Image"),
     )
     def register(
-            viewer: "napari.Viewer" = None,
-            atlas_name=None,
-            get_atlas_button=False,
-            image_to_adjust: "napari.layers.Image" = None,
-            start_alignment_button=False,
-            translate_x: int = 0,
-            translate_y: int = 0,
-            rotate: int = 0,
-            move_sample_button=False,
-            reset_button=False,
-            image: "napari.layers.Image" = None,
-            atlas_image: "napari.layers.Image" = None,
-            rigid=True,
-            affine=True,
-            bspline=False,
-            use_default_params=True,
-            affine_iterations="2048",
-            log=False,
+        viewer: "napari.Viewer" = None,
+        atlas_name=None,
+        get_atlas_button=False,
+        image_to_adjust: "napari.layers.Image" = None,
+        start_alignment_button=False,
+        translate_x: int = 0,
+        translate_y: int = 0,
+        rotate: int = 0,
+        move_sample_button=False,
+        reset_button=False,
+        image: "napari.layers.Image" = None,
+        atlas_image: "napari.layers.Image" = None,
+        rigid=True,
+        affine=True,
+        bspline=False,
+        use_default_params=True,
+        affine_iterations="2048",
+        log=False,
     ) -> List[napari.layers.Layer]:
         current_atlas_slice = viewer.dims.current_step[0]
 
@@ -58,22 +60,39 @@ def register_widget() -> FunctionGui:
             log=log,
         )
 
-        return [napari.layers.Image(result, name="registered image"),
-                napari.layers.Labels(viewer.layers[-1].data[current_atlas_slice, :, :], name="registered annotations")]
+        return [
+            napari.layers.Image(result, name="registered image"),
+            napari.layers.Labels(
+                viewer.layers[-1].data[current_atlas_slice, :, :],
+                name="registered annotations",
+            ),
+        ]
 
     @register.get_atlas_button.changed.connect
     def get_atlas_button_click():
         atlas = get_atlas_by_name(register.atlas_name.value)
 
-        register.viewer.value.add_image(atlas.reference, name=register.atlas_name.value, colormap="red", opacity=0.6,
-                                        blending="translucent")
-        register.viewer.value.add_labels(atlas.annotation, name=register.atlas_name.value + "Annotation", visible=False)
+        register.viewer.value.add_image(
+            atlas.reference,
+            name=register.atlas_name.value,
+            colormap="red",
+            opacity=0.6,
+            blending="translucent",
+        )
+        register.viewer.value.add_labels(
+            atlas.annotation,
+            name=register.atlas_name.value + "Annotation",
+            visible=False,
+        )
         register.viewer.value.grid.enabled = True
 
     @register.move_sample_button.changed.connect
     def move_atlas_button_click():
         if register.image_to_adjust.value:
-            register.image_to_adjust.value.translate = (register.translate_y.value, register.translate_x.value)
+            register.image_to_adjust.value.translate = (
+                register.translate_y.value,
+                register.translate_x.value,
+            )
             register.image_to_adjust.value.rotate = register.rotate.value
 
     @register.reset_button.changed.connect
@@ -89,7 +108,9 @@ def register_widget() -> FunctionGui:
     @register.start_alignment_button.changed.connect
     def start_alignment_button_on_clik():
         if register.image_to_adjust.value:
-            image_to_adjust: "napari.layers.Image" = register.image_to_adjust.value
+            image_to_adjust: "napari.layers.Image" = (
+                register.image_to_adjust.value
+            )
             image_to_adjust.opacity = 0.6
             image_to_adjust.colormap = "green"
             image_to_adjust.blending = "translucent"
