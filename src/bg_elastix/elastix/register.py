@@ -10,14 +10,14 @@ def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
 
 
 def run_registration(
-        brain_atlas,
-        moving_image,
-        rigid=True,
-        affine=True,
-        bspline=True,
-        use_default_params=True,
-        affine_iterations="2048",
-        log=False,
+    brain_atlas,
+    moving_image,
+    rigid=True,
+    affine=True,
+    bspline=True,
+    use_default_params=True,
+    affine_iterations="2048",
+    log=False,
 ):
     # convert to ITK, view only
     brain_atlas = itk.GetImageViewFromArray(brain_atlas).astype(itk.F)
@@ -32,7 +32,7 @@ def run_registration(
         affine=affine,
         bspline=bspline,
         affine_iterations=affine_iterations,
-        use_default=use_default_params
+        use_default=use_default_params,
     )
     elastix_object.SetParameterObject(parameter_object)
 
@@ -46,11 +46,11 @@ def run_registration(
 
 
 def setup_parameter_object(
-        rigid=True,
-        affine=True,
-        bspline=True,
-        affine_iterations="2048",
-        use_default=True
+    rigid=True,
+    affine=True,
+    bspline=True,
+    affine_iterations="2048",
+    use_default=True,
 ):
     parameter_object = itk.ParameterObject.New()
 
@@ -60,17 +60,27 @@ def setup_parameter_object(
 
     if affine:
         if use_default:
-            parameter_map_affine = parameter_object.GetDefaultParameterMap("affine")
-            parameter_map_affine["MaximumNumberOfIterations"] = [affine_iterations]
+            parameter_map_affine = parameter_object.GetDefaultParameterMap(
+                "affine"
+            )
+            parameter_map_affine["MaximumNumberOfIterations"] = [
+                affine_iterations
+            ]
             parameter_object.AddParameterMap(parameter_map_affine)
         else:
-            parameter_object.AddParameterFile("./parameters/ara_tools/affine.txt")
+            parameter_object.AddParameterFile(
+                "./parameters/ara_tools/affine.txt"
+            )
 
     if bspline:
         if use_default:
-            parameter_map_bspline = parameter_object.GetDefaultParameterMap("bspline")
+            parameter_map_bspline = parameter_object.GetDefaultParameterMap(
+                "bspline"
+            )
             parameter_object.AddParameterMap(parameter_map_bspline)
         else:
-            parameter_object.AddParameterFile("./parameters/ara_tools/bspline.txt")
+            parameter_object.AddParameterFile(
+                "./parameters/ara_tools/bspline.txt"
+            )
 
     return parameter_object
