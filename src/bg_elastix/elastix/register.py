@@ -35,8 +35,6 @@ def run_registration(
         use_default=use_default_params
     )
     elastix_object.SetParameterObject(parameter_object)
-    elastix_object.LogToFileOn()
-    elastix_object.SetOutputDirectory("./logs")
 
     # update filter object
     elastix_object.UpdateLargestPossibleRegion()
