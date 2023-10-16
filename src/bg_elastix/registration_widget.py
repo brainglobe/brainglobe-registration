@@ -10,9 +10,12 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 from typing import List
 
+import numpy as np
+
 from bg_elastix.elastix.register import run_registration
 
 import napari.layers
+from pytransform3d.rotations import active_matrix_from_angle
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 from napari.viewer import Viewer
@@ -32,6 +35,23 @@ from qtpy.QtWidgets import (
 )
 
 from bg_elastix.utils.brainglobe_logo import header_widget
+
+
+def adjust_napari_image_layer(
+        image_layer: napari.layers.Layer, x: int, y: int, rotate: float):
+    """Adjusts the napari image layer by the given x, y, and rotation values.
+
+    Rotation around origin code adapted from:
+        https://forum.image.sc/t/napari-3d-rotation-center-change-and-scaling/66347/5
+    """
+    image_layer.translate = (y, x)
+
+    rotation_matrix = active_matrix_from_angle(2, np.deg2rad(rotate))
+    translate_matrix = np.eye(3)
+    origin = np.asarray(image_layer.data.shape) // 2 + np.asarray([y, x])
+    translate_matrix[:2, -1] = origin
+    transform_matrix = translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
+    image_layer.affine = transform_matrix
 
 
 class RegistrationWidget(QWidget):
@@ -57,7 +77,8 @@ class RegistrationWidget(QWidget):
         )
 
         self.available_sample_dropdown_label = QLabel("Select sample:")
-        # TODO update the layer names dropdown when new images are opened in the viewer, can then use the index directly instead of looping through the layers
+        # TODO update the layer names dropdown when new images are opened in the viewer, can then use the index
+        #  directly instead of looping through the layers
         self.available_sample_dropdown = QComboBox()
         self.curr_images = self.get_image_layer_names()
         self.available_sample_dropdown.addItems(self.curr_images)
@@ -202,7 +223,7 @@ class RegistrationWidget(QWidget):
     #             self.available_sample_images.addItems(self.curr_images)
 
     def _on_adjust_moving_image_button_click(self):
-        self.adjust_napari_image_layer(
+        adjust_napari_image_layer(
             self._moving_image,
             self.adjust_moving_image_x.value(),
             self.adjust_moving_image_y.value(),
@@ -223,7 +244,7 @@ class RegistrationWidget(QWidget):
         self.adjust_moving_image_y.setValue(0)
         self.adjust_moving_image_rotate.setValue(0)
 
-        self.adjust_napari_image_layer(self._moving_image, 0, 0, 0)
+        adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
         # if index >= 0:
         #     self.adjust_napari_image_layer(self._viewer.layers[index], 0, 0, 0)
@@ -248,6 +269,7 @@ class RegistrationWidget(QWidget):
         )
 
     def find_layer_index(self, layer_name: str) -> int:
+        """Finds the index of a layer in the napari viewer."""
         curr_layers = self._viewer.layers
 
         for idx, layer in enumerate(curr_layers):
@@ -257,10 +279,5 @@ class RegistrationWidget(QWidget):
         return -1
 
     def get_image_layer_names(self) -> List[str]:
+        """Returns a list of the names of the napari image layers currently in the layer."""
         return [layer.name for layer in self._viewer.layers]
-
-    def adjust_napari_image_layer(
-        self, image_layer: napari.layers.Image, x: int, y: int, rotate: float
-    ):
-        image_layer.translate = (y, x)
-        image_layer.rotate = rotate
