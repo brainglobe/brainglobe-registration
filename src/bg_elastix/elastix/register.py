@@ -27,6 +27,7 @@ def run_registration(
     elastix_object = itk.ElastixRegistrationMethod.New(
         brain_atlas, moving_image
     )
+
     parameter_object = setup_parameter_object(
         rigid=rigid,
         affine=affine,
@@ -34,6 +35,7 @@ def run_registration(
         affine_iterations=affine_iterations,
         use_default=use_default_params,
     )
+
     elastix_object.SetParameterObject(parameter_object)
 
     # update filter object
@@ -46,15 +48,15 @@ def run_registration(
 
 
 def setup_parameter_object(
-    rigid=True,
-    affine=True,
-    bspline=True,
+    rigid=False,
+    affine=False,
+    bspline=False,
     affine_iterations="2048",
     use_default=True,
 ):
     parameter_object = itk.ParameterObject.New()
 
-    if rigid:
+    if rigid and use_default:
         parameter_map_rigid = parameter_object.GetDefaultParameterMap("rigid")
         parameter_object.AddParameterMap(parameter_map_rigid)
 
@@ -63,9 +65,9 @@ def setup_parameter_object(
             parameter_map_affine = parameter_object.GetDefaultParameterMap(
                 "affine"
             )
-            parameter_map_affine["MaximumNumberOfIterations"] = [
-                affine_iterations
-            ]
+            # parameter_map_affine["MaximumNumberOfIterations"] = [
+            #     affine_iterations
+            # ]
             parameter_object.AddParameterMap(parameter_map_affine)
         else:
             parameter_object.AddParameterFile(

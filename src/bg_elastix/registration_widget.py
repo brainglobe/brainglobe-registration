@@ -31,7 +31,6 @@ from qtpy.QtWidgets import (
     QLabel,
     QFormLayout,
     QPushButton,
-    QGridLayout,
 )
 
 from bg_elastix.utils.brainglobe_logo import header_widget
@@ -59,7 +58,7 @@ class RegistrationWidget(QWidget):
         super().__init__()
 
         # Hacky way of having an empty first option for the dropdown
-        self._available_atlases = ["-----"] + get_downloaded_atlases()
+        self._available_atlases = ["------"] + get_downloaded_atlases()
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
 
