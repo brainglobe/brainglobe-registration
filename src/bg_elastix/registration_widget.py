@@ -37,7 +37,8 @@ from bg_elastix.utils.brainglobe_logo import header_widget
 
 
 def adjust_napari_image_layer(
-        image_layer: napari.layers.Layer, x: int, y: int, rotate: float):
+    image_layer: napari.layers.Layer, x: int, y: int, rotate: float
+):
     """Adjusts the napari image layer by the given x, y, and rotation values.
 
     Rotation around origin code adapted from:
@@ -49,7 +50,9 @@ def adjust_napari_image_layer(
     translate_matrix = np.eye(3)
     origin = np.asarray(image_layer.data.shape) // 2 + np.asarray([y, x])
     translate_matrix[:2, -1] = origin
-    transform_matrix = translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
+    transform_matrix = (
+        translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
+    )
     image_layer.affine = transform_matrix
 
 
