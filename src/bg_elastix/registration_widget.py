@@ -11,7 +11,7 @@ Users can download and add the atlas images/structures as layers to the viewer.
 from typing import List
 
 import numpy as np
-import itk
+from pathlib import Path
 
 from bg_elastix.elastix.register import run_registration
 from bg_elastix.widgets.select_images_view import SelectImagesView
@@ -59,12 +59,34 @@ def adjust_napari_image_layer(
     image_layer.affine = transform_matrix
 
 
+def open_parameter_file(file_path: Path) -> dict:
+    """
+    Opens the parameter file and returns the transform type and the parameter dictionary.
+    """
+    with open(file_path, "r") as f:
+        param_dict = {}
+        for line in f.readlines():
+            if line[0] == "(":
+                split_line = line[1:-1].split()
+                param_dict[split_line[0]] = split_line[1].strip("\" )")
+
+    return param_dict
+
+
 class RegistrationWidget(QWidget):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
 
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
+
+        self.transform_params = {"rigid": {}, "affine": {}, "bspline": {}}
+
+        for transform_type in self.transform_params:
+            file_path = Path() / "parameters" / "elastix_default" / f"{transform_type}.txt"
+
+            if file_path.exists():
+                self.transform_params[transform_type] = open_parameter_file(file_path)
 
         # Hacky way of having an empty first option for the dropdown
         self._available_atlases = ["------"] + get_downloaded_atlases()
@@ -76,13 +98,13 @@ class RegistrationWidget(QWidget):
             header_widget(tutorial_file_name="register-2D-image.html")
         )
 
-        self.column_layout = QTabWidget(parent=self)
-        self.column_layout.setTabPosition(QTabWidget.West)
-        self.column_layout.setStyleSheet("QTabBar::tab { height: 200px; width: 30px; font-size: 20px;}")
-        self.column_one = QGroupBox()
-        self.column_one.setLayout(QVBoxLayout())
-        self.column_two = QGroupBox()
-        self.column_two.setLayout(QVBoxLayout())
+        self.main_tabs = QTabWidget(parent=self)
+        self.main_tabs.setTabPosition(QTabWidget.West)
+        # self.main_tabs.setStyleSheet("QTabBar::tab { height: 200px; width: 30px; font-size: 20px;}")
+
+        self.settings_tab = QGroupBox()
+        self.settings_tab.setLayout(QVBoxLayout())
+        self.parameters_tab = QTabWidget()
 
         self.get_atlas_widget = SelectImagesView(
             available_atlases=self._available_atlases,
@@ -111,19 +133,41 @@ class RegistrationWidget(QWidget):
             self._on_run_button_click
         )
 
-        self.parameter_list = RegistrationParameterListView()
+        self.run_settings_widget.rigid_checkbox_signal.connect(
+            self._on_rigid_checkbox_change
+        )
 
-        self.column_one.layout().addWidget(self.get_atlas_widget)
-        self.column_one.layout().addWidget(self.adjust_moving_image_widget)
-        self.column_one.layout().addWidget(self.run_settings_widget)
-        self.column_one.layout().setAlignment(Qt.AlignTop)
+        self.run_settings_widget.affine_checkbox_signal.connect(
+            self._on_affine_checkbox_change
+        )
 
-        self.column_two.layout().addWidget(self.parameter_list)
+        self.run_settings_widget.bspline_checkbox_signal.connect(
+            self._on_bspline_checkbox_change
+        )
 
-        self.column_layout.addTab(self.column_one, "Settings")
-        self.column_layout.addTab(self.column_two, "Parameters")
+        self.run_settings_widget.default_file_signal.connect(
+            self._on_default_file_change
+        )
 
-        self.layout().addWidget(self.column_layout)
+        self.settings_tab.layout().addWidget(self.get_atlas_widget)
+        self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
+        self.settings_tab.layout().addWidget(self.run_settings_widget)
+        self.settings_tab.layout().setAlignment(Qt.AlignTop)
+        self.parameter_list_tabs = {}
+
+        for transform_type in self.transform_params:
+            new_tab = RegistrationParameterListView(
+                param_dict=self.transform_params[transform_type],
+                transform_type=transform_type
+            )
+
+            self.parameters_tab.addTab(new_tab, transform_type)
+            self.parameter_list_tabs[transform_type] = new_tab
+
+        self.main_tabs.addTab(self.settings_tab, "Settings")
+        self.main_tabs.addTab(self.parameters_tab, "Parameters")
+
+        self.layout().addWidget(self.main_tabs)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
@@ -186,6 +230,25 @@ class RegistrationWidget(QWidget):
             name="Registered Annotations",
             visible=False,
         )
+
+    def _on_default_file_change(self, directory: str):
+        for transform_type in self.transform_params:
+            file_path = Path() / "parameters" / directory / f"{transform_type}.txt"
+
+            if file_path.exists():
+                self.transform_params[transform_type] = open_parameter_file(file_path)
+                # Signal to the parameter list view to update the parameters
+                self.parameter_list_tabs[transform_type].set_data(self.transform_params[transform_type])
+
+
+    def _on_rigid_checkbox_change(self, state):
+        self.parameters_tab.setTabEnabled(0, state)
+
+    def _on_affine_checkbox_change(self, state):
+        self.parameters_tab.setTabEnabled(1, state)
+
+    def _on_bspline_checkbox_change(self, state):
+        self.parameters_tab.setTabEnabled(2, state)
 
     def find_layer_index(self, layer_name: str) -> int:
         """Finds the index of a layer in the napari viewer."""
