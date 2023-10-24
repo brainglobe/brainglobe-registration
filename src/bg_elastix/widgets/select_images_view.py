@@ -20,13 +20,13 @@ class SelectImagesView(QGroupBox):
         self.setLayout(QVBoxLayout())
 
         self.available_atlas_dropdown_label = QLabel("Select Atlas:")
-        self.available_atlas_dropdown = QComboBox()
+        self.available_atlas_dropdown = QComboBox(parent=self)
         self.available_atlas_dropdown.addItems(available_atlases)
 
         self.available_sample_dropdown_label = QLabel("Select sample:")
         # TODO update the layer names dropdown when new images are opened in the viewer, can then use the index
         #  directly instead of looping through the layers
-        self.available_sample_dropdown = QComboBox()
+        self.available_sample_dropdown = QComboBox(parent=self)
         self.available_sample_dropdown.addItems(sample_image_names)
 
         self.available_atlas_dropdown.currentIndexChanged.connect(

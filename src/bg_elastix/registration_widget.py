@@ -15,7 +15,7 @@ import numpy as np
 from bg_elastix.elastix.register import run_registration
 from bg_elastix.widgets.select_images_view import SelectImagesView
 from bg_elastix.widgets.adjust_moving_image_view import AdjustMovingImageView
-from bg_elastix.widgets.registration_parameters_view import RegistrationParametersView
+from bg_elastix.widgets.run_settings_select_view import RunSettingsSelectView
 
 import napari.layers
 from pytransform3d.rotations import active_matrix_from_angle
@@ -92,48 +92,15 @@ class RegistrationWidget(QWidget):
             self._on_adjust_moving_image_reset_button_click
         )
 
-        self.test_widget = RegistrationParametersView()
+        self.run_settings_widget = RunSettingsSelectView()
 
-        self.registration_parameters_widget = QGroupBox()
-        self.registration_parameters_widget.setLayout(QVBoxLayout())
-
-        self.rigid_checkbox = QCheckBox("Rigid")
-        self.rigid_checkbox.setChecked(True)
-
-        self.affine_checkbox = QCheckBox("Affine")
-        self.affine_checkbox.setChecked(True)
-
-        self.bspline_checkbox = QCheckBox("B-Spline")
-        self.bspline_checkbox.setChecked(True)
-
-        self.use_default_params_checkbox = QCheckBox("Default Params")
-        self.log_checkbox = QCheckBox("Log")
-
-        self.run_button = QPushButton()
-        self.run_button.setText("Run Registration")
-        self.run_button.clicked.connect(self._on_run_button_click)
-
-        self.registration_parameters_widget.layout().addWidget(
-            self.rigid_checkbox
+        self.run_settings_widget.run_signal.connect(
+            self._on_run_button_click
         )
-        self.registration_parameters_widget.layout().addWidget(
-            self.affine_checkbox
-        )
-        self.registration_parameters_widget.layout().addWidget(
-            self.bspline_checkbox
-        )
-        self.registration_parameters_widget.layout().addWidget(
-            self.use_default_params_checkbox
-        )
-        self.registration_parameters_widget.layout().addWidget(
-            self.log_checkbox
-        )
-        self.registration_parameters_widget.layout().addWidget(self.run_button)
 
         self.layout().addWidget(self.get_atlas_widget)
         self.layout().addWidget(self.adjust_moving_image_widget)
-        self.layout().addWidget(self.registration_parameters_widget)
-        self.layout().addWidget(self.test_widget)
+        self.layout().addWidget(self.run_settings_widget)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
@@ -175,16 +142,19 @@ class RegistrationWidget(QWidget):
     def _on_adjust_moving_image_reset_button_click(self):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
-    def _on_run_button_click(self):
+    def _on_run_button_click(
+            self, rigid: bool, affine: bool, bspline: bool,
+            use_default_params: bool, default_params_file: str):
         current_atlas_slice = self._viewer.dims.current_step[0]
 
+        # TODO Pass back default file to back end
         result, parameters = run_registration(
             self._atlas.reference[current_atlas_slice, :, :],
             self._moving_image.data,
-            self.rigid_checkbox.isChecked(),
-            self.affine_checkbox.isChecked(),
-            self.bspline_checkbox.isChecked(),
-            self.use_default_params_checkbox.isChecked(),
+            rigid,
+            affine,
+            bspline,
+            use_default_params,
         )
 
         self._viewer.add_image(result, name="Registered Image")
