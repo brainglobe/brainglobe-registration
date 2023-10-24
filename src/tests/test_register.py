@@ -1,8 +1,35 @@
 import itk
 import pytest
+import numpy as np
+from PIL import Image
 
-from bg_elastix.elastix.register import setup_parameter_object
+from bg_elastix.elastix.register import setup_parameter_object, run_registration
 
+
+@pytest.fixture
+def sample_atlas():
+    return Image.open('test_images/Atlas_Hipp.tif')
+
+
+@pytest.fixture
+def sample_moving_image():
+    return Image.open('test_images/Sample_Hipp.tif')
+
+
+@pytest.mark.slow
+def test_run_registration(sample_atlas, sample_moving_image):
+    result_image, transform_parameters = run_registration(
+        sample_atlas,
+        sample_moving_image,
+        rigid=True,
+        affine=False,
+        bspline=False,
+        use_default_params=True,
+        affine_iterations="2048",
+        log=False,
+    )
+    assert result_image is not None
+    assert transform_parameters is not None
 
 @pytest.mark.xfail()
 def test_setup_parameter_object_rigid_custom():
