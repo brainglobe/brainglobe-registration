@@ -18,7 +18,11 @@ class RunSettingsSelectView(QGroupBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.file_options = ["elastix_default", "ara_tools", "brainregister_IBL"]
+        self.file_options = [
+            "elastix_default",
+            "ara_tools",
+            "brainregister_IBL",
+        ]
 
         self.setLayout(QVBoxLayout())
 

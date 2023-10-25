@@ -1,18 +1,10 @@
-from qtpy.QtCore import Signal
-
 from qtpy.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
-    QFormLayout,
-    QSpinBox,
-    QDoubleSpinBox,
-    QPushButton,
-    QHBoxLayout,
 )
 
 
 class RegistrationParameterListView(QTableWidget):
-
     def __init__(self, param_dict: dict, transform_type: str, parent=None):
         super().__init__(parent)
         self.param_dict = {}
@@ -25,7 +17,7 @@ class RegistrationParameterListView(QTableWidget):
         self.cellChanged.connect(self._on_cell_change)
 
     def set_data(self, param_dict):
-        self.setRowCount(len(param_dict)+2)
+        self.setRowCount(len(param_dict) + 1)
         for i, k in enumerate(param_dict):
             new_param = QTableWidgetItem(k)
             new_value = QTableWidgetItem(param_dict[k])
@@ -42,3 +34,6 @@ class RegistrationParameterListView(QTableWidget):
             parameter = self.item(row, 0).text()
             value = self.item(row, 1).text()
             self.param_dict[parameter] = value
+
+            if row == self.rowCount() - 1:
+                self.setRowCount(self.rowCount() + 1)

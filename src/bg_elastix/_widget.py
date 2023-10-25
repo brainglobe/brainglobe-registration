@@ -1,10 +1,7 @@
 from typing import TYPE_CHECKING, List
 
-from magicgui import magic_factory, magicgui
-from magicgui.widgets import FunctionGui, PushButton
-from napari.layers.image import Image
-from napari.utils.events import Event
-import napari
+from magicgui import magicgui
+from magicgui.widgets import FunctionGui
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 
 from bg_elastix.elastix.register import run_registration, get_atlas_by_name
@@ -46,7 +43,7 @@ def register_widget() -> FunctionGui:
         use_default_params=True,
         affine_iterations="2048",
         log=False,
-    ) -> List[napari.layers.Layer]:
+    ) -> List["napari.layers.Layer"]:
         current_atlas_slice = viewer.dims.current_step[0]
 
         result, parameters = run_registration(

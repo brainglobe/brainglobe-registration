@@ -17,7 +17,9 @@ from bg_elastix.elastix.register import run_registration
 from bg_elastix.widgets.select_images_view import SelectImagesView
 from bg_elastix.widgets.adjust_moving_image_view import AdjustMovingImageView
 from bg_elastix.widgets.run_settings_select_view import RunSettingsSelectView
-from bg_elastix.widgets.parameter_list_view import RegistrationParameterListView
+from bg_elastix.widgets.parameter_list_view import (
+    RegistrationParameterListView,
+)
 
 import napari.layers
 from pytransform3d.rotations import active_matrix_from_angle
@@ -26,13 +28,10 @@ from bg_atlasapi.list_atlases import get_downloaded_atlases
 from napari.viewer import Viewer
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
-    QHBoxLayout,
-    QBoxLayout,
     QGroupBox,
     QVBoxLayout,
     QWidget,
     QTabWidget,
-    QGridLayout,
     QPushButton,
 )
 
@@ -61,14 +60,14 @@ def adjust_napari_image_layer(
 
 def open_parameter_file(file_path: Path) -> dict:
     """
-    Opens the parameter file and returns the transform type and the parameter dictionary.
+    Opens the parameter file and returns the parameter dictionary.
     """
     with open(file_path, "r") as f:
         param_dict = {}
         for line in f.readlines():
             if line[0] == "(":
                 split_line = line[1:-1].split()
-                param_dict[split_line[0]] = split_line[1].strip("\" )")
+                param_dict[split_line[0]] = split_line[1].strip('" )')
 
     return param_dict
 
@@ -83,15 +82,22 @@ class RegistrationWidget(QWidget):
         self.transform_params = {"rigid": {}, "affine": {}, "bspline": {}}
 
         for transform_type in self.transform_params:
-            file_path = Path() / "parameters" / "elastix_default" / f"{transform_type}.txt"
+            file_path = (
+                Path()
+                / "parameters"
+                / "elastix_default"
+                / f"{transform_type}.txt"
+            )
 
             if file_path.exists():
-                self.transform_params[transform_type] = open_parameter_file(file_path)
+                self.transform_params[transform_type] = open_parameter_file(
+                    file_path
+                )
 
         # Hacky way of having an empty first option for the dropdown
         self._available_atlases = ["------"] + get_downloaded_atlases()
-        self._sample_images = ["------"] + self.get_image_layer_names()
-        self._moving_image = None
+        self._sample_images = self.get_image_layer_names()
+        self._moving_image = self._viewer.layers[0]
 
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(
@@ -100,7 +106,9 @@ class RegistrationWidget(QWidget):
 
         self.main_tabs = QTabWidget(parent=self)
         self.main_tabs.setTabPosition(QTabWidget.West)
-        # self.main_tabs.setStyleSheet("QTabBar::tab { height: 200px; width: 30px; font-size: 20px;}")
+        # self.main_tabs.setStyleSheet(
+        # "QTabBar::tab { height: 200px; width: 30px; font-size: 20px;}"
+        # )
 
         self.settings_tab = QGroupBox()
         self.settings_tab.setLayout(QVBoxLayout())
@@ -129,9 +137,7 @@ class RegistrationWidget(QWidget):
 
         self.run_settings_widget = RunSettingsSelectView()
 
-        self.run_settings_widget.run_signal.connect(
-            self._on_run_button_click
-        )
+        self.run_settings_widget.run_signal.connect(self._on_run_button_click)
 
         self.run_settings_widget.rigid_checkbox_signal.connect(
             self._on_rigid_checkbox_change
@@ -150,9 +156,7 @@ class RegistrationWidget(QWidget):
         )
 
         self.test_button = QPushButton("Test")
-        self.test_button.clicked.connect(
-            self._on_test_button_click
-        )
+        self.test_button.clicked.connect(self._on_test_button_click)
 
         self.settings_tab.layout().addWidget(self.get_atlas_widget)
         self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
@@ -164,7 +168,7 @@ class RegistrationWidget(QWidget):
         for transform_type in self.transform_params:
             new_tab = RegistrationParameterListView(
                 param_dict=self.transform_params[transform_type],
-                transform_type=transform_type
+                transform_type=transform_type,
             )
 
             self.parameters_tab.addTab(new_tab, transform_type)
@@ -201,22 +205,28 @@ class RegistrationWidget(QWidget):
         self._viewer.grid.enabled = True
 
     def _on_sample_dropdown_index_changed(self, index):
-        if index > 0:
-            viewer_index = self.find_layer_index(self._sample_images[index])
-            self._moving_image = self._viewer.layers[viewer_index]
-            # if (len(self.curr_images) - 1 != len(self._viewer.layers)):
-            #     self.curr_images = ["-----"] + self.get_image_layer_names()
-            #     self.available_sample_images.clear()
-            #     self.available_sample_images.addItems(self.curr_images)
+        viewer_index = self.find_layer_index(self._sample_images[index])
+        self._moving_image = self._viewer.layers[viewer_index]
+        # if (len(self.curr_images) - 1 != len(self._viewer.layers)):
+        #     self.curr_images = ["-----"] + self.get_image_layer_names()
+        #     self.available_sample_images.clear()
+        #     self.available_sample_images.addItems(self.curr_images)
 
-    def _on_adjust_moving_image_button_click(self, x: int, y: int, rotate: float):
+    def _on_adjust_moving_image_button_click(
+        self, x: int, y: int, rotate: float
+    ):
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
 
     def _on_adjust_moving_image_reset_button_click(self):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(
-            self, rigid: bool, affine: bool, bspline: bool,default_params_file: str):
+        self,
+        rigid: bool,
+        affine: bool,
+        bspline: bool,
+        default_params_file: str,
+    ):
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         # TODO Pass back default file to back end
@@ -238,13 +248,18 @@ class RegistrationWidget(QWidget):
 
     def _on_default_file_change(self, directory: str):
         for transform_type in self.transform_params:
-            file_path = Path() / "parameters" / directory / f"{transform_type}.txt"
+            file_path = (
+                Path() / "parameters" / directory / f"{transform_type}.txt"
+            )
 
             if file_path.exists():
-                self.transform_params[transform_type] = open_parameter_file(file_path)
+                self.transform_params[transform_type] = open_parameter_file(
+                    file_path
+                )
                 # Signal to the parameter list view to update the parameters
-                self.parameter_list_tabs[transform_type].set_data(self.transform_params[transform_type])
-
+                self.parameter_list_tabs[transform_type].set_data(
+                    self.transform_params[transform_type]
+                )
 
     def _on_rigid_checkbox_change(self, state):
         self.parameters_tab.setTabEnabled(0, state)
@@ -266,7 +281,9 @@ class RegistrationWidget(QWidget):
         return -1
 
     def get_image_layer_names(self) -> List[str]:
-        """Returns a list of the names of the napari image layers currently in the layer."""
+        """
+        Returns a list of the names of the napari image layers in the viewer.
+        """
         return [layer.name for layer in self._viewer.layers]
 
     def _on_test_button_click(self):

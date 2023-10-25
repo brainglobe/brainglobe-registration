@@ -57,18 +57,12 @@ class AdjustMovingImageView(QGroupBox):
             self.adjust_moving_image_reset_button
         )
 
-        self.layout().addRow(
-            "X offset:", self.adjust_moving_image_x
-        )
-        self.layout().addRow(
-            "Y offset:", self.adjust_moving_image_y
-        )
+        self.layout().addRow("X offset:", self.adjust_moving_image_x)
+        self.layout().addRow("Y offset:", self.adjust_moving_image_y)
         self.layout().addRow(
             "Rotation (degrees):", self.adjust_moving_image_rotate
         )
-        self.layout().addRow(
-            self.adjust_moving_image_buttons
-        )
+        self.layout().addRow(self.adjust_moving_image_buttons)
 
     def _on_adjust_image_button_click(self):
         self.adjust_image_signal.emit(
