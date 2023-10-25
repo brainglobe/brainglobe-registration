@@ -10,7 +10,7 @@ from qtpy.QtWidgets import (
 
 
 class RunSettingsSelectView(QGroupBox):
-    run_signal = Signal(bool, bool, bool, bool, str)
+    run_signal = Signal(bool, bool, bool, str)
     default_file_signal = Signal(str)
     rigid_checkbox_signal = Signal(bool)
     affine_checkbox_signal = Signal(bool)
@@ -61,7 +61,6 @@ class RunSettingsSelectView(QGroupBox):
             self.rigid_checkbox.isChecked(),
             self.affine_checkbox.isChecked(),
             self.bspline_checkbox.isChecked(),
-            self.use_default_params_checkbox.isChecked(),
             self.select_default_file.currentText(),
         )
 

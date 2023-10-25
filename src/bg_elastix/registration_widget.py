@@ -149,9 +149,15 @@ class RegistrationWidget(QWidget):
             self._on_default_file_change
         )
 
+        self.test_button = QPushButton("Test")
+        self.test_button.clicked.connect(
+            self._on_test_button_click
+        )
+
         self.settings_tab.layout().addWidget(self.get_atlas_widget)
         self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
         self.settings_tab.layout().addWidget(self.run_settings_widget)
+        self.settings_tab.layout().addWidget(self.test_button)
         self.settings_tab.layout().setAlignment(Qt.AlignTop)
         self.parameter_list_tabs = {}
 
@@ -210,8 +216,7 @@ class RegistrationWidget(QWidget):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(
-            self, rigid: bool, affine: bool, bspline: bool,
-            use_default_params: bool, default_params_file: str):
+            self, rigid: bool, affine: bool, bspline: bool,default_params_file: str):
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         # TODO Pass back default file to back end
@@ -221,7 +226,7 @@ class RegistrationWidget(QWidget):
             rigid,
             affine,
             bspline,
-            use_default_params,
+            False,
         )
 
         self._viewer.add_image(result, name="Registered Image")
@@ -264,3 +269,5 @@ class RegistrationWidget(QWidget):
         """Returns a list of the names of the napari image layers currently in the layer."""
         return [layer.name for layer in self._viewer.layers]
 
+    def _on_test_button_click(self):
+        print(self.transform_params["affine"])
