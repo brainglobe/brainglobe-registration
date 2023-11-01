@@ -1,11 +1,11 @@
-# bg-elastix
+# brainglobe-registration
 
-[![License BSD-3](https://img.shields.io/pypi/l/bg-elastix.svg?color=green)](https://github.com/brainglobe/bg-elastix/raw/main/LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/bg-elastix.svg?color=green)](https://pypi.org/project/bg-elastix)
-[![Python Version](https://img.shields.io/pypi/pyversions/bg-elastix.svg?color=green)](https://python.org)
-[![tests](https://github.com/brainglobe/bg-elastix/workflows/tests/badge.svg)](https://github.com/brainglobe/bg-elastix/actions)
-[![codecov](https://codecov.io/gh/brainglobe/bg-elastix/branch/main/graph/badge.svg)](https://codecov.io/gh/brainglobe/bg-elastix)
-[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/bg-elastix)](https://napari-hub.org/plugins/bg-elastix)
+[![License BSD-3](https://img.shields.io/pypi/l/brainglobe-registration.svg?color=green)](https://github.com/brainglobe/brainglobe-registration/raw/main/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/brainglobe-registration.svg?color=green)](https://pypi.org/project/brainglobe-registration)
+[![Python Version](https://img.shields.io/pypi/pyversions/brainglobe-registration.svg?color=green)](https://python.org)
+[![tests](https://github.com/brainglobe/brainglobe-registration/workflows/tests/badge.svg)](https://github.com/brainglobe/brainglobe-registration/actions)
+[![codecov](https://codecov.io/gh/brainglobe/brainglobe-registration/branch/main/graph/badge.svg)](https://codecov.io/gh/brainglobe/brainglobe-registration)
+[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/brainglobe-registration)](https://napari-hub.org/plugins/brainglobe-registration)
 
 Registration to a BrainGlobe atlas using Elastix
 
@@ -23,15 +23,15 @@ https://napari.org/stable/plugins/index.html
 
 ## Installation
 
-You can install `bg-elastix` via [pip]:
+You can install `brainglobe-registration` via [pip]:
 
-    pip install bg-elastix
+    pip install brainglobe-registration
 
 
 
 To install latest development version :
 
-    pip install git+https://github.com/brainglobe/bg-elastix.git
+    pip install git+https://github.com/brainglobe/brainglobe-registration.git
 
 
 ## Contributing
@@ -42,7 +42,7 @@ the coverage at least stays the same before you submit a pull request.
 ## License
 
 Distributed under the terms of the [BSD-3] license,
-"bg-elastix" is free and open source software
+"brainglobe-registration" is free and open source software
 
 ## Issues
 
@@ -59,7 +59,7 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
 [cookiecutter-napari-plugin]: https://github.com/napari/cookiecutter-napari-plugin
 
-[file an issue]: https://github.com/brainglobe/bg-elastix/issues
+[file an issue]: https://github.com/brainglobe/brainglobe-registration/issues
 
 [napari]: https://github.com/napari/napari
 [tox]: https://tox.readthedocs.io/en/latest/

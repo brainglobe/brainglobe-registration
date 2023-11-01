@@ -1,10 +1,10 @@
-name: bg-elastix
+name: brainglobe-registration
 display_name: BrainGlobe Elastix Registration
 contributions:
   commands:
-    - id: bg-elastix.register
-      python_name: bg_elastix._widget:register
+    - id: brainglobe-registration.register
+      python_name: brainglobe_registration._widget:register
       title: BrainGlobe Elastix Registration
   widgets:
-    - command: bg-elastix.register
+    - command: brainglobe-registration.register
       display_name: BrainGlobe Elastix Registration
