@@ -2,14 +2,14 @@ name: brainglobe-registration
 display_name: BrainGlobe Elastix Registration
 contributions:
   commands:
-    - id: bg-elastix.make_registration_widget
-      python_name: bg_elastix.registration_widget:RegistrationWidget
+    - id: brainglobe-registration.make_registration_widget
+      python_name: brainglobe_registration.registration_widget:RegistrationWidget
       title: QT Registration Widget
-    - id: bg-elastix.register
-      python_name: bg_elastix._widget:register_widget
+    - id: brainglobe-registration.register
+      python_name: brainglobe_registration._widget:register_widget
       title: BrainGlobe Elastix Registration
   widgets:
-    - command: bg-elastix.make_registration_widget
+    - command: brainglobe-registration.make_registration_widget
       display_name: QT Registration Widget
-    - command: bg-elastix.register
+    - command: brainglobe-registration.register
       display_name: BrainGlobe Elastix Registration

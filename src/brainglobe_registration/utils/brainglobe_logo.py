@@ -7,7 +7,9 @@ from importlib.resources import files
 
 from qtpy.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QWidget
 
-brainglobe_logo = files("bg_elastix").joinpath("resources/brainglobe.png")
+brainglobe_logo = files("brainglobe_registration").joinpath(
+    "resources/brainglobe.png"
+)
 
 _logo_html = f"""
 <h1>

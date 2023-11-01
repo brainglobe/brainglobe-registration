@@ -13,11 +13,15 @@ from typing import List
 import numpy as np
 from pathlib import Path
 
-from bg_elastix.elastix.register import run_registration
-from bg_elastix.widgets.select_images_view import SelectImagesView
-from bg_elastix.widgets.adjust_moving_image_view import AdjustMovingImageView
-from bg_elastix.widgets.run_settings_select_view import RunSettingsSelectView
-from bg_elastix.widgets.parameter_list_view import (
+from brainglobe_registration.elastix.register import run_registration
+from brainglobe_registration.widgets.select_images_view import SelectImagesView
+from brainglobe_registration.widgets.adjust_moving_image_view import (
+    AdjustMovingImageView,
+)
+from brainglobe_registration.widgets.run_settings_select_view import (
+    RunSettingsSelectView,
+)
+from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
 
@@ -35,7 +39,7 @@ from qtpy.QtWidgets import (
     QPushButton,
 )
 
-from bg_elastix.utils.brainglobe_logo import header_widget
+from brainglobe_registration.utils.brainglobe_logo import header_widget
 
 
 def adjust_napari_image_layer(

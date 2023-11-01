@@ -4,7 +4,10 @@ from magicgui import magicgui
 from magicgui.widgets import FunctionGui
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 
-from bg_elastix.elastix.register import run_registration, get_atlas_by_name
+from brainglobe_registration.elastix.register import (
+    run_registration,
+    get_atlas_by_name,
+)
 
 if TYPE_CHECKING:
     import napari
