@@ -10,31 +10,30 @@ def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
 
 
 def run_registration(
-    brain_atlas,
+    atlas_image,
     moving_image,
     rigid=True,
     affine=True,
     bspline=True,
-    use_default_params=True,
-    affine_iterations="2048",
-    log=False,
+    parameter_dicts: dict[str] = None,
 ):
     # convert to ITK, view only
-    brain_atlas = itk.GetImageViewFromArray(brain_atlas).astype(itk.F)
+    atlas_image = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
     moving_image = itk.GetImageViewFromArray(moving_image).astype(itk.F)
 
     # This syntax needed for 3D images
     elastix_object = itk.ElastixRegistrationMethod.New(
-        brain_atlas, moving_image
+        atlas_image, moving_image
     )
 
     parameter_object = setup_parameter_object(
         rigid=rigid,
         affine=affine,
         bspline=bspline,
-        affine_iterations=affine_iterations,
-        use_default=use_default_params,
+        parameter_dicts=parameter_dicts,
     )
+
+    print(parameter_object)
 
     elastix_object.SetParameterObject(parameter_object)
 
@@ -48,41 +47,49 @@ def run_registration(
 
 
 def setup_parameter_object(
-    rigid=False,
-    affine=False,
-    bspline=False,
-    affine_iterations="2048",
-    use_default=True,
+    rigid: bool = False,
+    affine: bool = False,
+    bspline: bool = False,
+    parameter_dicts: dict[str] = None,
+    use_default=False,
 ):
     parameter_object = itk.ParameterObject.New()
 
-    if rigid and use_default:
+    if rigid and not use_default:
+        # Hack way of getting a new parameter map
+        # Create an empty parameter map
         parameter_map_rigid = parameter_object.GetDefaultParameterMap("rigid")
+
+        for param in parameter_map_rigid:
+            parameter_map_rigid.pop(param)
+
+        for k, v in parameter_dicts["rigid"].items():
+            parameter_map_rigid[k] = [v]
+
         parameter_object.AddParameterMap(parameter_map_rigid)
 
-    if affine:
-        if use_default:
-            parameter_map_affine = parameter_object.GetDefaultParameterMap(
-                "affine"
-            )
-            # parameter_map_affine["MaximumNumberOfIterations"] = [
-            #     affine_iterations
-            # ]
-            parameter_object.AddParameterMap(parameter_map_affine)
-        else:
-            parameter_object.AddParameterFile(
-                "./parameters/ara_tools/affine.txt"
-            )
+    if affine and not use_default:
+        parameter_map_affine = parameter_object.GetDefaultParameterMap("rigid")
+
+        for param in parameter_map_affine:
+            parameter_map_affine.pop(param)
+
+        for k, v in parameter_dicts["affine"].items():
+            parameter_map_affine[k] = [v]
+
+        parameter_object.AddParameterMap(parameter_map_affine)
 
     if bspline:
-        if use_default:
-            parameter_map_bspline = parameter_object.GetDefaultParameterMap(
-                "bspline"
-            )
-            parameter_object.AddParameterMap(parameter_map_bspline)
-        else:
-            parameter_object.AddParameterFile(
-                "./parameters/ara_tools/bspline.txt"
-            )
+        parameter_map_bspline = parameter_object.GetDefaultParameterMap(
+            "rigid"
+        )
+
+        for param in parameter_map_bspline:
+            parameter_map_bspline.pop(param)
+
+        for k, v in parameter_dicts["bspline"].items():
+            parameter_map_bspline[k] = [v]
+
+        parameter_object.AddParameterMap(parameter_map_bspline)
 
     return parameter_object

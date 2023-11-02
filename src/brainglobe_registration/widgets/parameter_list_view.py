@@ -37,3 +37,6 @@ class RegistrationParameterListView(QTableWidget):
 
             if row == self.rowCount() - 1:
                 self.setRowCount(self.rowCount() + 1)
+        # TODO - add a way to remove rows if they are empty removing
+        #  them from the param dictionary (might have to save the parameter when
+        #  it is selected)

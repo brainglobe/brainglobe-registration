@@ -229,18 +229,16 @@ class RegistrationWidget(QWidget):
         rigid: bool,
         affine: bool,
         bspline: bool,
-        default_params_file: str,
     ):
         current_atlas_slice = self._viewer.dims.current_step[0]
 
-        # TODO Pass back default file to back end
         result, parameters = run_registration(
             self._atlas.reference[current_atlas_slice, :, :],
             self._moving_image.data,
             rigid,
             affine,
             bspline,
-            False,
+            self.transform_params,
         )
 
         self._viewer.add_image(result, name="Registered Image")
