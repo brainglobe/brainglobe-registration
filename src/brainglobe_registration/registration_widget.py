@@ -328,3 +328,18 @@ class RegistrationWidget(QWidget):
             raise IndexError("Transform removed out of order")
         else:
             self.transform_selections.pop(transform_order)
+
+    def _on_default_file_selection_change(
+        self, default_file_type: str, index: int
+    ) -> None:
+        if index > len(self.transform_selections):
+            raise IndexError("Transform file selection out of order")
+
+        transform_type = self.transform_selections[index][0]
+        file_path = (
+            Path() / "parameters" / default_file_type / f"{transform_type}.txt"
+        )
+
+        param_dict = open_parameter_file(file_path)
+
+        self.transform_selections[index] = (transform_type, param_dict)
