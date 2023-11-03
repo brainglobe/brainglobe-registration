@@ -1,15 +1,15 @@
 from qtpy.QtCore import Signal
 
 from qtpy.QtWidgets import (
-    QGroupBox,
     QCheckBox,
     QPushButton,
     QVBoxLayout,
     QComboBox,
+    QWidget,
 )
 
 
-class RunSettingsSelectView(QGroupBox):
+class RunSettingsSelectView(QWidget):
     run_signal = Signal(bool, bool, bool, str)
     default_file_signal = Signal(str)
     rigid_checkbox_signal = Signal(bool)

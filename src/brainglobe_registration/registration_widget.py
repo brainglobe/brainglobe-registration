@@ -24,6 +24,9 @@ from brainglobe_registration.widgets.run_settings_select_view import (
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
+from brainglobe_registration.widgets.transform_select_view import (
+    TransformSelectView,
+)
 
 import napari.layers
 from pytransform3d.rotations import active_matrix_from_angle
@@ -84,6 +87,7 @@ class RegistrationWidget(QWidget):
         self._atlas: BrainGlobeAtlas = None
 
         self.transform_params = {"rigid": {}, "affine": {}, "bspline": {}}
+        self.transform_selections = []
 
         for transform_type in self.transform_params:
             file_path = (
@@ -177,6 +181,19 @@ class RegistrationWidget(QWidget):
 
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_list_tabs[transform_type] = new_tab
+
+        self.transform_select_view = TransformSelectView()
+        self.transform_select_view.transform_type_added_signal.connect(
+            self._on_transform_type_added
+        )
+        self.transform_select_view.transform_type_removed_signal.connect(
+            self._on_transform_type_removed
+        )
+        self.transform_select_view.file_signal.connect(
+            self._on_default_file_selection_change
+        )
+
+        self.settings_tab.layout().addWidget(self.transform_select_view)
 
         self.main_tabs.addTab(self.settings_tab, "Settings")
         self.main_tabs.addTab(self.parameters_tab, "Parameters")
@@ -289,4 +306,25 @@ class RegistrationWidget(QWidget):
         return [layer.name for layer in self._viewer.layers]
 
     def _on_test_button_click(self):
-        print(self.transform_params["affine"])
+        print(self.transform_selections)
+
+    def _on_transform_type_added(
+        self, transform_type: str, transform_order: int
+    ) -> None:
+        if len(self.transform_selections) > transform_order:
+            raise IndexError("Transform added out of order")
+        elif len(self.transform_selections) == transform_order:
+            self.transform_selections.append(
+                (transform_type, self.transform_params[transform_type])
+            )
+        else:
+            self.transform_selections[transform_order] = (
+                transform_type,
+                self.transform_params[transform_type],
+            )
+
+    def _on_transform_type_removed(self, transform_order: int) -> None:
+        if len(self.transform_selections) <= transform_order:
+            raise IndexError("Transform removed out of order")
+        else:
+            self.transform_selections.pop(transform_order)

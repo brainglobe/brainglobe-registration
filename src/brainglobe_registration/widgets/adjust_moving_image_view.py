@@ -7,15 +7,17 @@ from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QPushButton,
     QHBoxLayout,
+    QWidget,
+    QLabel,
 )
 
 
-class AdjustMovingImageView(QGroupBox):
+class AdjustMovingImageView(QWidget):
     adjust_image_signal = Signal(int, int, float)
     reset_image_signal = Signal()
 
     def __init__(self, parent=None):
-        super().__init__("Adjust the sample image: ", parent=parent)
+        super().__init__(parent=parent)
 
         self.setLayout(QFormLayout())
 
@@ -57,6 +59,7 @@ class AdjustMovingImageView(QGroupBox):
             self.adjust_moving_image_reset_button
         )
 
+        self.layout().addRow(QLabel("Adjust the moving image: "))
         self.layout().addRow("X offset:", self.adjust_moving_image_x)
         self.layout().addRow("Y offset:", self.adjust_moving_image_y)
         self.layout().addRow(

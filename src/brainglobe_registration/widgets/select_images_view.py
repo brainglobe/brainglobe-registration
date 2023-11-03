@@ -1,6 +1,5 @@
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import (
-    QGroupBox,
     QWidget,
     QVBoxLayout,
     QLabel,
@@ -8,7 +7,7 @@ from qtpy.QtWidgets import (
 )
 
 
-class SelectImagesView(QGroupBox):
+class SelectImagesView(QWidget):
     """A widget to select the images to be used for registration."""
 
     atlas_index_change = Signal(int)
