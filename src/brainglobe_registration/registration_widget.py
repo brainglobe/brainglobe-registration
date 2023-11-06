@@ -18,9 +18,6 @@ from brainglobe_registration.widgets.select_images_view import SelectImagesView
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
 )
-from brainglobe_registration.widgets.run_settings_select_view import (
-    RunSettingsSelectView,
-)
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
@@ -74,7 +71,12 @@ def open_parameter_file(file_path: Path) -> dict:
         for line in f.readlines():
             if line[0] == "(":
                 split_line = line[1:-1].split()
-                param_dict[split_line[0]] = split_line[1].strip('" )')
+                cleaned_params = []
+                for i, entry in enumerate(split_line[1:]):
+                    if entry != ")":
+                        cleaned_params.append(entry.strip('" )'))
+
+                param_dict[split_line[0]] = cleaned_params
 
     return param_dict
 
@@ -100,6 +102,9 @@ class RegistrationWidget(QWidget):
             if file_path.exists():
                 self.transform_params[transform_type] = open_parameter_file(
                     file_path
+                )
+                self.transform_selections.append(
+                    (transform_type, self.transform_params[transform_type])
                 )
 
         # Hacky way of having an empty first option for the dropdown
@@ -143,45 +148,6 @@ class RegistrationWidget(QWidget):
             self._on_adjust_moving_image_reset_button_click
         )
 
-        self.run_settings_widget = RunSettingsSelectView()
-
-        self.run_settings_widget.run_signal.connect(self._on_run_button_click)
-
-        self.run_settings_widget.rigid_checkbox_signal.connect(
-            self._on_rigid_checkbox_change
-        )
-
-        self.run_settings_widget.affine_checkbox_signal.connect(
-            self._on_affine_checkbox_change
-        )
-
-        self.run_settings_widget.bspline_checkbox_signal.connect(
-            self._on_bspline_checkbox_change
-        )
-
-        self.run_settings_widget.default_file_signal.connect(
-            self._on_default_file_change
-        )
-
-        self.test_button = QPushButton("Test")
-        self.test_button.clicked.connect(self._on_test_button_click)
-
-        self.settings_tab.layout().addWidget(self.get_atlas_widget)
-        self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
-        self.settings_tab.layout().addWidget(self.run_settings_widget)
-        self.settings_tab.layout().addWidget(self.test_button)
-        self.settings_tab.layout().setAlignment(Qt.AlignTop)
-        self.parameter_list_tabs = {}
-
-        for transform_type in self.transform_params:
-            new_tab = RegistrationParameterListView(
-                param_dict=self.transform_params[transform_type],
-                transform_type=transform_type,
-            )
-
-            self.parameters_tab.addTab(new_tab, transform_type)
-            self.parameter_list_tabs[transform_type] = new_tab
-
         self.transform_select_view = TransformSelectView()
         self.transform_select_view.transform_type_added_signal.connect(
             self._on_transform_type_added
@@ -193,7 +159,29 @@ class RegistrationWidget(QWidget):
             self._on_default_file_selection_change
         )
 
+        self.run_button = QPushButton("Run")
+        self.run_button.clicked.connect(self._on_run_button_click)
+        self.run_button.setEnabled(False)
+        self.test_button = QPushButton("Test")
+        self.test_button.clicked.connect(self._on_test_button_click)
+
+        self.settings_tab.layout().addWidget(self.get_atlas_widget)
+        self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
         self.settings_tab.layout().addWidget(self.transform_select_view)
+        self.settings_tab.layout().addWidget(self.run_button)
+        self.settings_tab.layout().addWidget(self.test_button)
+        self.settings_tab.layout().setAlignment(Qt.AlignTop)
+
+        self.parameter_setting_tabs_lists = []
+
+        for transform_type in self.transform_params:
+            new_tab = RegistrationParameterListView(
+                param_dict=self.transform_params[transform_type],
+                transform_type=transform_type,
+            )
+
+            self.parameters_tab.addTab(new_tab, transform_type)
+            self.parameter_setting_tabs_lists.append(new_tab)
 
         self.main_tabs.addTab(self.settings_tab, "Settings")
         self.main_tabs.addTab(self.parameters_tab, "Parameters")
@@ -214,6 +202,8 @@ class RegistrationWidget(QWidget):
             )
 
             self._viewer.layers.pop(curr_atlas_layer_index)
+        else:
+            self.run_button.setEnabled(True)
 
         self._viewer.add_image(
             atlas.reference,
@@ -241,21 +231,13 @@ class RegistrationWidget(QWidget):
     def _on_adjust_moving_image_reset_button_click(self):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
-    def _on_run_button_click(
-        self,
-        rigid: bool,
-        affine: bool,
-        bspline: bool,
-    ):
+    def _on_run_button_click(self):
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         result, parameters = run_registration(
             self._atlas.reference[current_atlas_slice, :, :],
             self._moving_image.data,
-            rigid,
-            affine,
-            bspline,
-            self.transform_params,
+            self.transform_selections,
         )
 
         self._viewer.add_image(result, name="Registered Image")
@@ -264,30 +246,6 @@ class RegistrationWidget(QWidget):
             name="Registered Annotations",
             visible=False,
         )
-
-    def _on_default_file_change(self, directory: str):
-        for transform_type in self.transform_params:
-            file_path = (
-                Path() / "parameters" / directory / f"{transform_type}.txt"
-            )
-
-            if file_path.exists():
-                self.transform_params[transform_type] = open_parameter_file(
-                    file_path
-                )
-                # Signal to the parameter list view to update the parameters
-                self.parameter_list_tabs[transform_type].set_data(
-                    self.transform_params[transform_type]
-                )
-
-    def _on_rigid_checkbox_change(self, state):
-        self.parameters_tab.setTabEnabled(0, state)
-
-    def _on_affine_checkbox_change(self, state):
-        self.parameters_tab.setTabEnabled(1, state)
-
-    def _on_bspline_checkbox_change(self, state):
-        self.parameters_tab.setTabEnabled(2, state)
 
     def find_layer_index(self, layer_name: str) -> int:
         """Finds the index of a layer in the napari viewer."""
@@ -306,33 +264,52 @@ class RegistrationWidget(QWidget):
         return [layer.name for layer in self._viewer.layers]
 
     def _on_test_button_click(self):
-        print(self.transform_selections)
+        for transform in self.transform_selections:
+            print(transform[0])
+            print(transform[1])
+        print()
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
     ) -> None:
-        if len(self.transform_selections) > transform_order:
-            raise IndexError("Transform added out of order")
-        elif len(self.transform_selections) == transform_order:
-            self.transform_selections.append(
-                (transform_type, self.transform_params[transform_type])
+        if transform_order > len(self.transform_selections):
+            raise IndexError(
+                f"Transform added out of order index: {transform_order}"
+                f" is greater than length: {len(self.transform_selections)}"
             )
+        elif len(self.parameter_setting_tabs_lists) == transform_order:
+            self.transform_selections.append(
+                (transform_type, self.transform_params[transform_type].copy())
+            )
+            new_tab = RegistrationParameterListView(
+                param_dict=self.transform_selections[transform_order][1],
+                transform_type=transform_type,
+            )
+            self.parameters_tab.addTab(new_tab, transform_type)
+            self.parameter_setting_tabs_lists.append(new_tab)
+
         else:
             self.transform_selections[transform_order] = (
                 transform_type,
                 self.transform_params[transform_type],
             )
+            self.parameters_tab.setTabText(transform_order, transform_type)
+            self.parameter_setting_tabs_lists[transform_order].set_data(
+                self.transform_params[transform_type].copy()
+            )
 
     def _on_transform_type_removed(self, transform_order: int) -> None:
-        if len(self.transform_selections) <= transform_order:
+        if transform_order >= len(self.transform_selections):
             raise IndexError("Transform removed out of order")
         else:
             self.transform_selections.pop(transform_order)
+            self.parameters_tab.removeTab(transform_order)
+            self.parameter_setting_tabs_lists.pop(transform_order)
 
     def _on_default_file_selection_change(
         self, default_file_type: str, index: int
     ) -> None:
-        if index > len(self.transform_selections):
+        if index >= len(self.transform_selections):
             raise IndexError("Transform file selection out of order")
 
         transform_type = self.transform_selections[index][0]
@@ -340,6 +317,15 @@ class RegistrationWidget(QWidget):
             Path() / "parameters" / default_file_type / f"{transform_type}.txt"
         )
 
+        if not file_path.exists():
+            file_path = (
+                Path()
+                / "parameters"
+                / "elastix_default"
+                / f"{transform_type}.txt"
+            )
+
         param_dict = open_parameter_file(file_path)
 
         self.transform_selections[index] = (transform_type, param_dict)
+        self.parameter_setting_tabs_lists[index].set_data(param_dict)

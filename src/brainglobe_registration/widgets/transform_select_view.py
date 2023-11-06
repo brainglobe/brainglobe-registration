@@ -14,7 +14,6 @@ class TransformSelectView(QTableWidget):
         super().__init__(parent=parent)
 
         self.file_options = [
-            "",
             "elastix_default",
             "ara_tools",
             "brainregister_IBL",
@@ -31,29 +30,69 @@ class TransformSelectView(QTableWidget):
 
         self.transform_type_selections = []
         self.file_selections = []
+
+        self.setColumnCount(2)
+        self.setRowCount(len(self.transform_type_options))
+        self.setHorizontalHeaderLabels(["Transform Type", "Default File"])
+
+        # -1 accounts for the "empty" first selection of transform_type_options
+        for i in range(len(self.transform_type_options) - 1):
+            self.transform_type_selections.append(QComboBox())
+            self.transform_type_selections[i].addItems(
+                self.transform_type_options
+            )
+            self.transform_type_selections[i].setCurrentIndex(i + 1)
+            self.transform_type_selections[i].currentIndexChanged.connect(
+                self.transform_type_signaller.map
+            )
+
+            self.file_selections.append(QComboBox())
+            self.file_selections[i].addItems(self.file_options)
+            self.file_selections[i].setCurrentIndex(0)
+            self.file_selections[i].currentIndexChanged.connect(
+                self.file_signaller.map
+            )
+
+            self.transform_type_signaller.setMapping(
+                self.transform_type_selections[i], i
+            )
+            self.file_signaller.setMapping(self.file_selections[i], i)
+
+            self.setCellWidget(i, 0, self.transform_type_selections[i])
+            self.setCellWidget(i, 1, self.file_selections[i])
+
         self.transform_type_selections.append(QComboBox())
-        self.transform_type_selections[0].addItems(self.transform_type_options)
-        self.transform_type_selections[0].currentIndexChanged.connect(
+        self.transform_type_selections[-1].addItems(
+            self.transform_type_options
+        )
+        self.transform_type_selections[-1].currentIndexChanged.connect(
             self.transform_type_signaller.map
         )
 
+        self.transform_type_signaller.setMapping(
+            self.transform_type_selections[-1],
+            len(self.transform_type_options) - 1,
+        )
+
         self.file_selections.append(QComboBox())
-        self.file_selections[0].addItems(self.file_options)
-        self.file_selections[0].currentIndexChanged.connect(
+        self.file_selections[-1].addItems(self.file_options)
+        self.file_selections[-1].currentIndexChanged.connect(
             self.file_signaller.map
         )
 
-        self.transform_type_signaller.setMapping(
-            self.transform_type_selections[0], 0
+        self.file_signaller.setMapping(
+            self.file_selections[-1], len(self.transform_type_options) - 1
         )
-        self.file_signaller.setMapping(self.file_selections[0], 0)
 
-        self.setColumnCount(2)
-        self.setRowCount(1)
-        self.setHorizontalHeaderLabels(["Transform Type", "Default File"])
-
-        self.setCellWidget(0, 0, self.transform_type_selections[0])
-        self.setCellWidget(0, 1, self.file_selections[0])
+        self.setCellWidget(
+            len(self.transform_type_options) - 1,
+            0,
+            self.transform_type_selections[-1],
+        )
+        self.setCellWidget(
+            len(self.transform_type_options) - 1, 1, self.file_selections[-1]
+        )
+        self.file_selections[-1].setEnabled(False)
         self.resizeRowsToContents()
         self.resizeColumnsToContents()
 
@@ -63,10 +102,12 @@ class TransformSelectView(QTableWidget):
                 self.transform_type_selections[index].currentText(), index
             )
 
-            curr_length = self.rowCount()
-            self.setRowCount(self.rowCount() + 1)
+            self.file_selections[index].setCurrentIndex(0)
 
-            if index + 1 >= len(self.transform_type_selections):
+            if index >= len(self.transform_type_selections) - 1:
+                curr_length = self.rowCount()
+                self.setRowCount(self.rowCount() + 1)
+
                 self.transform_type_selections.append(QComboBox())
                 self.transform_type_selections[-1].addItems(
                     self.transform_type_options
@@ -80,6 +121,8 @@ class TransformSelectView(QTableWidget):
 
                 self.file_selections.append(QComboBox())
                 self.file_selections[-1].addItems(self.file_options)
+                self.file_selections[-2].setEnabled(True)
+                self.file_selections[-1].setEnabled(False)
                 self.file_selections[-1].currentIndexChanged.connect(
                     self.file_signaller.map
                 )
@@ -87,14 +130,14 @@ class TransformSelectView(QTableWidget):
                     self.file_selections[-1], curr_length
                 )
 
-            self.setCellWidget(
-                curr_length, 0, self.transform_type_selections[curr_length]
-            )
-            self.setCellWidget(
-                curr_length, 1, self.file_selections[curr_length]
-            )
+                self.setCellWidget(
+                    curr_length, 0, self.transform_type_selections[curr_length]
+                )
+                self.setCellWidget(
+                    curr_length, 1, self.file_selections[curr_length]
+                )
 
-        elif index > 0:
+        else:
             self.transform_type_signaller.removeMappings(
                 self.transform_type_selections[index]
             )
@@ -116,16 +159,16 @@ class TransformSelectView(QTableWidget):
 
             self.removeRow(index)
             self.transform_type_removed_signal.emit(index)
-
-        elif index == 0:
-            for i in range(len(self.transform_type_selections) - 1, 0, -1):
-                self.transform_type_signaller.removeMappings(
-                    self.transform_type_selections[i]
-                )
-                self.transform_type_selections.pop(i)
-                self.file_signaller.removeMappings(self.file_selections[i])
-                self.file_selections.pop(i)
-                self.removeRow(i)
+        #
+        # elif index == 0:
+        #     for i in range(len(self.transform_type_selections) - 1, 0, -1):
+        #         self.transform_type_signaller.removeMappings(
+        #             self.transform_type_selections[i]
+        #         )
+        #         self.transform_type_selections.pop(i)
+        #         self.file_signaller.removeMappings(self.file_selections[i])
+        #         self.file_selections.pop(i)
+        #         self.removeRow(i)
 
     def _on_file_change(self, index):
         self.file_signal.emit(self.file_selections[index].currentText(), index)
