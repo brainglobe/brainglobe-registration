@@ -1,12 +1,10 @@
 from qtpy.QtCore import Signal
 
 from qtpy.QtWidgets import (
-    QGroupBox,
     QFormLayout,
     QSpinBox,
     QDoubleSpinBox,
     QPushButton,
-    QHBoxLayout,
     QWidget,
     QLabel,
 )
@@ -26,37 +24,23 @@ class AdjustMovingImageView(QWidget):
 
         self.adjust_moving_image_x = QSpinBox()
         self.adjust_moving_image_x.setRange(min_offset_range, max_offset_range)
+        self.adjust_moving_image_x.valueChanged.connect(self._on_adjust_image)
 
         self.adjust_moving_image_y = QSpinBox()
         self.adjust_moving_image_y.setRange(min_offset_range, max_offset_range)
+        self.adjust_moving_image_y.valueChanged.connect(self._on_adjust_image)
 
         self.adjust_moving_image_rotate = QDoubleSpinBox()
         self.adjust_moving_image_rotate.setRange(-360, 360)
         self.adjust_moving_image_rotate.setSingleStep(0.5)
-
-        self.adjust_moving_image_buttons = QGroupBox(parent=self)
-        self.adjust_moving_image_reset_button = QPushButton(
-            parent=self.adjust_moving_image_buttons
+        self.adjust_moving_image_rotate.valueChanged.connect(
+            self._on_adjust_image
         )
+
+        self.adjust_moving_image_reset_button = QPushButton(parent=self)
         self.adjust_moving_image_reset_button.setText("Reset Image")
         self.adjust_moving_image_reset_button.clicked.connect(
             self._on_reset_image_button_click
-        )
-
-        self.adjust_moving_image_button = QPushButton(
-            parent=self.adjust_moving_image_buttons
-        )
-        self.adjust_moving_image_button.setText("Adjust Image")
-        self.adjust_moving_image_button.clicked.connect(
-            self._on_adjust_image_button_click
-        )
-
-        self.adjust_moving_image_buttons.setLayout(QHBoxLayout())
-        self.adjust_moving_image_buttons.layout().addWidget(
-            self.adjust_moving_image_button
-        )
-        self.adjust_moving_image_buttons.layout().addWidget(
-            self.adjust_moving_image_reset_button
         )
 
         self.layout().addRow(QLabel("Adjust the moving image: "))
@@ -65,9 +49,9 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(
             "Rotation (degrees):", self.adjust_moving_image_rotate
         )
-        self.layout().addRow(self.adjust_moving_image_buttons)
+        self.layout().addRow(self.adjust_moving_image_reset_button)
 
-    def _on_adjust_image_button_click(self):
+    def _on_adjust_image(self):
         self.adjust_image_signal.emit(
             self.adjust_moving_image_x.value(),
             self.adjust_moving_image_y.value(),

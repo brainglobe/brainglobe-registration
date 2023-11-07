@@ -141,7 +141,7 @@ class RegistrationWidget(QWidget):
 
         self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
         self.adjust_moving_image_widget.adjust_image_signal.connect(
-            self._on_adjust_moving_image_button_click
+            self._on_adjust_moving_image
         )
 
         self.adjust_moving_image_widget.reset_image_signal.connect(
@@ -223,9 +223,7 @@ class RegistrationWidget(QWidget):
         #     self.available_sample_images.clear()
         #     self.available_sample_images.addItems(self.curr_images)
 
-    def _on_adjust_moving_image_button_click(
-        self, x: int, y: int, rotate: float
-    ):
+    def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
 
     def _on_adjust_moving_image_reset_button_click(self):
