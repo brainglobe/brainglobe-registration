@@ -21,7 +21,7 @@ class RegistrationParameterListView(QTableWidget):
         self.setRowCount(len(param_dict) + 1)
         for i, k in enumerate(param_dict):
             new_param = QTableWidgetItem(k)
-            new_value = QTableWidgetItem(" ".join(param_dict[k]))
+            new_value = QTableWidgetItem(", ".join(param_dict[k]))
 
             self.setItem(i, 0, new_param)
             self.setItem(i, 1, new_value)
@@ -33,7 +33,7 @@ class RegistrationParameterListView(QTableWidget):
     def _on_cell_change(self, row, column):
         if column == 1:
             parameter = self.item(row, 0).text()
-            value = self.item(row, 1).text().split()
+            value = self.item(row, 1).text().split(", ")
             self.param_dict[parameter] = value
 
             if row == self.rowCount() - 1:

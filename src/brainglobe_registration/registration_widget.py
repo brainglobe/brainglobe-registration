@@ -73,8 +73,10 @@ def open_parameter_file(file_path: Path) -> dict:
                 split_line = line[1:-1].split()
                 cleaned_params = []
                 for i, entry in enumerate(split_line[1:]):
-                    if entry != ")":
-                        cleaned_params.append(entry.strip('" )'))
+                    if entry == ")" or entry[0] == "/":
+                        break
+
+                    cleaned_params.append(entry.strip('" )'))
 
                 param_dict[split_line[0]] = cleaned_params
 
@@ -162,14 +164,11 @@ class RegistrationWidget(QWidget):
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
-        self.test_button = QPushButton("Test")
-        self.test_button.clicked.connect(self._on_test_button_click)
 
         self.settings_tab.layout().addWidget(self.get_atlas_widget)
         self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
         self.settings_tab.layout().addWidget(self.transform_select_view)
         self.settings_tab.layout().addWidget(self.run_button)
-        self.settings_tab.layout().addWidget(self.test_button)
         self.settings_tab.layout().setAlignment(Qt.AlignTop)
 
         self.parameter_setting_tabs_lists = []
@@ -260,12 +259,6 @@ class RegistrationWidget(QWidget):
         Returns a list of the names of the napari image layers in the viewer.
         """
         return [layer.name for layer in self._viewer.layers]
-
-    def _on_test_button_click(self):
-        for transform in self.transform_selections:
-            print(transform[0])
-            print(transform[1])
-        print()
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
