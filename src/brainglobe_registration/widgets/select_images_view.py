@@ -1,4 +1,5 @@
 from qtpy.QtCore import Signal
+from typing import List
 from qtpy.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -14,7 +15,10 @@ class SelectImagesView(QWidget):
     moving_image_index_change = Signal(int)
 
     def __init__(
-        self, available_atlases, sample_image_names, parent: QWidget = None
+        self,
+        available_atlases: List[str],
+        sample_image_names: List[str],
+        parent: QWidget = None,
     ):
         super().__init__(parent)
 
@@ -45,11 +49,21 @@ class SelectImagesView(QWidget):
         self.layout().addWidget(self.available_sample_dropdown)
 
     def _on_atlas_index_change(self):
+        """
+        Emit the atlas_index_change signal with the index of the selected atlas.
+
+        If the selected index is invalid, emits -1.
+        """
         self.atlas_index_change.emit(
             self.available_atlas_dropdown.currentIndex()
         )
 
     def _on_moving_image_index_change(self):
+        """
+        Emit the moving_image_index_change signal with the index of the selected image.
+
+        If the selected index is invalid, emits -1.
+        """
         self.moving_image_index_change.emit(
             self.available_sample_dropdown.currentIndex()
         )
