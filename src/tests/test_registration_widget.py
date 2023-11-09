@@ -3,12 +3,12 @@ import pytest
 from PIL import Image
 import numpy as np
 
-from bg_elastix.registration_widget import RegistrationWidget
+from brainglobe_registration.registration_widget import RegistrationWidget
 from bg_atlasapi import BrainGlobeAtlas
 
 
-atlas_image = Image.open("test_images/Atlas_Hipp.tif")
-moving_image = Image.open("test_images/Sample_Hipp.tif")
+atlas_image = Image.open("src/tests/test_images/Atlas_Hipp.tif")
+moving_image = Image.open("src/tests/test_images/Sample_Hipp.tif")
 
 
 @pytest.fixture()

@@ -2,7 +2,22 @@ import os
 from pathlib import Path
 
 import pytest
-from bg_atlasapi import BrainGlobeAtlas, config
+from bg_atlasapi import BrainGlobeAtlas, config as bg_config
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        dest="slow",
+        default=False,
+        help="enable runslow decorated tests",
+    )
+
+
+def pytest_configure(config):
+    if not config.option.slow:
+        setattr(config.option, "markexpr", "not slow")
 
 
 @pytest.fixture(autouse=True)
@@ -31,13 +46,15 @@ def mock_brainglobe_user_folders(monkeypatch):
 
         # also mock global variables of config.py
         monkeypatch.setattr(
-            config, "DEFAULT_PATH", mock_home_path / ".brainglobe"
+            bg_config, "DEFAULT_PATH", mock_home_path / ".brainglobe"
         )
         monkeypatch.setattr(
-            config, "CONFIG_DIR", mock_home_path / ".config" / "brainglobe"
+            bg_config, "CONFIG_DIR", mock_home_path / ".config" / "brainglobe"
         )
         monkeypatch.setattr(
-            config, "CONFIG_PATH", config.CONFIG_DIR / config.CONFIG_FILENAME
+            bg_config,
+            "CONFIG_PATH",
+            bg_config.CONFIG_DIR / bg_config.CONFIG_FILENAME,
         )
         mock_default_dirs = {
             "default_dirs": {
@@ -45,7 +62,7 @@ def mock_brainglobe_user_folders(monkeypatch):
                 "interm_download_dir": mock_home_path / ".brainglobe",
             }
         }
-        monkeypatch.setattr(config, "TEMPLATE_CONF_DICT", mock_default_dirs)
+        monkeypatch.setattr(bg_config, "TEMPLATE_CONF_DICT", mock_default_dirs)
 
 
 @pytest.fixture(autouse=True)
