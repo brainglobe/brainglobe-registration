@@ -10,9 +10,10 @@ class RegistrationParameterListView(QTableWidget):
         self.param_dict = {}
         self.transform_type = transform_type
         self.setColumnCount(2)
-        self.setHorizontalHeaderLabels(["Parameter", "Value"])
 
         self.set_data(param_dict)
+        self.setHorizontalHeaderItem(0, QTableWidgetItem("Parameter"))
+        self.setHorizontalHeaderItem(1, QTableWidgetItem("Values"))
 
         self.cellChanged.connect(self._on_cell_change)
 

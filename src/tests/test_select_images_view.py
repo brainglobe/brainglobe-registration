@@ -21,7 +21,7 @@ def select_images_view() -> SelectImagesView:
     yield select_images_view
 
 
-def test_select_images_view_func(select_images_view, qtbot):
+def test_select_images_view(select_images_view, qtbot):
     qtbot.addWidget(select_images_view)
 
     assert select_images_view.available_atlas_dropdown.count() == len(
