@@ -32,7 +32,7 @@ class RegistrationParameterListView(QTableWidget):
         self.param_dict = param_dict
 
     def _on_cell_change(self, row, column):
-        if column == 1:
+        if column == 1 and self.item(row, 0):
             parameter = self.item(row, 0).text()
             value = self.item(row, 1).text().split(", ")
             self.param_dict[parameter] = value
