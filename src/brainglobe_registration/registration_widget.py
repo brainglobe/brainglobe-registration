@@ -157,7 +157,7 @@ class RegistrationWidget(QWidget):
         self.transform_select_view.transform_type_removed_signal.connect(
             self._on_transform_type_removed
         )
-        self.transform_select_view.file_signal.connect(
+        self.transform_select_view.file_option_changed_signal.connect(
             self._on_default_file_selection_change
         )
 

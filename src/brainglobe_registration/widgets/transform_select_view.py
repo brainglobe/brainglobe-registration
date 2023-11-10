@@ -8,7 +8,7 @@ from qtpy.QtWidgets import (
 class TransformSelectView(QTableWidget):
     transform_type_added_signal = Signal(str, int)
     transform_type_removed_signal = Signal(int)
-    file_signal = Signal(str, int)
+    file_option_changed_signal = Signal(str, int)
 
     def __init__(self, parent=None):
         super().__init__(parent=parent)
@@ -159,16 +159,8 @@ class TransformSelectView(QTableWidget):
 
             self.removeRow(index)
             self.transform_type_removed_signal.emit(index)
-        #
-        # elif index == 0:
-        #     for i in range(len(self.transform_type_selections) - 1, 0, -1):
-        #         self.transform_type_signaller.removeMappings(
-        #             self.transform_type_selections[i]
-        #         )
-        #         self.transform_type_selections.pop(i)
-        #         self.file_signaller.removeMappings(self.file_selections[i])
-        #         self.file_selections.pop(i)
-        #         self.removeRow(i)
 
     def _on_file_change(self, index):
-        self.file_signal.emit(self.file_selections[index].currentText(), index)
+        self.file_option_changed_signal.emit(
+            self.file_selections[index].currentText(), index
+        )
