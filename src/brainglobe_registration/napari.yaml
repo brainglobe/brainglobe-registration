@@ -5,6 +5,10 @@ contributions:
     - id: brainglobe-registration.make_registration_widget
       python_name: brainglobe_registration.registration_widget:RegistrationWidget
       title: BrainGlobe Registration
+  sample_data:
+    - key: example
+      display_name: Sample Brain Slice
+      uri: src/brainglobe_registration/resources/sample_hipp.tif
   widgets:
     - command: brainglobe-registration.make_registration_widget
       display_name: BrainGlobe Registration

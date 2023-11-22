@@ -14,7 +14,7 @@ def sample_atlas_slice():
 
 @pytest.fixture
 def sample_moving_image():
-    return Image.open("test_images/Sample_Hipp.tif")
+    return Image.open("test_images/sample_hipp.tif")
 
 
 @pytest.mark.slow

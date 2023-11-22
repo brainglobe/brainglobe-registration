@@ -8,7 +8,7 @@ from bg_atlasapi import BrainGlobeAtlas
 
 
 atlas_image = Image.open("src/tests/test_images/Atlas_Hipp.tif")
-moving_image = Image.open("src/tests/test_images/Sample_Hipp.tif")
+moving_image = Image.open("src/tests/test_images/sample_hipp.tif")
 
 
 @pytest.fixture()

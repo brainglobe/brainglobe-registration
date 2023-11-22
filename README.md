@@ -11,19 +11,19 @@ Registration to a BrainGlobe atlas using Elastix
 
 ----------------------------------
 
-This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
+A [napari] plugin for registering images to a BrainGlobe atlas.
 
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/cookiecutter-napari-plugin#getting-started
+## Usage
 
-and review the napari docs for plugin developers:
-https://napari.org/stable/plugins/index.html
--->
+
 
 ## Installation
 
-You can install `brainglobe-registration` via [pip]:
+We strongly recommend to use a virtual environment manager (like `conda` or `venv`). The installation instructions below
+will not specify the Qt backend for napari, and you will therefore need to install that separately. Please see the
+[`napari` installation instructions](https://napari.org/stable/tutorials/fundamentals/installation.html) for further advice on this.
+
+[WIP] You can install `brainglobe-registration` via [pip]:
 
     pip install brainglobe-registration
 
@@ -32,7 +32,6 @@ You can install `brainglobe-registration` via [pip]:
 To install latest development version :
 
     pip install git+https://github.com/brainglobe/brainglobe-registration.git
-
 
 ## Contributing
 
@@ -47,6 +46,19 @@ Distributed under the terms of the [BSD-3] license,
 ## Issues
 
 If you encounter any problems, please [file an issue] along with a detailed description.
+
+
+## Acknowledgements
+
+This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
+
+<!--
+Don't miss the full getting started guide to set up your new package:
+https://github.com/napari/cookiecutter-napari-plugin#getting-started
+
+and review the napari docs for plugin developers:
+https://napari.org/stable/plugins/index.html
+-->
 
 [napari]: https://github.com/napari/napari
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
