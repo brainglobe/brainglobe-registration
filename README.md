@@ -13,7 +13,10 @@ Registration to a BrainGlobe atlas using Elastix
 
 A [napari] plugin for registering images to a BrainGlobe atlas.
 
+
+
 ## Usage
+![brainglobe-registration](https://github.com/brainglobe/brainglobe-registration/assets/61896994/314526cb-b770-46ee-bb91-132b5629d705)
 
 
 
