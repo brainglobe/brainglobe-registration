@@ -32,7 +32,7 @@ using the slider at the bottom of the napari viewer.
 6. Adjust the sample image to roughly match the atlas image.
 You can do this by adjusting X and Y translation as well as rotation around the centre of the image.
 You can overlay the two images by toggling `Grid` mode in the napari viewer (Ctrl+G).
-You can then adjust the color map and opacity of the atlas image to make it easier to see the sample image aiding the manual alignment.
+You can then adjust the color map and opacity of the atlas image to make manual alignment easier.
 ![brainglobe-registration-overlay](./imgs/brainglobe_registration_overlay.png)
 The sample image can be reset to its original position and orientation by clicking `Reset Image` in the `BrainGlobe Registration` plugin window.
 7. Select the transformations you want to use from the dropdown menu. Set the transformation type to empty to remove a step.

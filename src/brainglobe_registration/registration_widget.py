@@ -8,9 +8,6 @@ shown in a table view using the Qt model/view framework
 Users can download and add the atlas images/structures as layers to the viewer.
 """
 
-from typing import List
-
-import numpy as np
 from pathlib import Path
 
 from brainglobe_registration.elastix.register import run_registration
@@ -24,9 +21,13 @@ from brainglobe_registration.widgets.parameter_list_view import (
 from brainglobe_registration.widgets.transform_select_view import (
     TransformSelectView,
 )
+from brainglobe_registration.utils.utils import (
+    adjust_napari_image_layer,
+    open_parameter_file,
+    find_layer_index,
+    get_image_layer_names,
+)
 
-import napari.layers
-from pytransform3d.rotations import active_matrix_from_angle
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 from napari.viewer import Viewer
@@ -42,60 +43,20 @@ from qtpy.QtWidgets import (
 from brainglobe_registration.utils.brainglobe_logo import header_widget
 
 
-def adjust_napari_image_layer(
-    image_layer: napari.layers.Layer, x: int, y: int, rotate: float
-):
-    """Adjusts the napari image layer by the given x, y, and rotation values.
-
-    Rotation around origin code adapted from:
-        https://forum.image.sc/t/napari-3d-rotation-center-change-and-scaling/66347/5
-    """
-    image_layer.translate = (y, x)
-
-    rotation_matrix = active_matrix_from_angle(2, np.deg2rad(rotate))
-    translate_matrix = np.eye(3)
-    origin = np.asarray(image_layer.data.shape) // 2 + np.asarray([y, x])
-    translate_matrix[:2, -1] = origin
-    transform_matrix = (
-        translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
-    )
-    image_layer.affine = transform_matrix
-
-
-def open_parameter_file(file_path: Path) -> dict:
-    """
-    Opens the parameter file and returns the parameter dictionary.
-    """
-    with open(file_path, "r") as f:
-        param_dict = {}
-        for line in f.readlines():
-            if line[0] == "(":
-                split_line = line[1:-1].split()
-                cleaned_params = []
-                for i, entry in enumerate(split_line[1:]):
-                    if entry == ")" or entry[0] == "/":
-                        break
-
-                    cleaned_params.append(entry.strip('" )'))
-
-                param_dict[split_line[0]] = cleaned_params
-
-    return param_dict
-
-
 class RegistrationWidget(QWidget):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
 
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
+        self._moving_image = None
 
         self.transform_params = {"rigid": {}, "affine": {}, "bspline": {}}
         self.transform_selections = []
 
         for transform_type in self.transform_params:
             file_path = (
-                Path()
+                Path(__file__).parent.resolve()
                 / "parameters"
                 / "elastix_default"
                 / f"{transform_type}.txt"
@@ -111,8 +72,12 @@ class RegistrationWidget(QWidget):
 
         # Hacky way of having an empty first option for the dropdown
         self._available_atlases = ["------"] + get_downloaded_atlases()
-        self._sample_images = self.get_image_layer_names()
-        self._moving_image = self._viewer.layers[0]
+        self._sample_images = get_image_layer_names(self._viewer)
+
+        if len(self._sample_images) > 0:
+            self._moving_image = self._viewer.layers[0]
+        else:
+            self._moving_image = None
 
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(
@@ -139,6 +104,9 @@ class RegistrationWidget(QWidget):
         )
         self.get_atlas_widget.moving_image_index_change.connect(
             self._on_sample_dropdown_index_changed
+        )
+        self.get_atlas_widget.sample_image_popup_about_to_show.connect(
+            self._on_sample_popup_about_to_show
         )
 
         self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
@@ -190,14 +158,24 @@ class RegistrationWidget(QWidget):
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
         if index == 0:
+            if self._atlas:
+                curr_atlas_layer_index = find_layer_index(
+                    self._viewer, self._atlas.atlas_name
+                )
+
+                self._viewer.layers.pop(curr_atlas_layer_index)
+                self._atlas = None
+                self.run_button.setEnabled(False)
+                self._viewer.grid.enabled = False
+
             return
 
         atlas_name = self._available_atlases[index]
         atlas = BrainGlobeAtlas(atlas_name)
 
         if self._atlas:
-            curr_atlas_layer_index = self.find_layer_index(
-                self._atlas.atlas_name
+            curr_atlas_layer_index = find_layer_index(
+                self._viewer, self._atlas.atlas_name
             )
 
             self._viewer.layers.pop(curr_atlas_layer_index)
@@ -215,12 +193,10 @@ class RegistrationWidget(QWidget):
         self._viewer.grid.enabled = True
 
     def _on_sample_dropdown_index_changed(self, index):
-        viewer_index = self.find_layer_index(self._sample_images[index])
+        viewer_index = find_layer_index(
+            self._viewer, self._sample_images[index]
+        )
         self._moving_image = self._viewer.layers[viewer_index]
-        # if (len(self.curr_images) - 1 != len(self._viewer.layers)):
-        #     self.curr_images = ["-----"] + self.get_image_layer_names()
-        #     self.available_sample_images.clear()
-        #     self.available_sample_images.addItems(self.curr_images)
 
     def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
@@ -243,22 +219,6 @@ class RegistrationWidget(QWidget):
             name="Registered Annotations",
             visible=False,
         )
-
-    def find_layer_index(self, layer_name: str) -> int:
-        """Finds the index of a layer in the napari viewer."""
-        curr_layers = self._viewer.layers
-
-        for idx, layer in enumerate(curr_layers):
-            if layer.name == layer_name:
-                return idx
-
-        return -1
-
-    def get_image_layer_names(self) -> List[str]:
-        """
-        Returns a list of the names of the napari image layers in the viewer.
-        """
-        return [layer.name for layer in self._viewer.layers]
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
@@ -305,12 +265,15 @@ class RegistrationWidget(QWidget):
 
         transform_type = self.transform_selections[index][0]
         file_path = (
-            Path() / "parameters" / default_file_type / f"{transform_type}.txt"
+            Path(__file__).parent.resolve()
+            / "parameters"
+            / default_file_type
+            / f"{transform_type}.txt"
         )
 
         if not file_path.exists():
             file_path = (
-                Path()
+                Path(__file__).parent.resolve()
                 / "parameters"
                 / "elastix_default"
                 / f"{transform_type}.txt"
@@ -320,3 +283,7 @@ class RegistrationWidget(QWidget):
 
         self.transform_selections[index] = (transform_type, param_dict)
         self.parameter_setting_tabs_lists[index].set_data(param_dict)
+
+    def _on_sample_popup_about_to_show(self):
+        self._sample_images = get_image_layer_names(self._viewer)
+        self.get_atlas_widget.update_sample_image_names(self._sample_images)

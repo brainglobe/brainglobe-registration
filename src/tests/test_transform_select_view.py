@@ -123,3 +123,46 @@ def test_transform_type_added_signal_last_row(transform_select_view, qtbot):
         transform_select_view.transform_type_options[last_index],
         row_count,
     ]
+
+
+def test_transform_type_removed(transform_select_view, qtbot):
+    qtbot.addWidget(transform_select_view)
+
+    row_count = transform_select_view.rowCount()
+
+    with qtbot.waitSignal(
+        transform_select_view.transform_type_removed_signal, timeout=1000
+    ) as blocker:
+        transform_select_view.cellWidget(0, 0).setCurrentIndex(0)
+
+    assert blocker.args == [0]
+    assert transform_select_view.rowCount() == row_count - 1
+
+    with qtbot.waitSignal(
+        transform_select_view.transform_type_removed_signal, timeout=1000
+    ) as blocker:
+        transform_select_view.cellWidget(0, 0).setCurrentIndex(0)
+
+    assert blocker.args == [0]
+    assert transform_select_view.rowCount() == row_count - 2
+
+
+def test_file_option_default_on_transform_change(transform_select_view, qtbot):
+    """
+    When the transform type is changed, the file option should be set to the default
+    """
+    qtbot.addWidget(transform_select_view)
+    file_option_index = 2
+
+    transform_select_view.cellWidget(0, 1).setCurrentIndex(file_option_index)
+    assert (
+        transform_select_view.cellWidget(0, 1).currentText()
+        == transform_select_view.file_options[file_option_index]
+    )
+
+    transform_select_view.cellWidget(0, 0).setCurrentIndex(2)
+
+    assert (
+        transform_select_view.cellWidget(0, 1).currentText()
+        == transform_select_view.file_options[0]
+    )

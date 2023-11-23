@@ -11,27 +11,58 @@ from qtpy.QtWidgets import (
 
 
 class AdjustMovingImageView(QWidget):
+    """
+    A QWidget subclass that provides controls for adjusting the moving image.
+
+    This widget provides controls for adjusting the x and y offsets and rotation of the moving image.
+    It emits signals when the image is adjusted or reset.
+
+    Attributes
+    ----------
+    adjust_image_signal : Signal
+        Emitted when the image is adjusted. The signal includes the x and y offsets and rotation as parameters.
+    reset_image_signal : Signal
+        Emitted when the image is reset.
+
+    Methods
+    -------
+    _on_adjust_image():
+        Emits the adjust_image_signal with the current x and y offsets and rotation.
+    _on_reset_image_button_click():
+        Resets the x and y offsets and rotation to 0 and emits the reset_image_signal.
+    """
+
     adjust_image_signal = Signal(int, int, float)
     reset_image_signal = Signal()
 
     def __init__(self, parent=None):
+        """
+        Initialize the widget.
+
+        Parameters
+        ----------
+        parent : QWidget, optional
+            The parent widget, by default None
+        """
         super().__init__(parent=parent)
 
         self.setLayout(QFormLayout())
 
-        min_offset_range = -2000
-        max_offset_range = 2000
+        offset_range = 2000
+        rotation_range = 360
 
         self.adjust_moving_image_x = QSpinBox()
-        self.adjust_moving_image_x.setRange(min_offset_range, max_offset_range)
+        self.adjust_moving_image_x.setRange(-offset_range, offset_range)
         self.adjust_moving_image_x.valueChanged.connect(self._on_adjust_image)
 
         self.adjust_moving_image_y = QSpinBox()
-        self.adjust_moving_image_y.setRange(min_offset_range, max_offset_range)
+        self.adjust_moving_image_y.setRange(-offset_range, offset_range)
         self.adjust_moving_image_y.valueChanged.connect(self._on_adjust_image)
 
         self.adjust_moving_image_rotate = QDoubleSpinBox()
-        self.adjust_moving_image_rotate.setRange(-360, 360)
+        self.adjust_moving_image_rotate.setRange(
+            -rotation_range, rotation_range
+        )
         self.adjust_moving_image_rotate.setSingleStep(0.5)
         self.adjust_moving_image_rotate.valueChanged.connect(
             self._on_adjust_image
@@ -52,6 +83,9 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(self.adjust_moving_image_reset_button)
 
     def _on_adjust_image(self):
+        """
+        Emit the adjust_image_signal with the current x and y offsets and rotation.
+        """
         self.adjust_image_signal.emit(
             self.adjust_moving_image_x.value(),
             self.adjust_moving_image_y.value(),
@@ -59,6 +93,9 @@ class AdjustMovingImageView(QWidget):
         )
 
     def _on_reset_image_button_click(self):
+        """
+        Reset the x and y offsets and rotation to 0 and emit the reset_image_signal.
+        """
         self.adjust_moving_image_x.setValue(0)
         self.adjust_moving_image_y.setValue(0)
         self.adjust_moving_image_rotate.setValue(0)

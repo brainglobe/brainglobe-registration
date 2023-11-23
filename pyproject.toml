@@ -14,7 +14,7 @@ profile = "black"
 line_length = 79
 
 [tool.pytest.ini_options]
-testpaths = "tests"
+testpaths = "src/tests"
 markers = [
     "slow: mark test as slow"
 ]
