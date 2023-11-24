@@ -1,4 +1,3 @@
-import napari
 from qtpy.QtCore import Signal
 from typing import List
 from qtpy.QtWidgets import (
@@ -22,17 +21,21 @@ class SampleImageComboBox(QComboBox):
 
 class SelectImagesView(QWidget):
     """
-    A QWidget subclass that provides a dropdown menu for selecting the image and atlas for registration.
+    A QWidget subclass that provides a dropdown menu for selecting the image and atlas
+    for registration.
 
-    This widget provides two dropdown menus for selecting the atlas and the sample image
-    to be used for registration. It emits signals when the selected atlas or sample image changes.
+    This widget provides two dropdown menus for selecting the atlas and the sample
+    to be used for registration. It emits signals when the selected atlas or sample
+    image changes.
 
     Attributes
     ----------
     atlas_index_change : Signal
-        Emitted when the selected atlas changes. The signal includes the index of the selected atlas.
+        Emitted when the selected atlas changes. The signal includes the index of the
+        selected atlas.
     moving_image_index_change : Signal
-        Emitted when the selected sample image changes. The signal includes the index of the selected image.
+        Emitted when the selected sample image changes. The signal includes the index
+        of the selected image.
 
     Methods
     -------
@@ -59,8 +62,6 @@ class SelectImagesView(QWidget):
         ----------
         available_atlases : List[str]
             The list of available atlases.
-        viewer : napari.Viewer
-            The napari viewer.
         sample_image_names : List[str]
             The list of available sample images.
         parent : QWidget, optional

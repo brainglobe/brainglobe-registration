@@ -14,13 +14,14 @@ class AdjustMovingImageView(QWidget):
     """
     A QWidget subclass that provides controls for adjusting the moving image.
 
-    This widget provides controls for adjusting the x and y offsets and rotation of the moving image.
-    It emits signals when the image is adjusted or reset.
+    This widget provides controls for adjusting the x and y offsets and rotation
+    of the moving image. It emits signals when the image is adjusted or reset.
 
     Attributes
     ----------
     adjust_image_signal : Signal
-        Emitted when the image is adjusted. The signal includes the x and y offsets and rotation as parameters.
+        Emitted when the image is adjusted. The signal includes the x and y offsets
+        and rotation as parameters.
     reset_image_signal : Signal
         Emitted when the image is reset.
 
