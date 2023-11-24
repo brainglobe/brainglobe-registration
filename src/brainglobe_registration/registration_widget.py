@@ -10,6 +10,8 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 from pathlib import Path
 
+import numpy as np
+
 from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
 from brainglobe_registration.widgets.adjust_moving_image_view import (
@@ -39,6 +41,7 @@ from qtpy.QtWidgets import (
     QTabWidget,
     QPushButton,
 )
+from skimage.segmentation import find_boundaries
 
 from brainglobe_registration.utils.brainglobe_logo import header_widget
 
@@ -86,9 +89,6 @@ class RegistrationWidget(QWidget):
 
         self.main_tabs = QTabWidget(parent=self)
         self.main_tabs.setTabPosition(QTabWidget.West)
-        # self.main_tabs.setStyleSheet(
-        # "QTabBar::tab { height: 200px; width: 30px; font-size: 20px;}"
-        # )
 
         self.settings_tab = QGroupBox()
         self.settings_tab.setLayout(QVBoxLayout())
@@ -207,17 +207,25 @@ class RegistrationWidget(QWidget):
     def _on_run_button_click(self):
         current_atlas_slice = self._viewer.dims.current_step[0]
 
-        result, parameters = run_registration(
+        result, parameters, registered_annotation_image = run_registration(
             self._atlas.reference[current_atlas_slice, :, :],
             self._moving_image.data,
+            self._atlas.annotation[current_atlas_slice, :, :],
             self.transform_selections,
         )
 
+        boundaries = find_boundaries(
+            registered_annotation_image, mode="inner"
+        ).astype(np.int8, copy=False)
+
         self._viewer.add_image(result, name="Registered Image")
         self._viewer.add_labels(
-            self._atlas.annotation[current_atlas_slice, :, :],
+            registered_annotation_image.astype(np.int32, copy=False),
             name="Registered Annotations",
             visible=False,
+        )
+        self._viewer.add_image(
+            boundaries, name="Registered Boundaries", visible=False
         )
 
     def _on_transform_type_added(

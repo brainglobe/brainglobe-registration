@@ -26,8 +26,9 @@ def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
 def run_registration(
     atlas_image,
     moving_image,
+    annotation_image,
     parameter_lists: List[tuple[str, dict]] = None,
-) -> tuple[np.ndarray, itk.ParameterObject]:
+) -> tuple[np.ndarray, itk.ParameterObject, np.ndarray]:
     """
     Run the registration process on the given images.
 
@@ -37,6 +38,8 @@ def run_registration(
         The atlas image.
     moving_image : np.ndarray
         The moving image.
+    annotation_image : np.ndarray
+        The annotation image.
     parameter_lists : List[tuple[str, dict]], optional
         The list of parameter lists, by default None
 
@@ -53,7 +56,7 @@ def run_registration(
 
     # This syntax needed for 3D images
     elastix_object = itk.ElastixRegistrationMethod.New(
-        atlas_image, moving_image
+        moving_image, atlas_image
     )
 
     parameter_object = setup_parameter_object(parameter_lists=parameter_lists)
@@ -67,7 +70,16 @@ def run_registration(
     result_image = elastix_object.GetOutput()
     result_transform_parameters = elastix_object.GetTransformParameterObject()
 
-    return np.asarray(result_image), result_transform_parameters
+    annotation_image_transformix = itk.transformix_filter(
+        annotation_image.astype(np.float32, copy=False),
+        result_transform_parameters,
+    )
+
+    return (
+        np.asarray(result_image),
+        result_transform_parameters,
+        np.asarray(annotation_image_transformix),
+    )
 
 
 def setup_parameter_object(parameter_lists: List[tuple[str, dict]] = None):
