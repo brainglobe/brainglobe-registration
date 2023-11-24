@@ -3,6 +3,27 @@ from pathlib import Path
 
 import pytest
 from bg_atlasapi import BrainGlobeAtlas, config as bg_config
+from PIL import Image
+import napari
+import numpy as np
+
+
+@pytest.fixture()
+def make_napari_viewer_with_images(make_napari_viewer, pytestconfig):
+    viewer: napari.Viewer = make_napari_viewer()
+
+    root_path = pytestconfig.rootpath
+    atlas_image = Image.open(
+        root_path / "src/tests/test_images/Atlas_Hipp.tif"
+    )
+    moving_image = Image.open(
+        root_path / "src/tests/test_images/sample_hipp.tif"
+    )
+
+    viewer.add_image(np.asarray(moving_image), name="moving_image")
+    viewer.add_image(np.asarray(atlas_image), name="atlas_image")
+
+    return viewer
 
 
 def pytest_addoption(parser):

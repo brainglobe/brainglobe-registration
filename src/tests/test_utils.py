@@ -1,10 +1,13 @@
 from unittest.mock import Mock
+import pytest
 from pytransform3d.rotations import active_matrix_from_angle
 import numpy as np
 from pathlib import Path
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     open_parameter_file,
+    get_image_layer_names,
+    find_layer_index,
 )
 
 
@@ -66,3 +69,25 @@ def open_parameter_file_with_empty_content():
     result = open_parameter_file(file_path)
     assert result == {}
     file_path.unlink()
+
+
+@pytest.mark.parametrize(
+    "name, index",
+    [
+        ("moving_image", 0),
+        ("atlas_image", 1),
+    ],
+)
+def test_find_layer_index(make_napari_viewer_with_images, name, index):
+    viewer = make_napari_viewer_with_images
+
+    assert find_layer_index(viewer, name) == index
+
+
+def test_get_image_layer_names(make_napari_viewer_with_images):
+    viewer = make_napari_viewer_with_images
+
+    layer_names = get_image_layer_names(viewer)
+
+    assert len(layer_names) == 2
+    assert layer_names == ["moving_image", "atlas_image"]
