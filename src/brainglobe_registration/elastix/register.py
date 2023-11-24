@@ -69,10 +69,20 @@ def run_registration(
     # get results
     result_image = elastix_object.GetOutput()
     result_transform_parameters = elastix_object.GetTransformParameterObject()
+    temp_interp_order = result_transform_parameters.GetParameter(
+        0, "FinalBSplineInterpolationOrder"
+    )
+    result_transform_parameters.SetParameter(
+        "FinalBSplineInterpolationOrder", "0"
+    )
 
     annotation_image_transformix = itk.transformix_filter(
         annotation_image.astype(np.float32, copy=False),
         result_transform_parameters,
+    )
+
+    result_transform_parameters.SetParameter(
+        "FinalBSplineInterpolationOrder", temp_interp_order
     )
 
     return (
