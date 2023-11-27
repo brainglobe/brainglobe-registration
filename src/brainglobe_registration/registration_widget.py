@@ -220,11 +220,11 @@ class RegistrationWidget(QWidget):
 
         self._viewer.add_image(result, name="Registered Image")
         self._viewer.add_labels(
-            registered_annotation_image.astype(np.int32, copy=False),
+            registered_annotation_image.astype(np.uint32, copy=False),
             name="Registered Annotations",
             visible=False,
         )
-        self._viewer.add_image(
+        self._viewer.add_labels(
             boundaries, name="Registered Boundaries", visible=False
         )
 
