@@ -9,8 +9,8 @@ class RegistrationParameterListView(QTableWidget):
     A QTableWidget subclass that displays and manages registration parameters.
 
     This widget displays a table of registration parameters and their values.
-    The parameters can be edited directly in the table. When a parameter value is
-    changed, the parameter dictionary is updated.
+    The parameters can be edited directly in the table. When a parameter
+    value is changed, the parameter dictionary is updated.
 
     Attributes
     ----------
@@ -41,7 +41,7 @@ class RegistrationParameterListView(QTableWidget):
             The parent widget, by default None
         """
         super().__init__(parent)
-        self.param_dict = {}
+        self.param_dict = param_dict
         self.transform_type = transform_type
         self.setColumnCount(2)
 
@@ -92,5 +92,5 @@ class RegistrationParameterListView(QTableWidget):
             if row == self.rowCount() - 1:
                 self.setRowCount(self.rowCount() + 1)
         # TODO - add a way to remove rows if they are empty removing
-        #  them from the param dictionary (might have to save the parameter when
-        #  it is selected)
+        #  them from the param dictionary (might have to save the parameter
+        #  when it is selected)

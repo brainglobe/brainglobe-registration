@@ -1,5 +1,15 @@
 include LICENSE
 include README.md
+include .napari-hub/DESCRIPTION.md
+include .napari-hub/config.yml
+include brainglobe_registration/napari.yaml
+include brainglobe_registration/resources/brainglobe.png
+exclude .pre-commit-config.yaml
 
+recursive-include brainglobe_registration/parameters *.txt
+recursive-include brainglobe_registration/resources *.tif
+recursive-exclude imgs *.png
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
+recursive-exclude docs *
+recursive-exclude tests *

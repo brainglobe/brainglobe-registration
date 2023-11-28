@@ -2,7 +2,6 @@ import pytest
 
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
 
-
 available_atlases = [
     "------",
     "allen_mouse_100um",
@@ -18,7 +17,7 @@ def select_images_view() -> SelectImagesView:
         available_atlases=available_atlases,
         sample_image_names=sample_image_names,
     )
-    yield select_images_view
+    return select_images_view
 
 
 def test_select_images_view(select_images_view, qtbot):

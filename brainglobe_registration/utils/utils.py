@@ -1,8 +1,9 @@
-import napari
-from pytransform3d.rotations import active_matrix_from_angle
-import numpy as np
 from pathlib import Path
 from typing import List
+
+import napari
+import numpy as np
+from pytransform3d.rotations import active_matrix_from_angle
 
 
 def adjust_napari_image_layer(

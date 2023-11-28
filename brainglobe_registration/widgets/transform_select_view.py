@@ -7,31 +7,31 @@ from qtpy.QtWidgets import (
 
 class TransformSelectView(QTableWidget):
     """
-    A QTableWidget subclass that provides a user interface for selecting transform
-    types and associated files.
+    A QTableWidget subclass that provides a user interface for selecting
+    transform types and associated files.
 
-    This widget displays a table of available transform types and associated default
-    parameter files. The user can select a transform type and an associated file from
-    dropdown menus. The widget emits signals when a transform type is added or removed,
-    or when a file option is changed.
+    This widget displays a table of available transform types and associated
+    default parameter files. The user can select a transform type and an
+    associated file from dropdown menus. The widget emits signals when a
+    transform type is added or removed, or when a file option is changed.
 
     Attributes
     ----------
     transform_type_added_signal : Signal
-        Emitted when a transform type is added. The signal includes the name of the
-        transform type and its index.
+        Emitted when a transform type is added. The signal includes the name
+        of the transform type and its index.
     transform_type_removed_signal : Signal
-        Emitted when a transform type is removed. The signal includes the index of the
-        removed transform type.
+        Emitted when a transform type is removed. The signal includes the
+        index of the removed transform type.
     file_option_changed_signal : Signal
-        Emitted when a file option is changed. The signal includes the name of the file
-        and its index.
+        Emitted when a file option is changed. The signal includes the name
+        of the file and its index.
 
     Methods
     -------
     _on_transform_type_change(index):
         Handles the event when a transform type is changed. Emits the
-        transform_type_added_signal or transform_type_removed_signal as appropriate.
+        transform_type_added_signal or transform_type_removed_signal.
     _on_file_change(index):
         Handles the event when the default file option is changed.
         Emits the file_option_changed_signal.
@@ -60,7 +60,8 @@ class TransformSelectView(QTableWidget):
         ]
         self.transform_type_options = ["", "rigid", "affine", "bspline"]
 
-        # Create signal mappers for the transform type and file option dropdown menus
+        # Create signal mappers for the transform type and file option
+        # dropdown menus
         self.transform_type_signaller = QSignalMapper(self)
         self.transform_type_signaller.mapped[int].connect(
             self._on_transform_type_change
@@ -150,9 +151,10 @@ class TransformSelectView(QTableWidget):
         """
         Handle the event when a transform type is changed.
 
-        If a new transform type is selected, emits the transform_type_added_signal
-        and adds a new row to the table. If the transform type is set to "", removes
-         the row from the table and emits the transform_type_removed_signal.
+        If a new transform type is selected, emits the
+        transform_type_added_signal and adds a new row to the table. If the
+        transform type is set to "", removes the row from the table and emits
+        the transform_type_removed_signal.
 
         Parameters
         ----------
@@ -226,7 +228,8 @@ class TransformSelectView(QTableWidget):
         """
         Handle the event when a file option is changed.
 
-        Emits the file_option_changed_signal with the name of the file and its index.
+        Emits the file_option_changed_signal with the name of the file and
+        its index.
 
         Parameters
         ----------

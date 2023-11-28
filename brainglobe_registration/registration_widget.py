@@ -11,39 +11,37 @@ Users can download and add the atlas images/structures as layers to the viewer.
 from pathlib import Path
 
 import numpy as np
-
-from brainglobe_registration.elastix.register import run_registration
-from brainglobe_registration.widgets.select_images_view import SelectImagesView
-from brainglobe_registration.widgets.adjust_moving_image_view import (
-    AdjustMovingImageView,
-)
-from brainglobe_registration.widgets.parameter_list_view import (
-    RegistrationParameterListView,
-)
-from brainglobe_registration.widgets.transform_select_view import (
-    TransformSelectView,
-)
-from brainglobe_registration.utils.utils import (
-    adjust_napari_image_layer,
-    open_parameter_file,
-    find_layer_index,
-    get_image_layer_names,
-)
-
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 from napari.viewer import Viewer
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QGroupBox,
+    QPushButton,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
-    QTabWidget,
-    QPushButton,
 )
 from skimage.segmentation import find_boundaries
 
+from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.brainglobe_logo import header_widget
+from brainglobe_registration.utils.utils import (
+    adjust_napari_image_layer,
+    find_layer_index,
+    get_image_layer_names,
+    open_parameter_file,
+)
+from brainglobe_registration.widgets.adjust_moving_image_view import (
+    AdjustMovingImageView,
+)
+from brainglobe_registration.widgets.parameter_list_view import (
+    RegistrationParameterListView,
+)
+from brainglobe_registration.widgets.select_images_view import SelectImagesView
+from brainglobe_registration.widgets.transform_select_view import (
+    TransformSelectView,
+)
 
 
 class RegistrationWidget(QWidget):
@@ -54,7 +52,11 @@ class RegistrationWidget(QWidget):
         self._atlas: BrainGlobeAtlas = None
         self._moving_image = None
 
-        self.transform_params = {"rigid": {}, "affine": {}, "bspline": {}}
+        self.transform_params: dict[str, dict] = {
+            "rigid": {},
+            "affine": {},
+            "bspline": {},
+        }
         self.transform_selections = []
 
         for transform_type in self.transform_params:

@@ -1,10 +1,11 @@
-from qtpy.QtCore import Signal
 from typing import List
+
+from qtpy.QtCore import Signal
 from qtpy.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QLabel,
     QComboBox,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -21,28 +22,30 @@ class SampleImageComboBox(QComboBox):
 
 class SelectImagesView(QWidget):
     """
-    A QWidget subclass that provides a dropdown menu for selecting the image and atlas
-    for registration.
+    A QWidget subclass that provides a dropdown menu for selecting the image
+    and atlas for registration.
 
-    This widget provides two dropdown menus for selecting the atlas and the sample
-    to be used for registration. It emits signals when the selected atlas or sample
-    image changes.
+    This widget provides two dropdown menus for selecting the atlas and the
+    sample to be used for registration. It emits signals when the selected
+    atlas or sample image changes.
 
     Attributes
     ----------
     atlas_index_change : Signal
-        Emitted when the selected atlas changes. The signal includes the index of the
-        selected atlas.
+        Emitted when the selected atlas changes. The signal includes the index
+        of the selected atlas.
     moving_image_index_change : Signal
-        Emitted when the selected sample image changes. The signal includes the index
-        of the selected image.
+        Emitted when the selected sample image changes. The signal includes
+        the index of the selected image.
 
     Methods
     -------
     _on_atlas_index_change():
-        Emits the atlas_index_change signal with the index of the selected atlas.
+        Emits the atlas_index_change signal with the index of the selected
+        atlas.
     _on_moving_image_index_change():
-        Emits the moving_image_index_change signal with the index of the selected image.
+        Emits the moving_image_index_change signal with the index of the
+        selected image.
     """
 
     atlas_index_change = Signal(int)
@@ -99,7 +102,8 @@ class SelectImagesView(QWidget):
 
     def _on_atlas_index_change(self):
         """
-        Emit the atlas_index_change signal with the index of the selected atlas.
+        Emit the atlas_index_change signal with the index of the selected
+        atlas.
 
         If the selected index is invalid, emits -1.
         """
@@ -109,7 +113,8 @@ class SelectImagesView(QWidget):
 
     def _on_moving_image_index_change(self):
         """
-        Emit the moving_image_index_change signal with the index of the selected image.
+        Emit the moving_image_index_change signal with the index of the
+        selected image.
 
         If the selected index is invalid, emits -1.
         """

@@ -1,16 +1,16 @@
 import os
 from pathlib import Path
 
-import pytest
-from bg_atlasapi import BrainGlobeAtlas, config as bg_config
-from PIL import Image
-import napari
 import numpy as np
+import pytest
+from bg_atlasapi import BrainGlobeAtlas
+from bg_atlasapi import config as bg_config
+from PIL import Image
 
 
 @pytest.fixture()
 def make_napari_viewer_with_images(make_napari_viewer, pytestconfig):
-    viewer: napari.Viewer = make_napari_viewer()
+    viewer = make_napari_viewer()
 
     root_path = pytestconfig.rootpath
     atlas_image = Image.open(

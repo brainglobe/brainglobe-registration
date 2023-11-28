@@ -1,7 +1,8 @@
+from typing import List
+
 import itk
 import numpy as np
 from bg_atlasapi import BrainGlobeAtlas
-from typing import List
 
 
 def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
@@ -27,7 +28,7 @@ def run_registration(
     atlas_image,
     moving_image,
     annotation_image,
-    parameter_lists: List[tuple[str, dict]] = None,
+    parameter_lists: List[tuple[str, dict]],
 ) -> tuple[np.ndarray, itk.ParameterObject, np.ndarray]:
     """
     Run the registration process on the given images.
@@ -92,7 +93,7 @@ def run_registration(
     )
 
 
-def setup_parameter_object(parameter_lists: List[tuple[str, dict]] = None):
+def setup_parameter_object(parameter_lists: List[tuple[str, dict]]):
     """
     Set up the parameter object for the registration process.
 

@@ -11,7 +11,7 @@ max_rotate = 360
 @pytest.fixture(scope="class")
 def adjust_moving_image_view() -> AdjustMovingImageView:
     adjust_moving_image_view = AdjustMovingImageView()
-    yield adjust_moving_image_view
+    return adjust_moving_image_view
 
 
 @pytest.mark.parametrize(
