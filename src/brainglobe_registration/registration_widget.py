@@ -83,9 +83,7 @@ class RegistrationWidget(QWidget):
             self._moving_image = None
 
         self.setLayout(QVBoxLayout())
-        self.layout().addWidget(
-            header_widget(tutorial_file_name="register-2D-image.html")
-        )
+        self.layout().addWidget(header_widget())
 
         self.main_tabs = QTabWidget(parent=self)
         self.main_tabs.setTabPosition(QTabWidget.West)
