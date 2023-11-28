@@ -218,15 +218,27 @@ class RegistrationWidget(QWidget):
             registered_annotation_image, mode="inner"
         ).astype(np.int8, copy=False)
 
-        self._viewer.add_image(result, name="Registered Image")
+        self._viewer.add_image(result, name="Registered Image", visible=False)
+
+        atlas_layer_index = find_layer_index(
+            self._viewer, self._atlas.atlas_name
+        )
+        self._viewer.layers[atlas_layer_index].visible = False
+
         self._viewer.add_labels(
             registered_annotation_image.astype(np.uint32, copy=False),
             name="Registered Annotations",
             visible=False,
         )
-        self._viewer.add_labels(
-            boundaries, name="Registered Boundaries", visible=False
+        self._viewer.add_image(
+            boundaries,
+            name="Registered Boundaries",
+            visible=True,
+            blending="additive",
+            opacity=0.8,
         )
+
+        self._viewer.grid.enabled = False
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
