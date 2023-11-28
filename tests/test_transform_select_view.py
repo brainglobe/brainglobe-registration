@@ -8,7 +8,7 @@ from brainglobe_registration.widgets.transform_select_view import (
 @pytest.fixture(scope="class")
 def transform_select_view() -> TransformSelectView:
     transform_select_view = TransformSelectView()
-    yield transform_select_view
+    return transform_select_view
 
 
 def test_transform_select_view(transform_select_view, qtbot):
@@ -149,7 +149,8 @@ def test_transform_type_removed(transform_select_view, qtbot):
 
 def test_file_option_default_on_transform_change(transform_select_view, qtbot):
     """
-    When the transform type is changed, the file option should be set to the default
+    When the transform type is changed, the file option should be set to the
+    default
     """
     qtbot.addWidget(transform_select_view)
     file_option_index = 2

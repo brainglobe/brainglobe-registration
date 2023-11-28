@@ -1,6 +1,6 @@
 import pytest
-
 from qtpy.QtWidgets import QTableWidgetItem
+
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )

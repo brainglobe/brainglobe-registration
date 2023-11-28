@@ -2,8 +2,8 @@ import pytest
 from PIL import Image
 
 from brainglobe_registration.elastix.register import (
-    setup_parameter_object,
     run_registration,
+    setup_parameter_object,
 )
 
 

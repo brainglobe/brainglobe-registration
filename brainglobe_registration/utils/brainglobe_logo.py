@@ -1,11 +1,6 @@
-"""
-Can this be imorted from brainrender-napari? We can also move this to a bgutils maybe?
-"""
-
-
 from importlib.resources import files
 
-from qtpy.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QWidget, QVBoxLayout
+from qtpy.QtWidgets import QGroupBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 brainglobe_logo = files("brainglobe_registration").joinpath(
     "resources/brainglobe.png"
