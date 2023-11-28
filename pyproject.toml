@@ -11,7 +11,7 @@ license = {text = "BSD-3-Clause"}
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Framework :: napari",
-    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -32,12 +32,11 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/brainglobe/brainglobe-registration"
+"Homepage" = "https://brainglobe.info"
 "Bug Tracker" = "https://github.com/brainglobe/brainglobe-registration/issues"
 "Documentation" = "https://github.com/brainglobe/brainglobe-registration#README.md"
-
 "Source Code" = "https://github.com/brainglobe/brainglobe-registration"
-"User Support" = "https://github.com/brainglobe/brainglobe-registration/issues"
+"User Support" = "https://forum.image.sc/tag/brainglobe"
 
 [project.entry-points."napari.manifest"]
 brainglobe-registration = "brainglobe_registration:napari.yaml"
@@ -103,12 +102,6 @@ line-length = 79
 exclude = ["__init__.py","build",".eggs"]
 select = ["I", "E", "F"]
 fix = true
-
-[tool.cibuildwheel]
-build = "cp39-* cp310- cp311-*"
-
-[tool.cibuildwheel.macos]
-archs = ["x86_64", "arm64"]
 
 [tool.tox]
 legacy_tox_ini = """
