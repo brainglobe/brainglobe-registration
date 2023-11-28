@@ -47,22 +47,6 @@ jobs:
         with:
           qt: true
 
-      # cache atlases needed by the tests
-      - name: Cache Atlases
-        id: atlas-cache
-        uses: actions/cache@v3
-        with:
-          path: | # ensure we don't cache any interrupted atlas download and extraction!
-            ~/.brainglobe/*
-            !~/.brainglobe/atlas.tar.gz
-          key: ${{ runner.os }}-cached-atlases
-          enableCrossOsArchive: false # ~ and $HOME evaluate to different places across OSs!
-
-      - if: ${{ steps.atlas-cache.outputs.cache-hit == 'true' }}
-        name: List files in brainglobe data folder # good to be able to sanity check that user data is as expected
-        run: |
-          ls -af ~/.brainglobe/
-
       # Run tests
       - uses: neuroinformatics-unit/actions/test@v2
         with:
