@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 
 [tool.setuptools_scm]
-write_to = "src/bg_elastix/_version.py"
+write_to = "src/brainglobe_registration/_version.py"
 
 [tool.black]
 line-length = 79
@@ -12,3 +12,9 @@ line-length = 79
 [tool.isort]
 profile = "black"
 line_length = 79
+
+[tool.pytest.ini_options]
+testpaths = "src/tests"
+markers = [
+    "slow: mark test as slow"
+]

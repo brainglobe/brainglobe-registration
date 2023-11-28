@@ -1,33 +1,67 @@
 import itk
 import numpy as np
+from bg_atlasapi import BrainGlobeAtlas
+from typing import List
+
+
+def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
+    """
+    Get a BrainGlobeAtlas object by its name.
+
+    Parameters
+    ----------
+    atlas_name : str
+        The name of the atlas.
+
+    Returns
+    -------
+    BrainGlobeAtlas
+        The BrainGlobeAtlas object.
+    """
+    atlas = BrainGlobeAtlas(atlas_name)
+
+    return atlas
 
 
 def run_registration(
-    fixed_image,
+    atlas_image,
     moving_image,
-    rigid=True,
-    affine=True,
-    bspline=True,
-    affine_iterations="2048",
-    log=False,
-):
+    annotation_image,
+    parameter_lists: List[tuple[str, dict]] = None,
+) -> tuple[np.ndarray, itk.ParameterObject, np.ndarray]:
+    """
+    Run the registration process on the given images.
+
+    Parameters
+    ----------
+    atlas_image : np.ndarray
+        The atlas image.
+    moving_image : np.ndarray
+        The moving image.
+    annotation_image : np.ndarray
+        The annotation image.
+    parameter_lists : List[tuple[str, dict]], optional
+        The list of parameter lists, by default None
+
+    Returns
+    -------
+    np.ndarray
+        The result image.
+    itk.ParameterObject
+        The result transform parameters.
+    """
     # convert to ITK, view only
-    fixed_image = itk.GetImageViewFromArray(fixed_image).astype(itk.F)
+    atlas_image = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
     moving_image = itk.GetImageViewFromArray(moving_image).astype(itk.F)
 
     # This syntax needed for 3D images
     elastix_object = itk.ElastixRegistrationMethod.New(
-        fixed_image, moving_image
+        moving_image, atlas_image
     )
 
-    parameter_object = setup_parameter_object(
-        rigid=rigid,
-        affine=affine,
-        bspline=bspline,
-        affine_iterations=affine_iterations,
-    )
+    parameter_object = setup_parameter_object(parameter_lists=parameter_lists)
+
     elastix_object.SetParameterObject(parameter_object)
-    elastix_object.SetLogToConsole(log)
 
     # update filter object
     elastix_object.UpdateLargestPossibleRegion()
@@ -35,32 +69,52 @@ def run_registration(
     # get results
     result_image = elastix_object.GetOutput()
     result_transform_parameters = elastix_object.GetTransformParameterObject()
-    return np.asarray(result_image), result_transform_parameters
+    temp_interp_order = result_transform_parameters.GetParameter(
+        0, "FinalBSplineInterpolationOrder"
+    )
+    result_transform_parameters.SetParameter(
+        "FinalBSplineInterpolationOrder", "0"
+    )
+
+    annotation_image_transformix = itk.transformix_filter(
+        annotation_image.astype(np.float32, copy=False),
+        result_transform_parameters,
+    )
+
+    result_transform_parameters.SetParameter(
+        "FinalBSplineInterpolationOrder", temp_interp_order
+    )
+
+    return (
+        np.asarray(result_image),
+        result_transform_parameters,
+        np.asarray(annotation_image_transformix),
+    )
 
 
-def setup_parameter_object(
-    rigid=True,
-    affine=True,
-    bspline=True,
-    affine_iterations="2048",
-):
+def setup_parameter_object(parameter_lists: List[tuple[str, dict]] = None):
+    """
+    Set up the parameter object for the registration process.
+
+    Parameters
+    ----------
+    parameter_lists : List[tuple[str, dict]], optional
+        The list of parameter lists, by default None
+
+    Returns
+    -------
+    itk.ParameterObject
+        The parameter object.#
+    """
     parameter_object = itk.ParameterObject.New()
 
-    if rigid:
-        parameter_map_rigid = parameter_object.GetDefaultParameterMap("rigid")
-        parameter_object.AddParameterMap(parameter_map_rigid)
+    for transform_type, parameter_dict in parameter_lists:
+        parameter_map = parameter_object.GetDefaultParameterMap(transform_type)
+        parameter_map.clear()
 
-    if affine:
-        parameter_map_affine = parameter_object.GetDefaultParameterMap(
-            "affine"
-        )
-        parameter_map_affine["MaximumNumberOfIterations"] = [affine_iterations]
-        parameter_object.AddParameterMap(parameter_map_affine)
+        for k, v in parameter_dict.items():
+            parameter_map[k] = v
 
-    if bspline:
-        parameter_map_bspline = parameter_object.GetDefaultParameterMap(
-            "bspline"
-        )
-        parameter_object.AddParameterMap(parameter_map_bspline)
+        parameter_object.AddParameterMap(parameter_map)
 
     return parameter_object

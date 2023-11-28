@@ -1,0 +1,223 @@
+//  **********  B-Spline Transformation  **********
+// --------------------------------------------------------------------------------
+// Optimised B-Spline transform for Mouse Brain serial section 2-photon datasets
+//
+// Steven J. West, SWC, UCL, UK 2020
+
+
+// **********  ImageTypes  **********
+// --------------------------------------------------------------------------------
+
+(FixedInternalImagePixelType "float") // automatically converted to this type
+(FixedImageDimension 3)
+
+(MovingInternalImagePixelType "float") // automatically converted to this type
+(MovingImageDimension 3)
+
+(UseDirectionCosines "true")
+// Setting it to false means that you choose to ignore important information
+// from the image, which relates voxel coordinates to world coordinates
+// Ignoring it may easily lead to left/right swaps for example, which could
+// screw up a (medical) analysis
+
+
+// **********  Registration  **********
+// --------------------------------------------------------------------------------
+
+(Registration "MultiResolutionRegistration")
+// the default
+
+
+// ********** Pyramid  **********
+// --------------------------------------------------------------------------------
+
+(FixedImagePyramid "FixedSmoothingImagePyramid")
+// Applies gaussian smoothing and no down-sampling
+
+(MovingImagePyramid "MovingSmoothingImagePyramid")
+// Applies gaussian smoothing and no down-sampling
+
+(NumberOfResolutions 3)
+// 3 levels
+
+(ImagePyramidSchedule 4 4 4 2 2 2 1 1 1)
+// sigma: 4/2 XYZ, 2/2 XYZ, 1/2 XYZ
+
+(ErodeMask "false" )
+// information from inside any mask will flow into the ROI due to the
+// smoothing step
+
+
+// ********** Metric  **********
+// --------------------------------------------------------------------------------
+
+(Metric "AdvancedMattesMutualInformation")
+// Cost Function Metric
+// quantifies the "amount of information" (in units of shannons, commonly called
+//   bits) obtained about one random variable through observing the other random
+//   variable
+// only a relation between the probability distributions of the intensities of
+//   the fixed and moving image is assumed
+// often a good choice for image registration
+
+(NumberOfFixedHistogramBins 32 )
+(NumberOfMovingHistogramBins 32 )
+// The size of the histogram. Must be given for each resolution, or for all
+//  resolutions at once
+
+
+(FixedKernelBSplineOrder 3)
+(MovingKernelBSplineOrder 3)
+// The B-spline order of the Parzen window, used to estimate the joint histogram
+
+(FixedLimitRangeRatio 0.0)
+(MovingLimitRangeRatio 0.0)
+// The relative extension of the intensity range of the fixed image.
+//  0.0 - turned off
+
+(ShowExactMetricValue "false" "false" "false")
+// get exact metric on final resolution
+// computes the exact metric value (computed on all voxels rather than on the
+//  set of spatial samples) and shows it each iteration
+//  Must be given for each resolution
+//  This is very SLOW for large images
+
+(UseMultiThreadingForMetrics "true")
+// Whether to compute metric with multi-threading
+
+(UseFastAndLowMemoryVersion "true")
+// select between two methods for computing mutual information metric
+//  false : computes the derivatives of the joint histogram to each transformation
+//    parameter
+//  true : computes the mutual information via another route
+
+(UseJacobianPreconditioning "false")
+// whether to implement the preconditioning technique by Nicholas Tustison:
+//  "Directly Manipulated Freeform Deformations"
+
+(FiniteDifferenceDerivative "false")
+// Experimental feature, do not use.
+
+
+// ********** ImageSampler  **********
+// --------------------------------------------------------------------------------
+
+(ImageSampler "RandomCoordinate")
+
+(NumberOfSpatialSamples 10000 )
+// Number of spatial samples used to compute
+//  the mutual information in each resolution level
+
+(NewSamplesEveryIteration "true" "true" "true" "true")
+// whether to select a new set of spatial samples in every iteration
+
+(UseRandomSampleRegion "false")
+// whether to randomly select a subregion of the image in each iteration
+
+(CheckNumberOfSamples "true")
+// whether to check if at least a certain fraction (default 1/4) of the samples map
+//  inside the moving image.
+
+(MaximumNumberOfSamplingAttempts 10 10 10)
+// maximum number of sampling attempts
+
+
+// ********** Interpolator and Resampler  **********
+// --------------------------------------------------------------------------------
+
+(Interpolator "BSplineInterpolator")
+// The interpolator to use during registration process
+// BSpline : Evaluates the Values of non-voxel Positions in the Moving Image
+//  Basis Function for Splines - set of Piecewise Polynomial Lines
+
+(BSplineInterpolationOrder 3)
+// Order of B-Spline interpolation used in each resolution level
+//  0 Nearest Neighbour, 1 Linear interpolation,
+//  2+ non-linear curves with increasing degrees of freedom/power
+
+
+// Order of B-Spline interpolation used when interpolating the fixed
+  // image - if using MultiInputRandomCoordinate sampler
+// (FixedImageBSplineInterpolationOrder 3)
+
+//Default pixel value for pixels that come from outside the picture:
+(DefaultPixelValue 0)
+
+(Resampler "DefaultResampler")
+// Either DefaultResampler or OpenCLResampler
+
+(ResampleInterpolator "FinalBSplineInterpolator")
+// The interpolator to use to generate the resulting deformed moving image
+// BSpline : Evaluates the Values of non-voxel Positions in the Moving Image
+//  Basis Function for Splines - set of Piecewise Polynomial Lines
+
+(FinalBSplineInterpolationOrder 3)
+// Order of B-Spline interpolation used for applying the final deformation
+//  0 Nearest Neighbour, 1 Linear interpolation,
+//  2+ non-linear curves with increasing degrees of freedom/power
+
+
+// ********** Transform  **********
+// --------------------------------------------------------------------------------
+
+(Transform "BSplineTransform")
+// Set of control points are defined on a regular grid, overlayed on the
+//  fixed image
+//  Control Point Grid is spaced according to n-dimensional vector
+//  Number of Control Points in each dimension is approx. the image length/spacing,
+//    plus extra points at each end
+//  Pixels are LOCALLY Transformed by the B-splines at surrounding control points
+//    This models local transformations, and is fast to compute
+//  B-spline coefficients pk are the B-Spline PARAMETERS
+//    Number of coefficients is the number of control points x number of dimensions
+//    Coefficients are ordered by coefficient index first
+//      (p1x, p2x..., p1y, p2y..., p1z, p2z)
+
+(FinalGridSpacingInVoxels 25.000000 25.000000 25.000000)
+// grid spacing of the B-spline transform for each dimension
+//  spacing is in "voxel size units"
+
+(HowToCombineTransforms "Compose")
+// Always use Compose for combining transforms
+
+
+// ********** Optimizer  **********
+// --------------------------------------------------------------------------------
+
+(Optimizer "StandardGradientDescent")
+// take the search direction as the negative gradient of the cost function
+
+(MaximumNumberOfIterations 5000 5000 5000)
+// Maximum number of iterations in each resolution level
+
+(SP_a 10000.0 )
+// Param_a in each resolution level. a_k = a/(A+k+1)^alpha
+
+(SP_A 100.0 )
+// Param_A in each resolution level. a_k = a/(A+k+1)^alpha
+
+(SP_alpha 0.6 )
+// Param_alpha in each resolution level. a_k = a/(A+k+1)^alpha
+
+
+// ********** Output  **********
+// --------------------------------------------------------------------------------
+
+(WriteResultImage "true")
+// Whether to write the final deformed image when elastix has optimised the
+//  transformation.
+
+(ResultImageFormat "tiff") // commented out as not writing any images
+// What image format to write the image as
+//  can use: "tiff" "dcm" "nrrd" "png"
+
+// (CompressResultImage "false")
+// whether lossless compression of the written image is performed
+
+
+(WriteTransformParametersEachIteration "false")
+// whether to save a transform parameter file to disk in every iteration
+
+(WriteResultImageAfterEachResolution "false" "false" "false" "false")
+// whether the intermediate result image is resampled and written after
+//  each resolution

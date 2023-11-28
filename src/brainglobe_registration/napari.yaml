@@ -1,10 +1,14 @@
 name: brainglobe-registration
-display_name: BrainGlobe Elastix Registration
+display_name: BrainGlobe Registration
 contributions:
   commands:
-    - id: brainglobe-registration.register
-      python_name: brainglobe_registration._widget:register
-      title: BrainGlobe Elastix Registration
+    - id: brainglobe-registration.make_registration_widget
+      python_name: brainglobe_registration.registration_widget:RegistrationWidget
+      title: BrainGlobe Registration
+  sample_data:
+    - key: example
+      display_name: Sample Brain Slice
+      uri: src/brainglobe_registration/resources/sample_hipp.tif
   widgets:
-    - command: brainglobe-registration.register
-      display_name: BrainGlobe Elastix Registration
+    - command: brainglobe-registration.make_registration_widget
+      display_name: BrainGlobe Registration
