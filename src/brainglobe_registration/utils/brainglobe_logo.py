@@ -23,7 +23,7 @@ def _docs_links_widget(tutorial_file_name: str, parent: QWidget = None):
     <h3>
     <p><a href="https://brainglobe.info" style="color:gray;">Website</a></p>
     <p><a href="https://brainglobe.info/tutorials/{tutorial_file_name}" style="color:gray;">Tutorial</a></p>
-    <p><a href="https://github.com/brainglobe/bg-elastix" style="color:gray;">Source</a></p>
+    <p><a href="https://github.com/brainglobe/brainglobe-registration" style="color:gray;">Source</a></p>
     </h3>
     """  # noqa: E501
     docs_links_widget = QLabel(_docs_links_html, parent=parent)
