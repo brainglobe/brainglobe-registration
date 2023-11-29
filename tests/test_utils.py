@@ -1,13 +1,15 @@
+from pathlib import Path
 from unittest.mock import Mock
+
+import numpy as np
 import pytest
 from pytransform3d.rotations import active_matrix_from_angle
-import numpy as np
-from pathlib import Path
+
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
-    open_parameter_file,
-    get_image_layer_names,
     find_layer_index,
+    get_image_layer_names,
+    open_parameter_file,
 )
 
 

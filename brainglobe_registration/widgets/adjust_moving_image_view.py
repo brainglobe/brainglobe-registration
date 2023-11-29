@@ -1,12 +1,11 @@
 from qtpy.QtCore import Signal
-
 from qtpy.QtWidgets import (
-    QFormLayout,
-    QSpinBox,
     QDoubleSpinBox,
-    QPushButton,
-    QWidget,
+    QFormLayout,
     QLabel,
+    QPushButton,
+    QSpinBox,
+    QWidget,
 )
 
 
@@ -14,23 +13,26 @@ class AdjustMovingImageView(QWidget):
     """
     A QWidget subclass that provides controls for adjusting the moving image.
 
-    This widget provides controls for adjusting the x and y offsets and rotation
-    of the moving image. It emits signals when the image is adjusted or reset.
+    This widget provides controls for adjusting the x and y offsets and
+    rotation of the moving image. It emits signals when the image is adjusted
+    or reset.
 
     Attributes
     ----------
     adjust_image_signal : Signal
-        Emitted when the image is adjusted. The signal includes the x and y offsets
-        and rotation as parameters.
+        Emitted when the image is adjusted. The signal includes the x and y
+        offsets and rotation as parameters.
     reset_image_signal : Signal
         Emitted when the image is reset.
 
     Methods
     -------
     _on_adjust_image():
-        Emits the adjust_image_signal with the current x and y offsets and rotation.
+        Emits the adjust_image_signal with the current x and y offsets and
+        rotation.
     _on_reset_image_button_click():
-        Resets the x and y offsets and rotation to 0 and emits the reset_image_signal.
+        Resets the x and y offsets and rotation to 0 and emits the
+        reset_image_signal.
     """
 
     adjust_image_signal = Signal(int, int, float)
@@ -85,7 +87,8 @@ class AdjustMovingImageView(QWidget):
 
     def _on_adjust_image(self):
         """
-        Emit the adjust_image_signal with the current x and y offsets and rotation.
+        Emit the adjust_image_signal with the current x and y offsets and
+        rotation.
         """
         self.adjust_image_signal.emit(
             self.adjust_moving_image_x.value(),
@@ -95,7 +98,8 @@ class AdjustMovingImageView(QWidget):
 
     def _on_reset_image_button_click(self):
         """
-        Reset the x and y offsets and rotation to 0 and emit the reset_image_signal.
+        Reset the x and y offsets and rotation to 0 and emit the
+        reset_image_signal.
         """
         self.adjust_moving_image_x.setValue(0)
         self.adjust_moving_image_y.setValue(0)
