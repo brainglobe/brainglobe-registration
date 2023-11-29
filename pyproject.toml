@@ -1,6 +1,6 @@
 [project]
 name = "brainglobe-registration"
-authors = [{name = "Adam Tyson", email= "code@adamltyson.com"}]
+authors = [{name = "Brainglobe Developers", email= "hello@brainglobe.info"}]
 description = "A napari plugin for registration to a  BrainGlobe atlas."
 readme = "README.md"
 requires-python = ">=3.9.0"
