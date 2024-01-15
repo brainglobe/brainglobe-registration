@@ -20,6 +20,7 @@ from qtpy.QtWidgets import (
     QTabWidget,
 )
 from skimage.segmentation import find_boundaries
+from skimage.transform import rescale
 
 from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.brainglobe_logo import header_widget
@@ -101,9 +102,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.adjust_moving_image_widget.adjust_image_signal.connect(
             self._on_adjust_moving_image
         )
-
         self.adjust_moving_image_widget.reset_image_signal.connect(
             self._on_adjust_moving_image_reset_button_click
+        )
+        self.adjust_moving_image_widget.scale_image_signal.connect(
+            self._on_scale_moving_image
         )
 
         self.transform_select_view = TransformSelectView()
@@ -299,3 +302,16 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     def _on_sample_popup_about_to_show(self):
         self._sample_images = get_image_layer_names(self._viewer)
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
+
+    def _on_scale_moving_image(self, x: float, y: float):
+        if self._moving_image and self._atlas:
+            x_factor = x / self._atlas.resolution[0]
+            y_factor = y / self._atlas.resolution[1]
+
+            self._moving_image.data = rescale(
+                self._moving_image.data,
+                (y_factor, x_factor),
+                mode="constant",
+                preserve_range=True,
+                anti_aliasing=True,
+            )
