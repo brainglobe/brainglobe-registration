@@ -8,7 +8,7 @@ contributions:
   sample_data:
     - key: example
       display_name: Sample Brain Slice
-      uri: src/brainglobe_registration/resources/sample_hipp.tif
+      uri: brainglobe_registration/resources/sample_hipp.tif
   widgets:
     - command: brainglobe-registration.make_registration_widget
       display_name: BrainGlobe Registration

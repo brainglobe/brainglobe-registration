@@ -13,14 +13,11 @@ from pathlib import Path
 import numpy as np
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
+from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from napari.viewer import Viewer
-from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
-    QGroupBox,
     QPushButton,
     QTabWidget,
-    QVBoxLayout,
-    QWidget,
 )
 from skimage.segmentation import find_boundaries
 
@@ -44,9 +41,10 @@ from brainglobe_registration.widgets.transform_select_view import (
 )
 
 
-class RegistrationWidget(QWidget):
+class RegistrationWidget(CollapsibleWidgetContainer):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
+        self.setContentsMargins(10, 10, 10, 10)
 
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
@@ -83,16 +81,6 @@ class RegistrationWidget(QWidget):
             self._moving_image = self._viewer.layers[0]
         else:
             self._moving_image = None
-
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(header_widget())
-
-        self.main_tabs = QTabWidget(parent=self)
-        self.main_tabs.setTabPosition(QTabWidget.West)
-
-        self.settings_tab = QGroupBox()
-        self.settings_tab.setLayout(QVBoxLayout())
-        self.parameters_tab = QTabWidget()
 
         self.get_atlas_widget = SelectImagesView(
             available_atlases=self._available_atlases,
@@ -133,13 +121,17 @@ class RegistrationWidget(QWidget):
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.settings_tab.layout().addWidget(self.get_atlas_widget)
-        self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
-        self.settings_tab.layout().addWidget(self.transform_select_view)
-        self.settings_tab.layout().addWidget(self.run_button)
-        self.settings_tab.layout().setAlignment(Qt.AlignTop)
+        self.add_widget(header_widget(), collapsible=False)
+        self.add_widget(self.get_atlas_widget, widget_title="Select Images")
+        self.add_widget(
+            self.adjust_moving_image_widget, widget_title="Adjust Sample Image"
+        )
+        self.add_widget(
+            self.transform_select_view, widget_title="Select Transformations"
+        )
 
         self.parameter_setting_tabs_lists = []
+        self.parameters_tab = QTabWidget()
 
         for transform_type in self.transform_params:
             new_tab = RegistrationParameterListView(
@@ -150,10 +142,10 @@ class RegistrationWidget(QWidget):
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
-        self.main_tabs.addTab(self.settings_tab, "Settings")
-        self.main_tabs.addTab(self.parameters_tab, "Parameters")
+        self.add_widget(self.parameters_tab, widget_title="Advanced Settings")
+        self.add_widget(self.run_button, collapsible=False)
 
-        self.layout().addWidget(self.main_tabs)
+        self.layout().itemAt(1).widget().collapse(animate=False)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
