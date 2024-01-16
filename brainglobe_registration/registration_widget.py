@@ -14,6 +14,7 @@ import numpy as np
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
+from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from qtpy.QtWidgets import (
     QPushButton,
@@ -314,4 +315,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 mode="constant",
                 preserve_range=True,
                 anti_aliasing=True,
+            )
+        else:
+            show_error(
+                "No sample image or atlas selected. "
+                "Please select a sample image and atlas before scaling",
             )
