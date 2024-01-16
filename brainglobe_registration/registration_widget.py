@@ -20,6 +20,7 @@ from qtpy.QtWidgets import (
     QPushButton,
     QTabWidget,
 )
+from scipy.ndimage import rotate
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -108,6 +109,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
         self.adjust_moving_image_widget.scale_image_signal.connect(
             self._on_scale_moving_image
+        )
+        self.adjust_moving_image_widget.atlas_rotation_signal.connect(
+            self._on_adjust_atlas_rotation
         )
 
         self.transform_select_view = TransformSelectView()
@@ -320,4 +324,26 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             show_error(
                 "No sample image or atlas selected. "
                 "Please select a sample image and atlas before scaling",
+            )
+
+    def _on_adjust_atlas_rotation(self, pitch: float, yaw: float):
+        if self._atlas:
+            curr_atlas_layer_index = find_layer_index(
+                self._viewer, self._atlas.atlas_name
+            )
+
+            curr_atlas_data = rotate(
+                self._viewer.layers[curr_atlas_layer_index].data,
+                yaw,
+                axes=(0, 2),
+                order=0,
+            )
+            rotated_atlas = rotate(
+                curr_atlas_data, pitch, axes=(0, 1), order=0
+            )
+            self._viewer.layers[curr_atlas_layer_index].data = rotated_atlas
+
+        else:
+            show_error(
+                "No atlas selected. Please select an atlas before rotating"
             )
