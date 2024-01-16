@@ -10,10 +10,13 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 from pathlib import Path
 
+import dask.array as da
 import numpy as np
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
+from dask_image.ndinterp import affine_transform as affine_transform
+from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
@@ -21,7 +24,6 @@ from qtpy.QtWidgets import (
     QPushButton,
     QTabWidget,
 )
-from scipy.ndimage import affine_transform
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -186,11 +188,18 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         else:
             self.run_button.setEnabled(True)
 
-        self._viewer.add_image(
+        dask_atlas_reference = da.from_array(
             atlas.reference,
+            chunks=(1, atlas.reference.shape[1], atlas.reference.shape[2]),
+        )
+
+        self._viewer.add_image(
+            dask_atlas_reference,
             name=atlas_name,
             colormap="gray",
             blending="translucent",
+            contrast_limits=[0, 512],
+            multiscale=False,
         )
 
         self._atlas = BrainGlobeAtlas(atlas_name=atlas_name)
@@ -367,11 +376,22 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             ].data = affine_transform(
                 self._atlas.reference,
                 transform_matrix,
-                order=1,
+                order=3,
                 output_shape=bounding_box,
+                output_chunks=(1, bounding_box[1], bounding_box[2]),
             )
 
+            worker = self.compute_dask_array(
+                self._viewer.layers[curr_atlas_layer_index].data,
+                curr_atlas_layer_index,
+            )
+            worker.start()
         else:
             show_error(
                 "No atlas selected. Please select an atlas before rotating"
             )
+
+    @thread_worker
+    def compute_dask_array(self, dask_array: da, viewer_index: int):
+        dask_array.compute()
+        self._viewer.layers[viewer_index].data = dask_array
