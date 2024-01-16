@@ -16,11 +16,12 @@ from bg_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
+from pytransform3d.rotations import active_matrix_from_angle
 from qtpy.QtWidgets import (
     QPushButton,
     QTabWidget,
 )
-from scipy.ndimage import rotate
+from scipy.ndimage import affine_transform
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -28,6 +29,7 @@ from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.brainglobe_logo import header_widget
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_rotated_bounding_box,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
@@ -51,6 +53,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
+        self.atlas_pitch = 0
+        self.atlas_yaw = 0
         self._moving_image = None
 
         self.transform_params: dict[str, dict] = {
@@ -326,22 +330,46 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 "Please select a sample image and atlas before scaling",
             )
 
-    def _on_adjust_atlas_rotation(self, pitch: float, yaw: float):
+    def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if self._atlas:
             curr_atlas_layer_index = find_layer_index(
                 self._viewer, self._atlas.atlas_name
             )
 
-            curr_atlas_data = rotate(
-                self._viewer.layers[curr_atlas_layer_index].data,
-                yaw,
-                axes=(0, 2),
-                order=0,
+            roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
+            pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
+            yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
+
+            rot_matrix = roll_matrix @ pitch_matrix @ yaw_matrix
+
+            full_matrix = np.eye(4)
+            full_matrix[:-1, :-1] = rot_matrix
+
+            origin = np.asarray(self._atlas.reference.shape) // 2
+            translate_matrix = np.eye(4)
+            translate_matrix[:-1, -1] = origin
+
+            bounding_box = calculate_rotated_bounding_box(
+                self._atlas.reference.shape, full_matrix
             )
-            rotated_atlas = rotate(
-                curr_atlas_data, pitch, axes=(0, 1), order=0
+            new_translation = np.asarray(bounding_box) // 2
+            post_rotate_translation = np.eye(4)
+            post_rotate_translation[:3, -1] = new_translation
+
+            transform_matrix = (
+                translate_matrix
+                @ full_matrix
+                @ np.linalg.inv(post_rotate_translation)
             )
-            self._viewer.layers[curr_atlas_layer_index].data = rotated_atlas
+
+            self._viewer.layers[
+                curr_atlas_layer_index
+            ].data = affine_transform(
+                self._atlas.reference,
+                transform_matrix,
+                order=1,
+                output_shape=bounding_box,
+            )
 
         else:
             show_error(

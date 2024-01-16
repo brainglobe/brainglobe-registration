@@ -36,12 +36,12 @@ class AdjustMovingImageView(QWidget):
     _on_scale_image_button_click():
         Emits the scale_image_signal with the entered pixel sizes.
     _on_adjust_atlas_rotation():
-        Emits the atlas_rotation_signal with the entered pitch and yaw.
+        Emits the atlas_rotation_signal with the entered pitch, yaw, and roll.
     """
 
     adjust_image_signal = Signal(int, int, float)
     scale_image_signal = Signal(float, float)
-    atlas_rotation_signal = Signal(float, float)
+    atlas_rotation_signal = Signal(float, float, float)
     reset_image_signal = Signal()
 
     def __init__(self, parent=None):
@@ -80,6 +80,10 @@ class AdjustMovingImageView(QWidget):
         self.adjust_atlas_yaw = QDoubleSpinBox(parent=self)
         self.adjust_atlas_yaw.setSingleStep(0.1)
         self.adjust_atlas_yaw.setRange(-rotation_range, rotation_range)
+
+        self.adjust_atlas_roll = QDoubleSpinBox(parent=self)
+        self.adjust_atlas_roll.setSingleStep(0.1)
+        self.adjust_atlas_roll.setRange(-rotation_range, rotation_range)
 
         self.adjust_rotation_button = QPushButton()
         self.adjust_rotation_button.setText("Rotate Atlas")
@@ -122,6 +126,7 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(QLabel("Adjust the atlas pitch and yaw: "))
         self.layout().addRow("Pitch:", self.adjust_atlas_pitch)
         self.layout().addRow("Yaw:", self.adjust_atlas_yaw)
+        self.layout().addRow("Roll:", self.adjust_atlas_roll)
         self.layout().addRow(self.adjust_rotation_button)
 
         self.layout().addRow(QLabel("Adjust the moving image position: "))
@@ -170,4 +175,5 @@ class AdjustMovingImageView(QWidget):
         self.atlas_rotation_signal.emit(
             self.adjust_atlas_pitch.value(),
             self.adjust_atlas_yaw.value(),
+            self.adjust_atlas_roll.value(),
         )

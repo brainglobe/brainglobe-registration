@@ -96,3 +96,50 @@ def get_image_layer_names(viewer: napari.Viewer) -> List[str]:
     Returns a list of the names of the napari image layers in the viewer.
     """
     return [layer.name for layer in viewer.layers]
+
+
+def calculate_rotated_bounding_box(
+    image_shape: tuple[int, int, int], rotation_matrix: np.array
+) -> tuple[int, int, int]:
+    """
+    Calculates the bounding box of the rotated image.
+
+    This function calculates the bounding box of the rotated image given the
+    image shape and rotation matrix. The bounding box is calculated by
+    transforming the corners of the image and finding the minimum and maximum
+    values of the transformed corners.
+
+    Parameters
+    ----------
+    image_shape : tuple
+        The shape of the image.
+    rotation_matrix : np.array
+        The rotation matrix.
+
+    Returns
+    -------
+    tuple
+        The bounding box of the rotated image.
+    """
+    corners = np.array(
+        [
+            [0, 0, 0, 1],
+            [image_shape[0], 0, 0, 1],
+            [0, image_shape[1], 0, 1],
+            [0, 0, image_shape[2], 1],
+            [image_shape[0], image_shape[1], 0, 1],
+            [image_shape[0], 0, image_shape[2], 1],
+            [0, image_shape[1], image_shape[2], 1],
+            [image_shape[0], image_shape[1], image_shape[2], 1],
+        ]
+    )
+
+    transformed_corners = rotation_matrix @ corners.T
+    min_corner = np.min(transformed_corners, axis=1)
+    max_corner = np.max(transformed_corners, axis=1)
+
+    return (
+        int(np.round(max_corner[0] - min_corner[0])),
+        int(np.round(max_corner[1] - min_corner[1])),
+        int(np.round(max_corner[2] - min_corner[2])),
+    )
