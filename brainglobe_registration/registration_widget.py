@@ -55,8 +55,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
-        self.atlas_pitch = 0
-        self.atlas_yaw = 0
         self._moving_image = None
 
         self.transform_params: dict[str, dict] = {
@@ -119,6 +117,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.adjust_moving_image_widget.atlas_rotation_signal.connect(
             self._on_adjust_atlas_rotation
         )
+        self.adjust_moving_image_widget.reset_atlas_signal.connect(
+            self._on_atlas_reset
+        )
 
         self.transform_select_view = TransformSelectView()
         self.transform_select_view.transform_type_added_signal.connect(
@@ -138,7 +139,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.add_widget(header_widget(), collapsible=False)
         self.add_widget(self.get_atlas_widget, widget_title="Select Images")
         self.add_widget(
-            self.adjust_moving_image_widget, widget_title="Adjust Sample Image"
+            self.adjust_moving_image_widget, widget_title="Prepare Images"
         )
         self.add_widget(
             self.transform_select_view, widget_title="Select Transformations"
@@ -198,7 +199,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             name=atlas_name,
             colormap="gray",
             blending="translucent",
-            contrast_limits=[0, 512],
+            contrast_limits=[0, 350],
             multiscale=False,
         )
 
@@ -386,6 +387,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 curr_atlas_layer_index,
             )
             worker.start()
+
+            self._viewer.grid.enabled = False
+            self._viewer.grid.enabled = True
         else:
             show_error(
                 "No atlas selected. Please select an atlas before rotating"
@@ -393,5 +397,23 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
     @thread_worker
     def compute_dask_array(self, dask_array: da, viewer_index: int):
+        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
         dask_array.compute()
         self._viewer.layers[viewer_index].data = dask_array
+        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
+
+    def _on_atlas_reset(self):
+        if self._atlas:
+            curr_atlas_layer_index = find_layer_index(
+                self._viewer, self._atlas.atlas_name
+            )
+
+            self._viewer.layers[
+                curr_atlas_layer_index
+            ].data = self._atlas.reference
+            self._viewer.grid.enabled = False
+            self._viewer.grid.enabled = True
+        else:
+            show_error(
+                "No atlas selected. Please select an atlas before resetting"
+            )

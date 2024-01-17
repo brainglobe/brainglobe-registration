@@ -1,4 +1,4 @@
-from qtpy.QtCore import Signal
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
@@ -37,11 +37,14 @@ class AdjustMovingImageView(QWidget):
         Emits the scale_image_signal with the entered pixel sizes.
     _on_adjust_atlas_rotation():
         Emits the atlas_rotation_signal with the entered pitch, yaw, and roll.
+    _on_atlas_reset():
+        Resets the pitch, yaw, and roll to 0 and emits the atlas_reset_signal.
     """
 
     adjust_image_signal = Signal(int, int, float)
     scale_image_signal = Signal(float, float)
     atlas_rotation_signal = Signal(float, float, float)
+    reset_atlas_signal = Signal()
     reset_image_signal = Signal()
 
     def __init__(self, parent=None):
@@ -56,16 +59,17 @@ class AdjustMovingImageView(QWidget):
         super().__init__(parent=parent)
 
         self.setLayout(QFormLayout())
+        self.layout().setLabelAlignment(Qt.AlignLeft)
 
         offset_range = 2000
         rotation_range = 360
-        voxel_decimal_places = 3
+        pixel_demical_places = 3
 
-        self.adjust_moving_image_voxel_size_x = QDoubleSpinBox(parent=self)
-        self.adjust_moving_image_voxel_size_x.setDecimals(voxel_decimal_places)
+        self.adjust_moving_image_pixel_size_x = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_pixel_size_x.setDecimals(pixel_demical_places)
 
-        self.adjust_moving_image_voxel_size_y = QDoubleSpinBox(parent=self)
-        self.adjust_moving_image_voxel_size_y.setDecimals(voxel_decimal_places)
+        self.adjust_moving_image_pixel_size_y = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_pixel_size_y.setDecimals(pixel_demical_places)
 
         self.scale_moving_image_button = QPushButton()
         self.scale_moving_image_button.setText("Scale Image")
@@ -90,6 +94,9 @@ class AdjustMovingImageView(QWidget):
         self.adjust_rotation_button.clicked.connect(
             self._on_adjust_atlas_rotation
         )
+        self.reset_atlas_button = QPushButton()
+        self.reset_atlas_button.setText("Reset Atlas")
+        self.reset_atlas_button.clicked.connect(self._on_atlas_reset)
 
         self.adjust_moving_image_x = QSpinBox(parent=self)
         self.adjust_moving_image_x.setRange(-offset_range, offset_range)
@@ -116,10 +123,10 @@ class AdjustMovingImageView(QWidget):
 
         self.layout().addRow(QLabel("Adjust the moving image scale: "))
         self.layout().addRow(
-            "Sample image X pixel size:", self.adjust_moving_image_voxel_size_x
+            "Sample image X pixel size:", self.adjust_moving_image_pixel_size_x
         )
         self.layout().addRow(
-            "Sample image Y pixel size:", self.adjust_moving_image_voxel_size_y
+            "Sample image Y pixel size:", self.adjust_moving_image_pixel_size_y
         )
         self.layout().addRow(self.scale_moving_image_button)
 
@@ -128,6 +135,7 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow("Yaw:", self.adjust_atlas_yaw)
         self.layout().addRow("Roll:", self.adjust_atlas_roll)
         self.layout().addRow(self.adjust_rotation_button)
+        self.layout().addRow(self.reset_atlas_button)
 
         self.layout().addRow(QLabel("Adjust the moving image position: "))
         self.layout().addRow("X offset:", self.adjust_moving_image_x)
@@ -164,8 +172,8 @@ class AdjustMovingImageView(QWidget):
         Emit the scale_image_signal with the entered pixel sizes.
         """
         self.scale_image_signal.emit(
-            self.adjust_moving_image_voxel_size_x.value(),
-            self.adjust_moving_image_voxel_size_y.value(),
+            self.adjust_moving_image_pixel_size_x.value(),
+            self.adjust_moving_image_pixel_size_y.value(),
         )
 
     def _on_adjust_atlas_rotation(self):
@@ -177,3 +185,13 @@ class AdjustMovingImageView(QWidget):
             self.adjust_atlas_yaw.value(),
             self.adjust_atlas_roll.value(),
         )
+
+    def _on_atlas_reset(self):
+        """
+        Reset the pitch, yaw, and roll to 0 and emit the atlas_reset_signal.
+        """
+        self.adjust_atlas_yaw.setValue(0)
+        self.adjust_atlas_pitch.setValue(0)
+        self.adjust_atlas_roll.setValue(0)
+
+        self.reset_atlas_signal.emit()
