@@ -90,7 +90,7 @@ class AdjustMovingImageView(QWidget):
             self._on_reset_image_button_click
         )
 
-        self.layout().addRow(QLabel("Adjust the moving image scale: "))
+        self.layout().addRow(QLabel("Adjust the moving image scale:"))
         self.layout().addRow(
             "Sample image X pixel size:", self.adjust_moving_image_voxel_size_x
         )
@@ -99,7 +99,7 @@ class AdjustMovingImageView(QWidget):
         )
         self.layout().addRow(self.scale_moving_image_button)
 
-        self.layout().addRow(QLabel("Adjust the moving image position: "))
+        self.layout().addRow(QLabel("Adjust the sample image position:"))
         self.layout().addRow("X offset:", self.adjust_moving_image_x)
         self.layout().addRow("Y offset:", self.adjust_moving_image_y)
         self.layout().addRow(

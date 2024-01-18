@@ -318,6 +318,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             )
         else:
             show_error(
-                "No sample image or atlas selected. "
+                "Sample image or atlas not selected. "
                 "Please select a sample image and atlas before scaling",
             )
