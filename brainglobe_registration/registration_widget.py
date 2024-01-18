@@ -398,9 +398,12 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     @thread_worker
     def compute_dask_array(self, dask_array: da, viewer_index: int):
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
-        dask_array.compute()
-        self._viewer.layers[viewer_index].data = dask_array
+        self.adjust_moving_image_widget.adjust_rotation_button.setEnabled(
+            False
+        )
+        self._viewer.layers[viewer_index].data = np.array(dask_array)
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
+        self.adjust_moving_image_widget.adjust_rotation_button.setEnabled(True)
 
     def _on_atlas_reset(self):
         if self._atlas:

@@ -121,7 +121,7 @@ class AdjustMovingImageView(QWidget):
             self._on_reset_image_button_click
         )
 
-        self.layout().addRow(QLabel("Adjust the moving image scale: "))
+        self.layout().addRow(QLabel("Adjust the sample image scale: "))
         self.layout().addRow(
             "Sample image X pixel size:", self.adjust_moving_image_pixel_size_x
         )
