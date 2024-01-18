@@ -74,9 +74,11 @@ def test_scale_moving_image_no_atlas(
         "brainglobe_registration.registration_widget.show_error"
     )
     registration_widget._atlas = None
-    registration_widget.adjust_moving_image_widget.scale_image_signal(10, 10)
+    registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
+        10, 10
+    )
     mocked_show_error.assert_called_once_with(
-        "No sample image or atlas selected. "
+        "Sample image or atlas not selected. "
         "Please select a sample image and atlas before scaling"
     )
 
@@ -88,15 +90,31 @@ def test_scale_moving_image_no_sample_image(
         "brainglobe_registration.registration_widget.show_error"
     )
     registration_widget._moving_image = None
-    registration_widget.adjust_moving_image_widget.scale_image_signal(10, 10)
+    registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
+        10, 10
+    )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
         "Please select a sample image and atlas before scaling"
     )
 
 
+@pytest.mark.parametrize(
+    "x_scale_factor, y_scale_factor",
+    [
+        (0.5, 0.5),
+        (1.0, 1.0),
+        (2.0, 2.0),
+        (0.5, 1.0),
+        (1.0, 0.5),
+    ],
+)
 def test_scale_moving_image(
-    make_napari_viewer_with_images, registration_widget, mocker
+    make_napari_viewer_with_images,
+    registration_widget,
+    mocker,
+    x_scale_factor,
+    y_scale_factor,
 ):
     mock_atlas = mocker.patch(
         "brainglobe_registration.registration_widget.BrainGlobeAtlas"
@@ -106,10 +124,11 @@ def test_scale_moving_image(
 
     curr_size = registration_widget._moving_image.data.shape
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        mock_atlas.resolution[0] * 0.5, mock_atlas.resolution[1] * 0.5
+        mock_atlas.resolution[0] * x_scale_factor,
+        mock_atlas.resolution[1] * y_scale_factor,
     )
 
     assert registration_widget._moving_image.data.shape == (
-        curr_size[0] * 0.5,
-        curr_size[1] * 0.5,
+        curr_size[0] * y_scale_factor,
+        curr_size[1] * x_scale_factor,
     )
