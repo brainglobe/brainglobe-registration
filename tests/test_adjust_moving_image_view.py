@@ -104,7 +104,7 @@ def test_reset_image_button_click(qtbot, adjust_moving_image_view):
 
 @pytest.mark.parametrize(
     "x_scale, y_scale",
-    [(2.5, 2.5), (0, 0), (10, 20), (10.222221, 10.222228)],
+    [(2.5, 2.5), (10, 20), (10.221, 10.228)],
 )
 def test_scale_image_button_click(
     qtbot, adjust_moving_image_view, x_scale, y_scale
@@ -122,4 +122,4 @@ def test_scale_image_button_click(
         )
         adjust_moving_image_view.scale_moving_image_button.click()
 
-    assert blocker.args == [round(x_scale, 5), round(y_scale, 5)]
+    assert blocker.args == [round(x_scale, 2), round(y_scale, 2)]
