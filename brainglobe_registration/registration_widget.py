@@ -312,6 +312,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             return
 
         if self._moving_image and self._atlas:
+            if self._moving_image_data_backup is None:
+                self._moving_image_data_backup = self._moving_image.data.copy()
+
             x_factor = x / self._atlas.resolution[0]
             y_factor = y / self._atlas.resolution[1]
 
