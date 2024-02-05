@@ -156,11 +156,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         # Hacky way of having an empty first dropdown
         if index == 0:
             if self._atlas:
-                curr_atlas_layer_index = find_layer_index(
+                current_atlas_layer_index = find_layer_index(
                     self._viewer, self._atlas.atlas_name
                 )
 
-                self._viewer.layers.pop(curr_atlas_layer_index)
+                self._viewer.layers.pop(current_atlas_layer_index)
                 self._atlas = None
                 self.run_button.setEnabled(False)
                 self._viewer.grid.enabled = False
@@ -171,11 +171,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         atlas = BrainGlobeAtlas(atlas_name)
 
         if self._atlas:
-            curr_atlas_layer_index = find_layer_index(
+            current_atlas_layer_index = find_layer_index(
                 self._viewer, self._atlas.atlas_name
             )
 
-            self._viewer.layers.pop(curr_atlas_layer_index)
+            self._viewer.layers.pop(current_atlas_layer_index)
         else:
             self.run_button.setEnabled(True)
 

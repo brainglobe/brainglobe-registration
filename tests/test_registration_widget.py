@@ -122,13 +122,13 @@ def test_scale_moving_image(
     mock_atlas.resolution = [20, 20, 20]
     registration_widget._atlas = mock_atlas
 
-    curr_size = registration_widget._moving_image.data.shape
+    current_size = registration_widget._moving_image.data.shape
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
         mock_atlas.resolution[1] * x_scale_factor,
         mock_atlas.resolution[2] * y_scale_factor,
     )
 
     assert registration_widget._moving_image.data.shape == (
-        curr_size[0] * y_scale_factor,
-        curr_size[1] * x_scale_factor,
+        current_size[0] * y_scale_factor,
+        current_size[1] * x_scale_factor,
     )
