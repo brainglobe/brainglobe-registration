@@ -14,8 +14,8 @@ class AdjustMovingImageView(QWidget):
     A QWidget subclass that provides controls for adjusting the moving image.
 
     This widget provides controls for adjusting the x and y offsets and
-    rotation of the moving image. It emits signals when the image is adjusted
-    or reset.
+    rotation of the moving image. It emits signals when the image is adjusted,
+    scaled, or reset.
 
     Attributes
     ----------
@@ -33,9 +33,12 @@ class AdjustMovingImageView(QWidget):
     _on_reset_image_button_click():
         Resets the x and y offsets and rotation to 0 and emits the
         reset_image_signal.
+    _on_scale_image_button_click():
+        Emits the scale_image_signal with the entered pixel sizes.
     """
 
     adjust_image_signal = Signal(int, int, float)
+    scale_image_signal = Signal(float, float)
     reset_image_signal = Signal()
 
     def __init__(self, parent=None):
@@ -54,15 +57,27 @@ class AdjustMovingImageView(QWidget):
         offset_range = 2000
         rotation_range = 360
 
-        self.adjust_moving_image_x = QSpinBox()
+        self.adjust_moving_image_voxel_size_x = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_voxel_size_x.setDecimals(2)
+        self.adjust_moving_image_voxel_size_x.setRange(0.01, 100.00)
+        self.adjust_moving_image_voxel_size_y = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_voxel_size_y.setDecimals(2)
+        self.adjust_moving_image_voxel_size_y.setRange(0.01, 100.00)
+        self.scale_moving_image_button = QPushButton()
+        self.scale_moving_image_button.setText("Scale Image")
+        self.scale_moving_image_button.clicked.connect(
+            self._on_scale_image_button_click
+        )
+
+        self.adjust_moving_image_x = QSpinBox(parent=self)
         self.adjust_moving_image_x.setRange(-offset_range, offset_range)
         self.adjust_moving_image_x.valueChanged.connect(self._on_adjust_image)
 
-        self.adjust_moving_image_y = QSpinBox()
+        self.adjust_moving_image_y = QSpinBox(parent=self)
         self.adjust_moving_image_y.setRange(-offset_range, offset_range)
         self.adjust_moving_image_y.valueChanged.connect(self._on_adjust_image)
 
-        self.adjust_moving_image_rotate = QDoubleSpinBox()
+        self.adjust_moving_image_rotate = QDoubleSpinBox(parent=self)
         self.adjust_moving_image_rotate.setRange(
             -rotation_range, rotation_range
         )
@@ -71,15 +86,26 @@ class AdjustMovingImageView(QWidget):
             self._on_adjust_image
         )
 
-        self.adjust_moving_image_reset_button = QPushButton(parent=self)
+        self.adjust_moving_image_reset_button = QPushButton()
         self.adjust_moving_image_reset_button.setText("Reset Image")
         self.adjust_moving_image_reset_button.clicked.connect(
             self._on_reset_image_button_click
         )
 
-        self.layout().addRow(QLabel("Adjust the moving image: "))
-        self.layout().addRow("X offset:", self.adjust_moving_image_x)
-        self.layout().addRow("Y offset:", self.adjust_moving_image_y)
+        self.layout().addRow(QLabel("Adjust the moving image scale:"))
+        self.layout().addRow(
+            "Sample image X pixel size (\u03BCm / pixel):",
+            self.adjust_moving_image_voxel_size_x,
+        )
+        self.layout().addRow(
+            "Sample image Y pixel size (\u03BCm / pixel):",
+            self.adjust_moving_image_voxel_size_y,
+        )
+        self.layout().addRow(self.scale_moving_image_button)
+
+        self.layout().addRow(QLabel("Adjust the sample image position:"))
+        self.layout().addRow("X offset (pixels):", self.adjust_moving_image_x)
+        self.layout().addRow("Y offset (pixels):", self.adjust_moving_image_y)
         self.layout().addRow(
             "Rotation (degrees):", self.adjust_moving_image_rotate
         )
@@ -106,3 +132,12 @@ class AdjustMovingImageView(QWidget):
         self.adjust_moving_image_rotate.setValue(0)
 
         self.reset_image_signal.emit()
+
+    def _on_scale_image_button_click(self):
+        """
+        Emit the scale_image_signal with the entered pixel sizes.
+        """
+        self.scale_image_signal.emit(
+            self.adjust_moving_image_voxel_size_x.value(),
+            self.adjust_moving_image_voxel_size_y.value(),
+        )
