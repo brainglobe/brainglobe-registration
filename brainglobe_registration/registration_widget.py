@@ -307,6 +307,19 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
 
     def _on_scale_moving_image(self, x: float, y: float):
+        """
+        Scale the moving image to have resolution equal to the atlas.
+
+        Parameters
+        ----------
+        x : float
+            Moving image x pixel size (> 0.0).
+        y : float
+            Moving image y pixel size (> 0.0).
+
+        Will show an error if the pixel sizes are less than or equal to 0.
+        Will show an error if the moving image or atlas is not selected.
+        """
         if x <= 0 or y <= 0:
             show_error("Pixel sizes must be greater than 0")
             return
