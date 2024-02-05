@@ -51,6 +51,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
         self._moving_image = None
+        self._moving_image_data_backup = None
 
         self.transform_params: dict[str, dict] = {
             "rigid": {},
@@ -193,6 +194,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self._viewer, self._sample_images[index]
         )
         self._moving_image = self._viewer.layers[viewer_index]
+        self._moving_image_data_backup = self._moving_image.data.copy()
 
     def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
@@ -310,7 +312,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             y_factor = y / self._atlas.resolution[1]
 
             self._moving_image.data = rescale(
-                self._moving_image.data,
+                self._moving_image_data_backup,
                 (y_factor, x_factor),
                 mode="constant",
                 preserve_range=True,
