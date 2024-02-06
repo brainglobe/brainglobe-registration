@@ -56,7 +56,7 @@ def test_parameter_list_view_cell_change(parameter_list_view, qtbot):
 def test_parameter_list_view_cell_change_last_row(parameter_list_view, qtbot):
     qtbot.addWidget(parameter_list_view)
 
-    curr_row_count = parameter_list_view.rowCount()
+    current_row_count = parameter_list_view.rowCount()
     last_row_index = len(param_dict)
 
     parameter_list_view.setItem(
@@ -65,7 +65,7 @@ def test_parameter_list_view_cell_change_last_row(parameter_list_view, qtbot):
     parameter_list_view.setItem(last_row_index, 1, QTableWidgetItem("true"))
 
     assert parameter_list_view.param_dict["TestParameter"] == ["true"]
-    assert parameter_list_view.rowCount() == curr_row_count + 1
+    assert parameter_list_view.rowCount() == current_row_count + 1
 
 
 def test_parameter_list_view_cell_change_last_row_no_param(
@@ -73,12 +73,12 @@ def test_parameter_list_view_cell_change_last_row_no_param(
 ):
     qtbot.addWidget(parameter_list_view)
 
-    curr_row_count = parameter_list_view.rowCount()
+    current_row_count = parameter_list_view.rowCount()
     last_row_index = len(param_dict)
 
     parameter_list_view.setItem(last_row_index, 1, QTableWidgetItem("true"))
 
-    assert parameter_list_view.rowCount() == curr_row_count
+    assert parameter_list_view.rowCount() == current_row_count
 
 
 def test_parameter_list_view_cell_change_last_row_no_value(
@@ -86,11 +86,11 @@ def test_parameter_list_view_cell_change_last_row_no_value(
 ):
     qtbot.addWidget(parameter_list_view)
 
-    curr_row_count = parameter_list_view.rowCount()
+    current_row_count = parameter_list_view.rowCount()
     last_row_index = len(param_dict)
 
     parameter_list_view.setItem(
         last_row_index, 0, QTableWidgetItem("TestParameter")
     )
 
-    assert parameter_list_view.rowCount() == curr_row_count
+    assert parameter_list_view.rowCount() == current_row_count

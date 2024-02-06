@@ -56,6 +56,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
         self._moving_image = None
+        self._moving_image_data_backup = None
 
         self.transform_params: dict[str, dict] = {
             "rigid": {},
@@ -166,11 +167,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         # Hacky way of having an empty first dropdown
         if index == 0:
             if self._atlas:
-                curr_atlas_layer_index = find_layer_index(
+                current_atlas_layer_index = find_layer_index(
                     self._viewer, self._atlas.atlas_name
                 )
 
-                self._viewer.layers.pop(curr_atlas_layer_index)
+                self._viewer.layers.pop(current_atlas_layer_index)
                 self._atlas = None
                 self.run_button.setEnabled(False)
                 self._viewer.grid.enabled = False
@@ -181,11 +182,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         atlas = BrainGlobeAtlas(atlas_name)
 
         if self._atlas:
-            curr_atlas_layer_index = find_layer_index(
+            current_atlas_layer_index = find_layer_index(
                 self._viewer, self._atlas.atlas_name
             )
 
-            self._viewer.layers.pop(curr_atlas_layer_index)
+            self._viewer.layers.pop(current_atlas_layer_index)
         else:
             self.run_button.setEnabled(True)
 
@@ -211,6 +212,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self._viewer, self._sample_images[index]
         )
         self._moving_image = self._viewer.layers[viewer_index]
+        self._moving_image_data_backup = self._moving_image.data.copy()
 
     def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
@@ -323,12 +325,32 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
 
     def _on_scale_moving_image(self, x: float, y: float):
+        """
+        Scale the moving image to have resolution equal to the atlas.
+
+        Parameters
+        ----------
+        x : float
+            Moving image x pixel size (> 0.0).
+        y : float
+            Moving image y pixel size (> 0.0).
+
+        Will show an error if the pixel sizes are less than or equal to 0.
+        Will show an error if the moving image or atlas is not selected.
+        """
+        if x <= 0 or y <= 0:
+            show_error("Pixel sizes must be greater than 0")
+            return
+
         if self._moving_image and self._atlas:
+            if self._moving_image_data_backup is None:
+                self._moving_image_data_backup = self._moving_image.data.copy()
+
             x_factor = x / self._atlas.resolution[0]
             y_factor = y / self._atlas.resolution[1]
 
             self._moving_image.data = rescale(
-                self._moving_image.data,
+                self._moving_image_data_backup,
                 (y_factor, x_factor),
                 mode="constant",
                 preserve_range=True,
@@ -336,7 +358,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             )
         else:
             show_error(
-                "No sample image or atlas selected. "
+                "Sample image or atlas not selected. "
                 "Please select a sample image and atlas before scaling",
             )
 

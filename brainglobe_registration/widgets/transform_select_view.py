@@ -169,7 +169,7 @@ class TransformSelectView(QTableWidget):
             self.file_selections[index].setCurrentIndex(0)
 
             if index >= len(self.transform_type_selections) - 1:
-                curr_length = self.rowCount()
+                current_length = self.rowCount()
                 self.setRowCount(self.rowCount() + 1)
 
                 self.transform_type_selections.append(QComboBox())
@@ -180,7 +180,7 @@ class TransformSelectView(QTableWidget):
                     self.transform_type_signaller.map
                 )
                 self.transform_type_signaller.setMapping(
-                    self.transform_type_selections[-1], curr_length
+                    self.transform_type_selections[-1], current_length
                 )
 
                 self.file_selections.append(QComboBox())
@@ -191,14 +191,16 @@ class TransformSelectView(QTableWidget):
                     self.file_signaller.map
                 )
                 self.file_signaller.setMapping(
-                    self.file_selections[-1], curr_length
+                    self.file_selections[-1], current_length
                 )
 
                 self.setCellWidget(
-                    curr_length, 0, self.transform_type_selections[curr_length]
+                    current_length,
+                    0,
+                    self.transform_type_selections[current_length],
                 )
                 self.setCellWidget(
-                    curr_length, 1, self.file_selections[curr_length]
+                    current_length, 1, self.file_selections[current_length]
                 )
 
         else:
