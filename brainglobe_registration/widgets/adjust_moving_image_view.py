@@ -88,9 +88,9 @@ class AdjustMovingImageView(QWidget):
         self.adjust_atlas_roll.setSingleStep(0.1)
         self.adjust_atlas_roll.setRange(-rotation_range, rotation_range)
 
-        self.adjust_rotation_button = QPushButton()
-        self.adjust_rotation_button.setText("Rotate Atlas")
-        self.adjust_rotation_button.clicked.connect(
+        self.adjust_atlas_rotation = QPushButton()
+        self.adjust_atlas_rotation.setText("Rotate Atlas")
+        self.adjust_atlas_rotation.clicked.connect(
             self._on_adjust_atlas_rotation
         )
         self.reset_atlas_button = QPushButton()
@@ -135,7 +135,7 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow("Pitch:", self.adjust_atlas_pitch)
         self.layout().addRow("Yaw:", self.adjust_atlas_yaw)
         self.layout().addRow("Roll:", self.adjust_atlas_roll)
-        self.layout().addRow(self.adjust_rotation_button)
+        self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)
 
         self.layout().addRow(QLabel("Adjust the moving image position: "))

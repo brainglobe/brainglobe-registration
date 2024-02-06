@@ -421,14 +421,12 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     @thread_worker
     def compute_atlas_rotation(self, dask_array: da.Array):
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
-        self.adjust_moving_image_widget.adjust_rotation_button.setEnabled(
-            False
-        )
+        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(False)
 
         computed_array = dask_array.compute()
 
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
-        self.adjust_moving_image_widget.adjust_rotation_button.setEnabled(True)
+        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(True)
 
         return computed_array
 

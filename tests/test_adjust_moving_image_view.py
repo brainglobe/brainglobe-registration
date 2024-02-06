@@ -123,3 +123,21 @@ def test_scale_image_button_click(
         adjust_moving_image_view.scale_moving_image_button.click()
 
     assert blocker.args == [round(x_scale, 2), round(y_scale, 2)]
+
+
+def test_atlas_rotation_changed(
+    qtbot,
+    adjust_moving_image_view,
+):
+    qtbot.addWidget(adjust_moving_image_view)
+
+    with qtbot.waitSignal(
+        adjust_moving_image_view.atlas_rotation_signal, timeout=1000
+    ) as blocker:
+        adjust_moving_image_view.adjust_atlas_pitch.setValue(10)
+        adjust_moving_image_view.adjust_atlas_yaw.setValue(20)
+        adjust_moving_image_view.adjust_atlas_roll.setValue(30)
+
+        adjust_moving_image_view.adjust_atlas_rotation.click()
+
+    assert blocker.args == [10, 20, 30]
