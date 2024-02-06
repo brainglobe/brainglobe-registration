@@ -64,12 +64,12 @@ class AdjustMovingImageView(QWidget):
         offset_range = 2000
         rotation_range = 360
 
-        self.adjust_moving_image_voxel_size_x = QDoubleSpinBox(parent=self)
-        self.adjust_moving_image_voxel_size_x.setDecimals(2)
-        self.adjust_moving_image_voxel_size_x.setRange(0.01, 100.00)
-        self.adjust_moving_image_voxel_size_y = QDoubleSpinBox(parent=self)
-        self.adjust_moving_image_voxel_size_y.setDecimals(2)
-        self.adjust_moving_image_voxel_size_y.setRange(0.01, 100.00)
+        self.adjust_moving_image_pixel_size_x = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_pixel_size_x.setDecimals(2)
+        self.adjust_moving_image_pixel_size_x.setRange(0.01, 100.00)
+        self.adjust_moving_image_pixel_size_y = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_pixel_size_y.setDecimals(2)
+        self.adjust_moving_image_pixel_size_y.setRange(0.01, 100.00)
         self.scale_moving_image_button = QPushButton()
         self.scale_moving_image_button.setText("Scale Image")
         self.scale_moving_image_button.clicked.connect(
@@ -123,11 +123,11 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(QLabel("Adjust the moving image scale:"))
         self.layout().addRow(
             "Sample image X pixel size (\u03BCm / pixel):",
-            self.adjust_moving_image_voxel_size_x,
+            self.adjust_moving_image_pixel_size_x,
         )
         self.layout().addRow(
             "Sample image Y pixel size (\u03BCm / pixel):",
-            self.adjust_moving_image_voxel_size_y,
+            self.adjust_moving_image_pixel_size_y,
         )
         self.layout().addRow(self.scale_moving_image_button)
 

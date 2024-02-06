@@ -17,7 +17,7 @@ def adjust_moving_image_view() -> AdjustMovingImageView:
 def test_init(qtbot, adjust_moving_image_view):
     qtbot.addWidget(adjust_moving_image_view)
 
-    assert adjust_moving_image_view.layout().rowCount() == 9
+    assert adjust_moving_image_view.layout().rowCount() == 15
 
 
 @pytest.mark.parametrize(
@@ -114,10 +114,10 @@ def test_scale_image_button_click(
     with qtbot.waitSignal(
         adjust_moving_image_view.scale_image_signal, timeout=1000
     ) as blocker:
-        adjust_moving_image_view.adjust_moving_image_voxel_size_x.setValue(
+        adjust_moving_image_view.adjust_moving_image_pixel_size_x.setValue(
             x_scale
         )
-        adjust_moving_image_view.adjust_moving_image_voxel_size_y.setValue(
+        adjust_moving_image_view.adjust_moving_image_pixel_size_y.setValue(
             y_scale
         )
         adjust_moving_image_view.scale_moving_image_button.click()
