@@ -395,20 +395,20 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 @ np.linalg.inv(post_rotate_translation)
             )
 
-            self._viewer.layers[
-                curr_atlas_layer_index
-            ].data = affine_transform(
+            transformed_atlas = affine_transform(
                 self._atlas.reference,
                 transform_matrix,
                 order=3,
                 output_shape=bounding_box,
-                output_chunks=(1, bounding_box[1], bounding_box[2]),
+                output_chunks=(2, bounding_box[1], bounding_box[2]),
             )
 
-            worker = self.compute_dask_array(
-                self._viewer.layers[curr_atlas_layer_index].data,
-                curr_atlas_layer_index,
-            )
+            self._viewer.layers[
+                curr_atlas_layer_index
+            ].data = transformed_atlas
+
+            worker = self.compute_atlas_rotation(transformed_atlas)
+            worker.returned.connect(self.set_atlas_layer_data)
             worker.start()
 
             self._viewer.grid.enabled = False
@@ -419,14 +419,26 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             )
 
     @thread_worker
-    def compute_dask_array(self, dask_array: da, viewer_index: int):
+    def compute_atlas_rotation(self, dask_array: da.Array):
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
         self.adjust_moving_image_widget.adjust_rotation_button.setEnabled(
             False
         )
-        self._viewer.layers[viewer_index].data = np.array(dask_array)
+
+        computed_array = dask_array.compute()
+
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
         self.adjust_moving_image_widget.adjust_rotation_button.setEnabled(True)
+
+        return computed_array
+
+    def set_atlas_layer_data(self, new_data):
+        atlas_layer_index = find_layer_index(
+            self._viewer, self._atlas.atlas_name
+        )
+        self._viewer.layers[atlas_layer_index].data = new_data
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
 
     def _on_atlas_reset(self):
         if self._atlas:
