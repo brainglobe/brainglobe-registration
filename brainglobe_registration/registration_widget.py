@@ -27,7 +27,6 @@ from qtpy.QtWidgets import (
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
-from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.brainglobe_logo import header_widget
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
@@ -221,6 +220,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(self):
+        from brainglobe_registration.elastix.register import run_registration
+
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         result, parameters, registered_annotation_image = run_registration(
