@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
     "napari>=0.4.18",
     "bg-atlasapi",
+    "brainglobe-utils>=0.4.3",
     "numpy",
     "qtpy",
     "itk-elastix",
