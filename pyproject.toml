@@ -26,10 +26,11 @@ dependencies = [
     "napari>=0.4.18",
     "brainglobe-atlasapi",
     "brainglobe-utils>=0.4.3",
-    "numpy",
-    "qtpy",
     "itk-elastix",
-    "pytransform3d"
+    "lxml_html_clean",
+    "numpy",
+    "pytransform3d",
+    "qtpy",
 ]
 
 [project.urls]
