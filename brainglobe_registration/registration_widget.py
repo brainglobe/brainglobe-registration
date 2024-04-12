@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
+from brainglobe_utils.qtpy.logo import header_widget
 from napari.viewer import Viewer
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
@@ -25,7 +26,6 @@ from qtpy.QtWidgets import (
 from skimage.segmentation import find_boundaries
 
 from brainglobe_registration.elastix.register import run_registration
-from brainglobe_registration.utils.brainglobe_logo import header_widget
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     find_layer_index,
@@ -85,7 +85,12 @@ class RegistrationWidget(QWidget):
             self._moving_image = None
 
         self.setLayout(QVBoxLayout())
-        self.layout().addWidget(header_widget())
+        self.layout().addWidget(
+            header_widget(
+                "brainglobe-registration",
+                "Registration to a BrainGlobe atlas using Elastix",
+            )
+        )
 
         self.main_tabs = QTabWidget(parent=self)
         self.main_tabs.setTabPosition(QTabWidget.West)
