@@ -3,7 +3,6 @@ include README.md
 include .napari-hub/DESCRIPTION.md
 include .napari-hub/config.yml
 include brainglobe_registration/napari.yaml
-include brainglobe_registration/resources/brainglobe.png
 exclude .pre-commit-config.yaml
 
 recursive-include brainglobe_registration/parameters *.txt
