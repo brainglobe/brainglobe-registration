@@ -87,8 +87,9 @@ class RegistrationWidget(QWidget):
         self.setLayout(QVBoxLayout())
         self.layout().addWidget(
             header_widget(
-                "brainglobe-registration",
-                "Registration to a BrainGlobe atlas using Elastix",
+                "brainglobe-<br>registration",  # line break at <br>
+                "Registration with Elastix",
+                github_repo_name="brainglobe-registration",
             )
         )
 
