@@ -11,8 +11,8 @@ Users can download and add the atlas images/structures as layers to the viewer.
 from pathlib import Path
 
 import numpy as np
-from bg_atlasapi import BrainGlobeAtlas
-from bg_atlasapi.list_atlases import get_downloaded_atlases
+from brainglobe_atlasapi import BrainGlobeAtlas
+from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.logo import header_widget
 from napari.viewer import Viewer
 from qtpy.QtCore import Qt

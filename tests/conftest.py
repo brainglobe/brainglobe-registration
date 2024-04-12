@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from bg_atlasapi import BrainGlobeAtlas
-from bg_atlasapi import config as bg_config
+from brainglobe_atlasapi import BrainGlobeAtlas
+from brainglobe_atlasapi import config as bg_config
 from PIL import Image
 
 
