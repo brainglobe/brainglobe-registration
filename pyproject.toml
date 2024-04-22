@@ -26,7 +26,6 @@ dependencies = [
     "napari>=0.4.18",
     "brainglobe-atlasapi",
     "brainglobe-utils>=0.4.3",
-    "itk==5.4rc2", # 5.4rc3 was causing a seg fault
     "itk-elastix",
     "lxml_html_clean",
     "numpy",
