@@ -21,7 +21,7 @@ def adjust_napari_image_layer(
     https://forum.image.sc/t/napari-3d-rotation-center-change-and-scaling/66347/5
 
     Parameters
-    ----------
+    ------------
     image_layer : napari.layers.Layer
         The napari image layer to be adjusted.
     x : int
@@ -32,7 +32,7 @@ def adjust_napari_image_layer(
         The angle of rotation in degrees.
 
     Returns
-    -------
+    --------
     None
     """
     image_layer.translate = (y, x)
@@ -57,13 +57,13 @@ def open_parameter_file(file_path: Path) -> Dict:
     The values are stripped of any trailing ")" and leading or trailing quotes.
 
     Parameters
-    ----------
+    ------------
     file_path : Path
         The path to the parameter file.
 
     Returns
-    -------
-    dict
+    --------
+    Dict
         A dictionary containing the parameters from the file.
     """
     with open(file_path, "r") as f:
@@ -95,6 +95,16 @@ def find_layer_index(viewer: napari.Viewer, layer_name: str) -> int:
 def get_image_layer_names(viewer: napari.Viewer) -> List[str]:
     """
     Returns a list of the names of the napari image layers in the viewer.
+
+    Parameters
+    ------------
+    viewer : napari.Viewer
+        The napari viewer containing the image layers.
+
+    Returns
+    --------
+    List[str]
+        A list of the names of the image layers in the viewer.
     """
     return [layer.name for layer in viewer.layers]
 
@@ -111,14 +121,14 @@ def calculate_rotated_bounding_box(
     values of the transformed corners.
 
     Parameters
-    ----------
+    ------------
     image_shape : Tuple[int, int, int]
         The shape of the image.
     rotation_matrix : npt.NDArray
         The rotation matrix.
 
     Returns
-    -------
+    --------
     Tuple[int, int, int]
         The bounding box of the rotated image.
     """
