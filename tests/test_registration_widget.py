@@ -1,6 +1,10 @@
 import pytest
+from pytransform3d.rotations import active_matrix_from_angle
+import numpy as np
 
 from brainglobe_registration.registration_widget import RegistrationWidget
+
+from brainglobe_registration.utils.utils import calculate_rotated_bounding_box
 
 
 @pytest.fixture()
@@ -8,6 +12,17 @@ def registration_widget(make_napari_viewer_with_images):
     viewer = make_napari_viewer_with_images
 
     widget = RegistrationWidget(viewer)
+
+    return widget
+
+
+@pytest.fixture()
+def registration_widget_with_example_atlas(make_napari_viewer_with_images):
+    viewer = make_napari_viewer_with_images
+
+    widget = RegistrationWidget(viewer)
+
+    widget._on_atlas_dropdown_index_changed(2)
 
     return widget
 
@@ -131,4 +146,72 @@ def test_scale_moving_image(
     assert registration_widget._moving_image.data.shape == (
         current_size[0] * y_scale_factor,
         current_size[1] * x_scale_factor,
+    )
+
+
+@pytest.mark.parametrize(
+    "pitch, yaw, roll, expected_shape",
+    [
+        (0, 0, 0, (132, 80, 114)),
+        (45, 0, 0, (150, 150,  114)),
+        (0, 45, 0, (174, 80, 174)),
+        (0, 0, 45, (132, 137, 137)),
+    ],
+
+)
+def test_on_adjust_atlas_rotation(
+    registration_widget_with_example_atlas,
+    pitch,
+    yaw,
+    roll,
+    expected_shape,
+):
+    reg_widget = registration_widget_with_example_atlas
+    atlas_shape = reg_widget._atlas.reference.shape
+
+    reg_widget._on_adjust_atlas_rotation(
+        pitch, yaw, roll
+    )
+
+    assert reg_widget._atlas_data_layer.data.shape == expected_shape
+    assert reg_widget._atlas_annotations_layer.data.shape == expected_shape
+    assert reg_widget._atlas.reference.shape == atlas_shape
+
+
+def test_on_adjust_atlas_rotation_no_atlas(
+    registration_widget, mocker
+):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    registration_widget._on_adjust_atlas_rotation(10, 10, 10)
+    mocked_show_error.assert_called_once_with(
+        "No atlas selected. Please select an atlas before rotating"
+    )
+
+
+def test_on_atlas_reset(
+    registration_widget_with_example_atlas
+):
+    reg_widget = registration_widget_with_example_atlas
+    atlas_shape = reg_widget._atlas.reference.shape
+    reg_widget._on_adjust_atlas_rotation(10, 10, 10)
+
+    reg_widget._on_atlas_reset()
+
+    assert reg_widget._atlas_data_layer.data.shape == atlas_shape
+    assert reg_widget._atlas.reference.shape == atlas_shape
+    assert reg_widget._atlas_annotations_layer.data.shape == atlas_shape
+
+
+def test_on_atlas_reset_no_atlas(
+    registration_widget, mocker
+):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+
+    registration_widget._on_atlas_reset()
+    mocked_show_error.assert_called_once_with(
+        "No atlas selected. Please select an atlas before resetting"
     )

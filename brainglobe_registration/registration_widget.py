@@ -394,10 +394,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             )
             return
 
-        curr_atlas_layer_index = find_layer_index(
-            self._viewer, self._atlas.atlas_name
-        )
-
         # Create the rotation matrix
         roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
         pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
@@ -463,10 +459,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         return computed_array
 
     def set_atlas_layer_data(self, new_data):
-        atlas_layer_index = find_layer_index(
-            self._viewer, self._atlas.atlas_name
-        )
-        self._viewer.layers[atlas_layer_index].data = new_data
+        self._atlas_data_layer.data = new_data
         # Resets the viewer grid to update the grid to the new atlas
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
