@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import List
+from typing import List, Tuple, Dict
 
 import napari
 import numpy as np
+import numpy.typing as npt
 from pytransform3d.rotations import active_matrix_from_angle
 
 
@@ -46,7 +47,7 @@ def adjust_napari_image_layer(
     image_layer.affine = transform_matrix
 
 
-def open_parameter_file(file_path: Path) -> dict:
+def open_parameter_file(file_path: Path) -> Dict:
     """
     Opens the parameter file and returns the parameter dictionary.
 
@@ -99,8 +100,8 @@ def get_image_layer_names(viewer: napari.Viewer) -> List[str]:
 
 
 def calculate_rotated_bounding_box(
-    image_shape: tuple[int, int, int], rotation_matrix: np.array
-) -> tuple[int, int, int]:
+    image_shape: Tuple[int, int, int], rotation_matrix: npt.NDArray
+) -> Tuple[int, int, int]:
     """
     Calculates the bounding box of the rotated image.
 
@@ -111,14 +112,14 @@ def calculate_rotated_bounding_box(
 
     Parameters
     ----------
-    image_shape : tuple
+    image_shape : Tuple[int, int, int]
         The shape of the image.
-    rotation_matrix : np.array
+    rotation_matrix : npt.NDArray
         The rotation matrix.
 
     Returns
     -------
-    tuple
+    Tuple[int, int, int]
         The bounding box of the rotated image.
     """
     corners = np.array(

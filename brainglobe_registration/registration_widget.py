@@ -369,6 +369,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 self._viewer, self._atlas.atlas_name
             )
 
+            # Create the rotation matrix
             roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
             pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
             yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
@@ -378,6 +379,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             full_matrix = np.eye(4)
             full_matrix[:-1, :-1] = rot_matrix
 
+            # Translate the origin to the center of the image
             origin = np.asarray(self._atlas.reference.shape) // 2
             translate_matrix = np.eye(4)
             translate_matrix[:-1, -1] = origin
@@ -389,6 +391,10 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             post_rotate_translation = np.eye(4)
             post_rotate_translation[:3, -1] = new_translation
 
+            # Combine the matrices. The order of operations is:
+            # 1. Translate the origin to the center of the image
+            # 2. Rotate the image
+            # 3. Translate the origin back to the top left corner
             transform_matrix = (
                 translate_matrix
                 @ full_matrix
@@ -398,7 +404,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             transformed_atlas = affine_transform(
                 self._atlas.reference,
                 transform_matrix,
-                order=3,
+                order=2,
                 output_shape=bounding_box,
                 output_chunks=(2, bounding_box[1], bounding_box[2]),
             )
@@ -410,9 +416,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             worker = self.compute_atlas_rotation(transformed_atlas)
             worker.returned.connect(self.set_atlas_layer_data)
             worker.start()
-
-            self._viewer.grid.enabled = False
-            self._viewer.grid.enabled = True
         else:
             show_error(
                 "No atlas selected. Please select an atlas before rotating"
@@ -435,6 +438,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self._viewer, self._atlas.atlas_name
         )
         self._viewer.layers[atlas_layer_index].data = new_data
+        # Resets the viewer grid to update the grid to the new atlas
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
 
