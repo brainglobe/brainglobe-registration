@@ -9,14 +9,16 @@ Users can download and add the atlas images/structures as layers to the viewer.
 """
 
 from pathlib import Path
+from typing import Optional
 
 import dask.array as da
+import napari.layers
 import numpy as np
+import numpy.typing as npt
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from dask_image.ndinterp import affine_transform as dask_affine_transform
-from scipy.ndimage.interpolation import affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
@@ -54,11 +56,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.setContentsMargins(10, 10, 10, 10)
 
         self._viewer = napari_viewer
-        self._atlas: BrainGlobeAtlas = None
-        self._atlas_data_layer = None
-        self._atlas_annotations_layer = None
-        self._moving_image = None
-        self._moving_image_data_backup = None
+        self._atlas: Optional[BrainGlobeAtlas] = None
+        self._atlas_data_layer: Optional[napari.layers.Image] = None
+        self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
+        self._moving_image: Optional[napari.layers.Image] = None
+        self._moving_image_data_backup: Optional[npt.NDArray] = None
 
         self.transform_params: dict[str, dict] = {
             "rigid": {},
@@ -196,11 +198,19 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas = BrainGlobeAtlas(atlas_name)
         atlas_dask_array = da.from_array(
             self._atlas.reference,
-            chunks=(1, self._atlas.reference.shape[1], self._atlas.reference.shape[2]),
+            chunks=(
+                1,
+                self._atlas.reference.shape[1],
+                self._atlas.reference.shape[2],
+            ),
         )
         dask_annotations = da.from_array(
             self._atlas.annotation,
-            chunks=(1, self._atlas.annotation.shape[1], self._atlas.annotation.shape[2]),
+            chunks=(
+                1,
+                self._atlas.annotation.shape[1],
+                self._atlas.annotation.shape[2],
+            ),
         )
 
         self._atlas_data_layer = self._viewer.add_image(
@@ -229,7 +239,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
         if not self._moving_image:
             show_error(
-                "No moving image selected. Please select a moving image before adjusting"
+                "No moving image selected. "
+                "Please select a moving image before adjusting"
             )
             return
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
@@ -237,7 +248,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     def _on_adjust_moving_image_reset_button_click(self):
         if not self._moving_image:
             show_error(
-                "No moving image selected. Please select a moving image before adjusting"
+                "No moving image selected. "
+                "Please select a moving image before adjusting"
             )
             return
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
@@ -388,7 +400,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
-        if not self._atlas:
+        if not (
+            self._atlas
+            and self._atlas_data_layer
+            and self._atlas_annotations_layer
+        ):
             show_error(
                 "No atlas selected. Please select an atlas before rotating"
             )

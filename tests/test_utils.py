@@ -7,10 +7,10 @@ from pytransform3d.rotations import active_matrix_from_angle
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_rotated_bounding_box,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
-    calculate_rotated_bounding_box,
 )
 
 
@@ -101,7 +101,7 @@ def test_get_image_layer_names(make_napari_viewer_with_images):
     [
         (0, 0, (50, 100, 200)),
         (0, 90, (50, 200, 100)),
-        (0, 180,  (50, 100, 200)),
+        (0, 180, (50, 100, 200)),
         (0, 45, (50, 212, 212)),
         (1, 0, (50, 100, 200)),
         (1, 90, (200, 100, 50)),
@@ -111,12 +111,14 @@ def test_get_image_layer_names(make_napari_viewer_with_images):
         (2, 90, (100, 50, 200)),
         (2, 180, (50, 100, 200)),
         (2, 45, (106, 106, 200)),
-    ]
+    ],
 )
 def test_calculate_rotated_bounding_box(basis, rotation, expected_bounds):
     image_shape = (50, 100, 200)
     rotation_matrix = np.eye(4)
-    rotation_matrix[:-1, :-1] = active_matrix_from_angle(basis, np.deg2rad(rotation))
+    rotation_matrix[:-1, :-1] = active_matrix_from_angle(
+        basis, np.deg2rad(rotation)
+    )
 
     result_shape = calculate_rotated_bounding_box(image_shape, rotation_matrix)
 
