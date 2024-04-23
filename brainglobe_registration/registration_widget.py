@@ -15,9 +15,10 @@ import dask.array as da
 import napari.layers
 import numpy as np
 import numpy.typing as npt
-from bg_atlasapi import BrainGlobeAtlas
-from bg_atlasapi.list_atlases import get_downloaded_atlases
+from brainglobe_atlasapi import BrainGlobeAtlas
+from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
+from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_error
@@ -30,7 +31,7 @@ from qtpy.QtWidgets import (
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
-from brainglobe_registration.utils.brainglobe_logo import header_widget
+from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     calculate_rotated_bounding_box,
@@ -141,7 +142,14 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.add_widget(header_widget(), collapsible=False)
+        self.add_widget(
+            header_widget(
+                "brainglobe-<br>registration",  # line break at <br>
+                "Registration with Elastix",
+                github_repo_name="brainglobe-registration",
+            ),
+            collapsible=False,
+        )
         self.add_widget(self.get_atlas_widget, widget_title="Select Images")
         self.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
@@ -255,7 +263,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(self):
-        from brainglobe_registration.elastix.register import run_registration
 
         current_atlas_slice = self._viewer.dims.current_step[0]
 

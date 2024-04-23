@@ -51,6 +51,7 @@ jobs:
       - uses: neuroinformatics-unit/actions/test@v2
         with:
           python-version: ${{ matrix.python-version }}
+          secret-codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
   build_sdist_wheels:
     name: Build source distribution
@@ -66,11 +67,6 @@ jobs:
     needs: [build_sdist_wheels]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: neuroinformatics-unit/actions/upload_pypi@v2
       with:
-        name: artifact
-        path: dist
-    - uses: pypa/gh-action-pypi-publish@v1.5.0
-      with:
-        user: __token__
-        password: ${{ secrets.TWINE_API_KEY }}
+        secret-pypi-key: ${{ secrets.TWINE_API_KEY }}
