@@ -15,7 +15,8 @@ import numpy as np
 from bg_atlasapi import BrainGlobeAtlas
 from bg_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
-from dask_image.ndinterp import affine_transform as affine_transform
+from dask_image.ndinterp import affine_transform as dask_affine_transform
+from scipy.ndimage.interpolation import affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
@@ -54,6 +55,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         self._viewer = napari_viewer
         self._atlas: BrainGlobeAtlas = None
+        self._atlas_data_layer = None
+        self._atlas_annotations_layer = None
         self._moving_image = None
         self._moving_image_data_backup = None
 
@@ -172,13 +175,14 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
                 self._viewer.layers.pop(current_atlas_layer_index)
                 self._atlas = None
+                self._atlas_data_layer = None
+                self._atlas_annotations_layer = None
                 self.run_button.setEnabled(False)
                 self._viewer.grid.enabled = False
 
             return
 
         atlas_name = self._available_atlases[index]
-        atlas = BrainGlobeAtlas(atlas_name)
 
         if self._atlas:
             current_atlas_layer_index = find_layer_index(
@@ -189,21 +193,30 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         else:
             self.run_button.setEnabled(True)
 
-        dask_atlas_reference = da.from_array(
-            atlas.reference,
-            chunks=(1, atlas.reference.shape[1], atlas.reference.shape[2]),
+        self._atlas = BrainGlobeAtlas(atlas_name)
+        atlas_dask_array = da.from_array(
+            self._atlas.reference,
+            chunks=(1, self._atlas.reference.shape[1], self._atlas.reference.shape[2]),
+        )
+        dask_annotations = da.from_array(
+            self._atlas.annotation,
+            chunks=(1, self._atlas.annotation.shape[1], self._atlas.annotation.shape[2]),
         )
 
-        self._viewer.add_image(
-            dask_atlas_reference,
+        self._atlas_data_layer = self._viewer.add_image(
+            atlas_dask_array,
             name=atlas_name,
             colormap="gray",
             blending="translucent",
             contrast_limits=[0, 350],
             multiscale=False,
         )
+        self._atlas_annotations_layer = self._viewer.add_labels(
+            dask_annotations,
+            name="Annotations",
+            visible=False,
+        )
 
-        self._atlas = BrainGlobeAtlas(atlas_name=atlas_name)
         self._viewer.grid.enabled = True
 
     def _on_sample_dropdown_index_changed(self, index):
@@ -214,9 +227,19 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._moving_image_data_backup = self._moving_image.data.copy()
 
     def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
+        if not self._moving_image:
+            show_error(
+                "No moving image selected. Please select a moving image before adjusting"
+            )
+            return
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
 
     def _on_adjust_moving_image_reset_button_click(self):
+        if not self._moving_image:
+            show_error(
+                "No moving image selected. Please select a moving image before adjusting"
+            )
+            return
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(self):
@@ -225,9 +248,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         result, parameters, registered_annotation_image = run_registration(
-            self._atlas.reference[current_atlas_slice, :, :],
+            self._atlas_data_layer.data[current_atlas_slice, :, :],
             self._moving_image.data,
-            self._atlas.annotation[current_atlas_slice, :, :],
+            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
             self.transform_selections,
         )
 
@@ -330,7 +353,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         Scale the moving image to have resolution equal to the atlas.
 
         Parameters
-        ----------
+        ------------
         x : float
             Moving image x pixel size (> 0.0).
         y : float
@@ -343,83 +366,89 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             show_error("Pixel sizes must be greater than 0")
             return
 
-        if self._moving_image and self._atlas:
-            if self._moving_image_data_backup is None:
-                self._moving_image_data_backup = self._moving_image.data.copy()
-
-            x_factor = x / self._atlas.resolution[0]
-            y_factor = y / self._atlas.resolution[1]
-
-            self._moving_image.data = rescale(
-                self._moving_image_data_backup,
-                (y_factor, x_factor),
-                mode="constant",
-                preserve_range=True,
-                anti_aliasing=True,
-            )
-        else:
+        if not (self._moving_image and self._atlas):
             show_error(
                 "Sample image or atlas not selected. "
                 "Please select a sample image and atlas before scaling",
             )
+            return
+
+        if self._moving_image_data_backup is None:
+            self._moving_image_data_backup = self._moving_image.data.copy()
+
+        x_factor = x / self._atlas.resolution[0]
+        y_factor = y / self._atlas.resolution[1]
+
+        self._moving_image.data = rescale(
+            self._moving_image_data_backup,
+            (y_factor, x_factor),
+            mode="constant",
+            preserve_range=True,
+            anti_aliasing=True,
+        )
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
-        if self._atlas:
-            curr_atlas_layer_index = find_layer_index(
-                self._viewer, self._atlas.atlas_name
-            )
-
-            # Create the rotation matrix
-            roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
-            pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
-            yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
-
-            rot_matrix = roll_matrix @ pitch_matrix @ yaw_matrix
-
-            full_matrix = np.eye(4)
-            full_matrix[:-1, :-1] = rot_matrix
-
-            # Translate the origin to the center of the image
-            origin = np.asarray(self._atlas.reference.shape) // 2
-            translate_matrix = np.eye(4)
-            translate_matrix[:-1, -1] = origin
-
-            bounding_box = calculate_rotated_bounding_box(
-                self._atlas.reference.shape, full_matrix
-            )
-            new_translation = np.asarray(bounding_box) // 2
-            post_rotate_translation = np.eye(4)
-            post_rotate_translation[:3, -1] = new_translation
-
-            # Combine the matrices. The order of operations is:
-            # 1. Translate the origin to the center of the image
-            # 2. Rotate the image
-            # 3. Translate the origin back to the top left corner
-            transform_matrix = (
-                translate_matrix
-                @ full_matrix
-                @ np.linalg.inv(post_rotate_translation)
-            )
-
-            transformed_atlas = affine_transform(
-                self._atlas.reference,
-                transform_matrix,
-                order=2,
-                output_shape=bounding_box,
-                output_chunks=(2, bounding_box[1], bounding_box[2]),
-            )
-
-            self._viewer.layers[
-                curr_atlas_layer_index
-            ].data = transformed_atlas
-
-            worker = self.compute_atlas_rotation(transformed_atlas)
-            worker.returned.connect(self.set_atlas_layer_data)
-            worker.start()
-        else:
+        if not self._atlas:
             show_error(
                 "No atlas selected. Please select an atlas before rotating"
             )
+            return
+
+        curr_atlas_layer_index = find_layer_index(
+            self._viewer, self._atlas.atlas_name
+        )
+
+        # Create the rotation matrix
+        roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
+        pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
+        yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
+
+        rot_matrix = roll_matrix @ pitch_matrix @ yaw_matrix
+
+        full_matrix = np.eye(4)
+        full_matrix[:-1, :-1] = rot_matrix
+
+        # Translate the origin to the center of the image
+        origin = np.asarray(self._atlas.reference.shape) // 2
+        translate_matrix = np.eye(4)
+        translate_matrix[:-1, -1] = origin
+
+        bounding_box = calculate_rotated_bounding_box(
+            self._atlas.reference.shape, full_matrix
+        )
+        new_translation = np.asarray(bounding_box) // 2
+        post_rotate_translation = np.eye(4)
+        post_rotate_translation[:3, -1] = new_translation
+
+        # Combine the matrices. The order of operations is:
+        # 1. Translate the origin to the center of the image
+        # 2. Rotate the image
+        # 3. Translate the origin back to the top left corner
+        transform_matrix = (
+            translate_matrix
+            @ full_matrix
+            @ np.linalg.inv(post_rotate_translation)
+        )
+
+        self._atlas_data_layer.data = dask_affine_transform(
+            self._atlas.reference,
+            transform_matrix,
+            order=2,
+            output_shape=bounding_box,
+            output_chunks=(2, bounding_box[1], bounding_box[2]),
+        )
+
+        self._atlas_annotations_layer.data = dask_affine_transform(
+            self._atlas.annotation,
+            transform_matrix,
+            order=0,
+            output_shape=bounding_box,
+            output_chunks=(2, bounding_box[1], bounding_box[2]),
+        )
+
+        worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
+        worker.returned.connect(self.set_atlas_layer_data)
+        worker.start()
 
     @thread_worker
     def compute_atlas_rotation(self, dask_array: da.Array):
@@ -443,17 +472,13 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._viewer.grid.enabled = True
 
     def _on_atlas_reset(self):
-        if self._atlas:
-            curr_atlas_layer_index = find_layer_index(
-                self._viewer, self._atlas.atlas_name
-            )
-
-            self._viewer.layers[
-                curr_atlas_layer_index
-            ].data = self._atlas.reference
-            self._viewer.grid.enabled = False
-            self._viewer.grid.enabled = True
-        else:
+        if not self._atlas:
             show_error(
                 "No atlas selected. Please select an atlas before resetting"
             )
+            return
+
+        self._atlas_data_layer.data = self._atlas.reference
+        self._atlas_annotations_layer.data = self._atlas.annotation
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
