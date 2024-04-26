@@ -26,6 +26,7 @@ from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
 from qtpy.QtWidgets import (
     QPushButton,
+    QScrollArea,
     QTabWidget,
 )
 from skimage.segmentation import find_boundaries
@@ -52,10 +53,11 @@ from brainglobe_registration.widgets.transform_select_view import (
 )
 
 
-class RegistrationWidget(CollapsibleWidgetContainer):
+class RegistrationWidget(QScrollArea):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
-        self.setContentsMargins(10, 10, 10, 10)
+        collapsible_widget_container = CollapsibleWidgetContainer(self)
+        collapsible_widget_container.setContentsMargins(10, 10, 10, 10)
 
         self._viewer = napari_viewer
         self._atlas: Optional[BrainGlobeAtlas] = None
@@ -155,7 +157,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.add_widget(
+        collapsible_widget_container.add_widget(
             header_widget(
                 "brainglobe-<br>registration",  # line break at <br>
                 "Registration with Elastix",
@@ -163,12 +165,16 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             ),
             collapsible=False,
         )
-        self.add_widget(self.get_atlas_widget, widget_title="Select Images")
-        self.add_widget(self.crop_atlas_widget, widget_title="Crop Atlas")
-        self.add_widget(
+        collapsible_widget_container.add_widget(
+            self.get_atlas_widget, widget_title="Select Images"
+        )
+        collapsible_widget_container.add_widget(
+            self.crop_atlas_widget, widget_title="Crop Atlas"
+        )
+        collapsible_widget_container.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
         )
-        self.add_widget(
+        collapsible_widget_container.add_widget(
             self.transform_select_view, widget_title="Select Transformations"
         )
 
@@ -184,10 +190,18 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
-        self.add_widget(self.parameters_tab, widget_title="Advanced Settings")
-        self.add_widget(self.run_button, collapsible=False)
+        collapsible_widget_container.add_widget(
+            self.parameters_tab, widget_title="Advanced Settings"
+        )
+        collapsible_widget_container.add_widget(
+            self.run_button, collapsible=False
+        )
 
-        self.layout().itemAt(1).widget().collapse(animate=False)
+        collapsible_widget_container.layout().itemAt(1).widget().collapse(
+            animate=False
+        )
+        self.setWidget(collapsible_widget_container)
+        self.setWidgetResizable(True)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
@@ -242,6 +256,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             blending="translucent",
             contrast_limits=[0, 350],
             multiscale=False,
+            rendering="attenuated_mip",
+            attenuation=0.75,
         )
         self._atlas_annotations_layer = self._viewer.add_labels(
             dask_annotations,
@@ -594,3 +610,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas_annotations_layer.data = self._atlas.annotation
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+        self.crop_atlas_widget.set_ranges(*self._atlas.reference.shape[-1::-1])
+        self._atlas_data_layer.experimental_clipping_planes = None
+        self._atlas_annotations_layer.experimental_clipping_planes = None
