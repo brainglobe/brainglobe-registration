@@ -42,6 +42,7 @@ from brainglobe_registration.utils.utils import (
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
 )
+from brainglobe_registration.widgets.crop_atlas_view import CropAtlasView
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
@@ -110,6 +111,18 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self._on_sample_popup_about_to_show
         )
 
+        self.crop_atlas_widget = CropAtlasView(parent=self)
+
+        self.crop_atlas_widget.crop_x_signal.connect(
+            self._on_crop_atlas_x_signal
+        )
+        self.crop_atlas_widget.crop_y_signal.connect(
+            self._on_crop_atlas_y_signal
+        )
+        self.crop_atlas_widget.crop_z_signal.connect(
+            self._on_crop_atlas_z_signal
+        )
+
         self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
         self.adjust_moving_image_widget.adjust_image_signal.connect(
             self._on_adjust_moving_image
@@ -151,6 +164,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             collapsible=False,
         )
         self.add_widget(self.get_atlas_widget, widget_title="Select Images")
+        self.add_widget(self.crop_atlas_widget, widget_title="Crop Atlas")
         self.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
         )
@@ -236,6 +250,27 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self._viewer.grid.enabled = True
+        self.crop_atlas_widget.set_ranges(*self._atlas.reference.shape[-1::-1])
+        self.clipping_planes = [
+            {"position": (0, 0, 0), "normal": (1, 0, 0), "enabled": False},
+            {
+                "position": (self._atlas.reference.shape[2], 0, 0),
+                "normal": (-1, 0, 0),
+                "enabled": False,
+            },
+            {"position": (0, 0, 0), "normal": (0, 1, 0), "enabled": False},
+            {
+                "position": (0, self._atlas.reference.shape[1], 0),
+                "normal": (0, -1, 0),
+                "enabled": False,
+            },
+            {"position": (0, 0, 0), "normal": (0, 0, 1), "enabled": False},
+            {
+                "position": (0, 0, self._atlas.reference.shape[0]),
+                "normal": (0, 0, -1),
+                "enabled": False,
+            },
+        ]
 
     def _on_sample_dropdown_index_changed(self, index):
         viewer_index = find_layer_index(
@@ -261,6 +296,63 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             )
             return
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
+
+    def _on_crop_atlas_x_signal(self, start: int, end: int):
+        if not (self._atlas_data_layer and self._atlas_annotations_layer):
+            show_error(
+                "No atlas selected. Please select an atlas before cropping"
+            )
+            return
+
+        self.clipping_planes[4]["enabled"] = True
+        self.clipping_planes[4]["position"] = (0, 0, start)
+        self.clipping_planes[5]["enabled"] = True
+        self.clipping_planes[5]["position"] = (0, 0, end)
+
+        self._atlas_data_layer.experimental_clipping_planes = (
+            self.clipping_planes
+        )
+        self._atlas_annotations_layer.experimental_clipping_planes = (
+            self.clipping_planes
+        )
+
+    def _on_crop_atlas_y_signal(self, start: int, end: int):
+        if not (self._atlas_data_layer and self._atlas_annotations_layer):
+            show_error(
+                "No atlas selected. Please select an atlas before cropping"
+            )
+            return
+
+        self.clipping_planes[2]["enabled"] = True
+        self.clipping_planes[2]["position"] = (0, start, 0)
+        self.clipping_planes[3]["enabled"] = True
+        self.clipping_planes[3]["position"] = (0, end, 0)
+
+        self._atlas_data_layer.experimental_clipping_planes = (
+            self.clipping_planes
+        )
+        self._atlas_annotations_layer.experimental_clipping_planes = (
+            self.clipping_planes
+        )
+
+    def _on_crop_atlas_z_signal(self, start: int, end: int):
+        if not (self._atlas_data_layer and self._atlas_annotations_layer):
+            show_error(
+                "No atlas selected. Please select an atlas before cropping"
+            )
+            return
+
+        self.clipping_planes[0]["enabled"] = True
+        self.clipping_planes[0]["position"] = (start, 0, 0)
+        self.clipping_planes[1]["enabled"] = True
+        self.clipping_planes[1]["position"] = (end, 0, 0)
+
+        self._atlas_data_layer.experimental_clipping_planes = (
+            self.clipping_planes
+        )
+        self._atlas_annotations_layer.experimental_clipping_planes = (
+            self.clipping_planes
+        )
 
     def _on_run_button_click(self):
 
@@ -463,6 +555,10 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             order=0,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
+        )
+
+        self.crop_atlas_widget.set_ranges(
+            *self._atlas_data_layer.data.shape[-1::-1]
         )
 
         worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
