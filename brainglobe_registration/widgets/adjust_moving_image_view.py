@@ -41,8 +41,8 @@ class AdjustMovingImageView(QWidget):
         Resets the pitch, yaw, and roll to 0 and emits the atlas_reset_signal.
     """
 
-    adjust_image_signal = Signal(int, int, float)
-    scale_image_signal = Signal(float, float)
+    adjust_image_signal = Signal(int, int, int, float)
+    scale_image_signal = Signal(float, float, float)
     atlas_rotation_signal = Signal(float, float, float)
     reset_atlas_signal = Signal()
     reset_image_signal = Signal()
@@ -67,9 +67,16 @@ class AdjustMovingImageView(QWidget):
         self.adjust_moving_image_pixel_size_x = QDoubleSpinBox(parent=self)
         self.adjust_moving_image_pixel_size_x.setDecimals(2)
         self.adjust_moving_image_pixel_size_x.setRange(0.01, 100.00)
+
         self.adjust_moving_image_pixel_size_y = QDoubleSpinBox(parent=self)
         self.adjust_moving_image_pixel_size_y.setDecimals(2)
         self.adjust_moving_image_pixel_size_y.setRange(0.01, 100.00)
+
+        self.adjust_moving_image_pixel_size_z = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_pixel_size_z.setDecimals(2)
+        self.adjust_moving_image_pixel_size_z.setRange(0.01, 100.00)
+        self.adjust_moving_image_pixel_size_z.setEnabled(False)
+
         self.scale_moving_image_button = QPushButton()
         self.scale_moving_image_button.setText("Scale Image")
         self.scale_moving_image_button.clicked.connect(
@@ -105,6 +112,11 @@ class AdjustMovingImageView(QWidget):
         self.adjust_moving_image_y.setRange(-offset_range, offset_range)
         self.adjust_moving_image_y.valueChanged.connect(self._on_adjust_image)
 
+        self.adjust_moving_image_z = QSpinBox(parent=self)
+        self.adjust_moving_image_z.setRange(-offset_range, offset_range)
+        self.adjust_moving_image_z.valueChanged.connect(self._on_adjust_image)
+        self.adjust_moving_image_z.setEnabled(False)
+
         self.adjust_moving_image_rotate = QDoubleSpinBox(parent=self)
         self.adjust_moving_image_rotate.setRange(
             -rotation_range, rotation_range
@@ -129,6 +141,10 @@ class AdjustMovingImageView(QWidget):
             "Sample image Y pixel size (\u03BCm / pixel):",
             self.adjust_moving_image_pixel_size_y,
         )
+        self.layout().addRow(
+            "Sample image Z pixel size (\u03BCm / pixel):",
+            self.adjust_moving_image_pixel_size_z,
+        )
         self.layout().addRow(self.scale_moving_image_button)
 
         self.layout().addRow(QLabel("Adjust the atlas pitch and yaw: "))
@@ -141,6 +157,7 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(QLabel("Adjust the moving image position: "))
         self.layout().addRow("X offset:", self.adjust_moving_image_x)
         self.layout().addRow("Y offset:", self.adjust_moving_image_y)
+        self.layout().addRow("Z offset:", self.adjust_moving_image_z)
         self.layout().addRow(
             "Rotation (degrees):", self.adjust_moving_image_rotate
         )
@@ -154,6 +171,7 @@ class AdjustMovingImageView(QWidget):
         self.adjust_image_signal.emit(
             self.adjust_moving_image_x.value(),
             self.adjust_moving_image_y.value(),
+            self.adjust_moving_image_z.value(),
             self.adjust_moving_image_rotate.value(),
         )
 
@@ -164,6 +182,7 @@ class AdjustMovingImageView(QWidget):
         """
         self.adjust_moving_image_x.setValue(0)
         self.adjust_moving_image_y.setValue(0)
+        self.adjust_moving_image_z.setValue(0)
         self.adjust_moving_image_rotate.setValue(0)
 
         self.reset_image_signal.emit()
@@ -175,6 +194,7 @@ class AdjustMovingImageView(QWidget):
         self.scale_image_signal.emit(
             self.adjust_moving_image_pixel_size_x.value(),
             self.adjust_moving_image_pixel_size_y.value(),
+            self.adjust_moving_image_pixel_size_z.value(),
         )
 
     def _on_adjust_atlas_rotation(self):
@@ -196,3 +216,11 @@ class AdjustMovingImageView(QWidget):
         self.adjust_atlas_roll.setValue(0)
 
         self.reset_atlas_signal.emit()
+
+    def set_moving_image_to3d(self):
+        self.adjust_moving_image_z.setEnabled(True)
+        self.adjust_moving_image_pixel_size_z.setEnabled(True)
+
+    def set_moving_image_to2d(self):
+        self.adjust_moving_image_z.setEnabled(False)
+        self.adjust_moving_image_pixel_size_z.setEnabled(False)

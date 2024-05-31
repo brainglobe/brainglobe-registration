@@ -1,7 +1,9 @@
-from typing import List
+from pathlib import Path
+from typing import List, Tuple
 
 import itk
 import numpy as np
+import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 
 
@@ -25,24 +27,33 @@ def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
 
 
 def run_registration(
-    atlas_image,
-    moving_image,
-    annotation_image,
+    atlas_image: npt.NDArray,
+    moving_image: npt.NDArray,
+    annotation_image: npt.NDArray,
+    atlas_voxel_size: Tuple[float, ...],
+    moving_voxel_size: Tuple[float, ...],
     parameter_lists: List[tuple[str, dict]],
-) -> tuple[np.ndarray, itk.ParameterObject, np.ndarray]:
+    output_directory: Path,
+) -> Tuple[np.ndarray, itk.ParameterObject, np.ndarray]:
     """
     Run the registration process on the given images.
 
     Parameters
     ----------
-    atlas_image : np.ndarray
+    atlas_image : npt.NDArray
         The atlas image.
-    moving_image : np.ndarray
+    moving_image : npt.NDArray
         The moving image.
-    annotation_image : np.ndarray
+    atlas_voxel_size : Tuple[float, ...]
+        The voxel size of the atlas image in um.
+    moving_voxel_size : Tuple[float, ...]
+        The voxel size of the moving image in um.
+    annotation_image : npt.NDArray
         The annotation image.
     parameter_lists : List[tuple[str, dict]], optional
         The list of parameter lists, by default None
+    output_directory: Path
+        The output directory for the registration process.
 
     Returns
     -------
@@ -54,6 +65,13 @@ def run_registration(
     # convert to ITK, view only
     atlas_image = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
     moving_image = itk.GetImageViewFromArray(moving_image).astype(itk.F)
+    annotation_image = itk.GetImageViewFromArray(annotation_image).astype(
+        itk.F
+    )
+
+    atlas_image.SetSpacing(atlas_voxel_size)
+    annotation_image.SetSpacing(atlas_voxel_size)
+    moving_image.SetSpacing(moving_voxel_size)
 
     # This syntax needed for 3D images
     elastix_object = itk.ElastixRegistrationMethod.New(
@@ -63,6 +81,7 @@ def run_registration(
     parameter_object = setup_parameter_object(parameter_lists=parameter_lists)
 
     elastix_object.SetParameterObject(parameter_object)
+    elastix_object.SetOutputDirectory(str(output_directory))
 
     # update filter object
     elastix_object.UpdateLargestPossibleRegion()
@@ -81,6 +100,16 @@ def run_registration(
         annotation_image.astype(np.float32, copy=False),
         result_transform_parameters,
     )
+
+    # Load Transformix Object
+    transformix_object = itk.TransformixFilter.New(annotation_image)
+    transformix_object.SetTransformParameterObject(result_transform_parameters)
+
+    # Update object (required)
+    transformix_object.UpdateLargestPossibleRegion()
+
+    # Results of Transformation
+    annotation_image_transformix = transformix_object.GetOutput()
 
     result_transform_parameters.SetParameter(
         "FinalBSplineInterpolationOrder", temp_interp_order

@@ -23,6 +23,7 @@ from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
+from ome_zarr.dask_utils import resize
 from pytransform3d.rotations import active_matrix_from_angle
 from qtpy.QtWidgets import (
     QPushButton,
@@ -293,16 +294,21 @@ class RegistrationWidget(QScrollArea):
             self._viewer, self._sample_images[index]
         )
         self._moving_image = self._viewer.layers[viewer_index]
-        self._moving_image_data_backup = self._moving_image.data.copy()
+        self._moving_image_data_backup = da.asarray(self._moving_image.data)
 
-    def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
+        if len(self._moving_image.data.shape) == 3:
+            self.adjust_moving_image_widget.set_moving_image_to3d()
+        else:
+            self.adjust_moving_image_widget.set_moving_image_to2d()
+
+    def _on_adjust_moving_image(self, x: int, y: int, z: int, rotate: float):
         if not self._moving_image:
             show_error(
                 "No moving image selected. "
                 "Please select a moving image before adjusting"
             )
             return
-        adjust_napari_image_layer(self._moving_image, x, y, rotate)
+        adjust_napari_image_layer(self._moving_image, x, y, z, rotate)
 
     def _on_adjust_moving_image_reset_button_click(self):
         if not self._moving_image:
@@ -371,14 +377,35 @@ class RegistrationWidget(QScrollArea):
         )
 
     def _on_run_button_click(self):
+        if not (self._atlas and self._moving_image):
+            show_error(
+                "Sample image or atlas not selected. "
+                "Please select a sample image and atlas before running"
+            )
+            return
 
-        current_atlas_slice = self._viewer.dims.current_step[0]
+        if len(self._moving_image.data.shape) == 3:
+            reference_data = self._atlas_data_layer.data
+            annotation_data = self._atlas_annotations_layer.data.compute()
+        else:
+            current_atlas_slice = self._viewer.dims.current_step[0]
+            reference_data = self._atlas_data_layer.data[
+                current_atlas_slice, :, :
+            ]
+            annotation_data = self._atlas_annotations_layer.data[
+                current_atlas_slice, :, :
+            ]
+
+        output_path = Path.home() / "NIU-dev" / "elastix_output"
 
         result, parameters, registered_annotation_image = run_registration(
-            self._atlas_data_layer.data[current_atlas_slice, :, :],
-            self._moving_image.data,
-            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
-            self.transform_selections,
+            atlas_image=reference_data,
+            moving_image=self._moving_image.data,
+            atlas_voxel_size=self._atlas.resolution,
+            moving_voxel_size=(25, 25, 25),
+            annotation_image=annotation_data,
+            parameter_lists=self.transform_selections,
+            output_directory=output_path,
         )
 
         boundaries = find_boundaries(
@@ -475,7 +502,7 @@ class RegistrationWidget(QScrollArea):
         self._sample_images = get_image_layer_names(self._viewer)
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
 
-    def _on_scale_moving_image(self, x: float, y: float):
+    def _on_scale_moving_image(self, x: float, y: float, z: float = 1.0):
         """
         Scale the moving image to have resolution equal to the atlas.
 
@@ -485,11 +512,13 @@ class RegistrationWidget(QScrollArea):
             Moving image x pixel size (> 0.0).
         y : float
             Moving image y pixel size (> 0.0).
+        z : float
+            Moving image z pixel size (> 0.0).
 
         Will show an error if the pixel sizes are less than or equal to 0.
         Will show an error if the moving image or atlas is not selected.
         """
-        if x <= 0 or y <= 0:
+        if x <= 0 or y <= 0 or z <= 0:
             show_error("Pixel sizes must be greater than 0")
             return
 
@@ -501,18 +530,34 @@ class RegistrationWidget(QScrollArea):
             return
 
         if self._moving_image_data_backup is None:
-            self._moving_image_data_backup = self._moving_image.data.copy()
+            self._moving_image_data_backup = da.asarray(
+                self._moving_image.data
+            )
 
         x_factor = x / self._atlas.resolution[0]
         y_factor = y / self._atlas.resolution[1]
+        # z_factor = z / self._atlas.resolution[2]
 
-        self._moving_image.data = rescale(
-            self._moving_image_data_backup,
-            (y_factor, x_factor),
-            mode="constant",
-            preserve_range=True,
-            anti_aliasing=True,
-        )
+        if len(self._moving_image.data.shape) == 3:
+            self._moving_image.data = resize(
+                self._moving_image_data_backup,
+                (
+                    self._atlas.reference.shape[0],
+                    self._atlas.reference.shape[2],
+                    self._atlas.reference.shape[1],
+                ),
+                mode="constant",
+                preserve_range=True,
+                anti_aliasing=True,
+            ).compute()
+        else:
+            self._moving_image.data = rescale(
+                self._moving_image_data_backup,
+                (y_factor, x_factor),
+                mode="constant",
+                preserve_range=True,
+                anti_aliasing=True,
+            )
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
@@ -580,6 +625,8 @@ class RegistrationWidget(QScrollArea):
         worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
         worker.returned.connect(self.set_atlas_layer_data)
         worker.start()
+        self._atlas_data_layer.experimental_clipping_planes = None
+        self._atlas_annotations_layer.experimental_clipping_planes = None
 
     @thread_worker
     def compute_atlas_rotation(self, dask_array: da.Array):

@@ -8,7 +8,11 @@ from pytransform3d.rotations import active_matrix_from_angle
 
 
 def adjust_napari_image_layer(
-    image_layer: napari.layers.Image, x: int, y: int, rotate: float
+    image_layer: napari.layers.Image,
+    x: int,
+    y: int,
+    z: int = 0,
+    rotate: float = 0,
 ):
     """
     Adjusts the napari image layer by the given x, y, and rotation values.
@@ -28,19 +32,31 @@ def adjust_napari_image_layer(
         The x-coordinate for the translation.
     y : int
         The y-coordinate for the translation.
-    rotate : float
+    z : int, optional
+        The z-coordinate for the translation.
+    rotate : float, optional
         The angle of rotation in degrees.
 
     Returns
     --------
     None
     """
-    image_layer.translate = (y, x)
+    num_dimensions = len(image_layer.data.shape)
+    if num_dimensions == 3:
+        image_layer.translate = (z, y, x)
+        translation = np.asarray([z, y, x])
+    else:
+        image_layer.translate = (y, x)
+        translation = np.asarray([y, x])
 
-    rotation_matrix = active_matrix_from_angle(2, np.deg2rad(rotate))
-    translate_matrix = np.eye(3)
-    origin = np.asarray(image_layer.data.shape) // 2 + np.asarray([y, x])
-    translate_matrix[:2, -1] = origin
+    rotation_matrix = np.eye(num_dimensions + 1)
+    rotation_matrix[:num_dimensions, :num_dimensions] = (
+        active_matrix_from_angle(0, np.deg2rad(rotate))
+    )
+
+    translate_matrix = np.eye(num_dimensions + 1)
+    origin = np.asarray(image_layer.data.shape) // 2 + translation
+    translate_matrix[:num_dimensions, -1] = origin
     transform_matrix = (
         translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
     )
