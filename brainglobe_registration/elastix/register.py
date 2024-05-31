@@ -55,12 +55,14 @@ def run_registration(
         The transformed annotation image.
     """
     # convert to ITK, view only
-    atlas_image = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
-    moving_image = itk.GetImageViewFromArray(moving_image).astype(itk.F)
+    atlas_image_elastix = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
+    moving_image_elastix = itk.GetImageViewFromArray(moving_image).astype(
+        itk.F
+    )
 
     # This syntax needed for 3D images
     elastix_object = itk.ElastixRegistrationMethod.New(
-        moving_image, atlas_image
+        moving_image_elastix, atlas_image_elastix, output_directory="./output"
     )
 
     parameter_object = setup_parameter_object(parameter_lists=parameter_lists)
@@ -88,6 +90,39 @@ def run_registration(
     result_transform_parameters.SetParameter(
         "FinalBSplineInterpolationOrder", temp_interp_order
     )
+
+    # Invert the transformation
+    # Import Default Parameter Map and adjust parameters
+    parameter_object_inverse = itk.ParameterObject.New()
+    parameter_map_rigid = parameter_object_inverse.GetDefaultParameterMap(
+        "rigid"
+    )
+    parameter_map_bspline = parameter_object_inverse.GetDefaultParameterMap(
+        "bspline"
+    )
+    parameter_map_bspline["HowToCombineTransforms"] = ["Compose"]
+    parameter_map_rigid["HowToCombineTransforms"] = ["Compose"]
+    parameter_object_inverse.AddParameterMap(parameter_map_rigid)
+    parameter_object_inverse.AddParameterMap(parameter_map_bspline)
+
+    (
+        inverse_image,
+        inverse_transform_parameters,
+    ) = itk.elastix_registration_method(
+        atlas_image_elastix,
+        atlas_image_elastix,
+        parameter_object=parameter_object,
+        initial_transform_parameter_file_name="output/TransformParameters.2.txt",
+    )
+
+    # Adjust inverse transform parameters object
+    inverse_transform_parameters.SetParameter(
+        0, "InitialTransformParametersFileName", "NoInitialTransform"
+    )
+
+    # inverse_transform_parameters.WriteParameterFiles(
+    # "output/TransformParameters_inverse"
+    # )
 
     return (
         np.asarray(result_image),
