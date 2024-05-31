@@ -31,6 +31,7 @@ dependencies = [
     "itk-elastix",
     "lxml_html_clean",
     "numpy",
+    "ome_zarr",
     "pytransform3d",
     "qtpy",
 ]
