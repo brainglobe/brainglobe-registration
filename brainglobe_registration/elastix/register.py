@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import itk
@@ -59,9 +60,13 @@ def run_registration(
         itk.F
     )
 
+    output_directory = Path.home() / "elastix_out"
+
     # This syntax needed for 3D images
     elastix_object = itk.ElastixRegistrationMethod.New(
-        moving_image_elastix, atlas_image_elastix, output_directory="./output"
+        moving_image_elastix,
+        atlas_image_elastix,
+        output_directory=str(output_directory),
     )
 
     parameter_object = setup_parameter_object(parameter_lists=parameter_lists)
@@ -102,10 +107,10 @@ def run_registration(
         inverse_image,
         inverse_transform_parameters,
     ) = itk.elastix_registration_method(
-        moving_image_elastix,
-        moving_image_elastix,
+        atlas_image_elastix,
+        atlas_image_elastix,
         parameter_object=parameter_object_inverse,
-        initial_transform_parameter_file_name=f"output/TransformParameters.{len(parameter_lists)-1}.txt",
+        initial_transform_parameter_file_name=f"{output_directory}/TransformParameters.{len(parameter_lists)-1}.txt",
     )
 
     # Adjust inverse transform parameters object
@@ -114,7 +119,7 @@ def run_registration(
     )
 
     file_names = [
-        f"InverseTransformParameters.{i}.txt"
+        f"{output_directory}/InverseTransformParameters.{i}.txt"
         for i in range(len(parameter_lists))
     ]
 
@@ -123,7 +128,7 @@ def run_registration(
     )
 
     inverse_moving = itk.transformix_filter(
-        moving_image,
+        moving_image_elastix,
         inverse_transform_parameters,
     )
 
