@@ -271,14 +271,25 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(self):
-
         current_atlas_slice = self._viewer.dims.current_step[0]
 
-        result, parameters, registered_annotation_image = run_registration(
+        (
+            result,
+            parameters,
+            registered_annotation_image,
+            inverse_image,
+            inverse_test,
+        ) = run_registration(
             self._atlas_data_layer.data[current_atlas_slice, :, :],
             self._moving_image.data,
             self._atlas_annotations_layer.data[current_atlas_slice, :, :],
             self.transform_selections,
+        )
+        self._viewer.add_image(
+            inverse_image, name="Inverse Image", visible=False
+        )
+        self._viewer.add_image(
+            inverse_test, name="Inverse Test", visible=False
         )
 
         boundaries = find_boundaries(

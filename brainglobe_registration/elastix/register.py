@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import itk
 import numpy as np
@@ -29,8 +29,10 @@ def run_registration(
     atlas_image,
     moving_image,
     annotation_image,
-    parameter_lists: List[Tuple[str, dict]],
-) -> Tuple[npt.NDArray, itk.ParameterObject, npt.NDArray]:
+    parameter_lists: List[Tuple[str, Dict]],
+) -> Tuple[
+    np.ndarray, itk.ParameterObject, np.ndarray, np.ndarray, np.ndarray
+]:
     """
     Run the registration process on the given images.
 
@@ -42,7 +44,7 @@ def run_registration(
         The moving image.
     annotation_image : npt.NDArray
         The annotation image.
-    parameter_lists : List[tuple[str, dict]], optional
+    parameter_lists : List[Tuple[str, Dict]], optional
         The list of parameter lists, by default None
 
     Returns
@@ -93,41 +95,47 @@ def run_registration(
 
     # Invert the transformation
     # Import Default Parameter Map and adjust parameters
-    parameter_object_inverse = itk.ParameterObject.New()
-    parameter_map_rigid = parameter_object_inverse.GetDefaultParameterMap(
-        "rigid"
-    )
-    parameter_map_bspline = parameter_object_inverse.GetDefaultParameterMap(
-        "bspline"
-    )
-    parameter_map_bspline["HowToCombineTransforms"] = ["Compose"]
-    parameter_map_rigid["HowToCombineTransforms"] = ["Compose"]
-    parameter_object_inverse.AddParameterMap(parameter_map_rigid)
-    parameter_object_inverse.AddParameterMap(parameter_map_bspline)
+    parameter_object_inverse = setup_parameter_object(parameter_lists[-1::-1])
+    for i in range(len(parameter_lists)):
+        parameter_object_inverse.SetParameter(
+            i, "HowToCombineTransforms", ["Compose"]
+        )
 
     (
         inverse_image,
         inverse_transform_parameters,
     ) = itk.elastix_registration_method(
-        atlas_image_elastix,
-        atlas_image_elastix,
-        parameter_object=parameter_object,
-        initial_transform_parameter_file_name="output/TransformParameters.2.txt",
+        moving_image_elastix,
+        moving_image_elastix,
+        parameter_object=parameter_object_inverse,
+        initial_transform_parameter_file_name=f"output/TransformParameters.{len(parameter_lists)-1}.txt",
     )
 
     # Adjust inverse transform parameters object
     inverse_transform_parameters.SetParameter(
-        0, "InitialTransformParametersFileName", "NoInitialTransform"
+        0, "InitialTransformParameterFileName", "NoInitialTransform"
     )
 
-    # inverse_transform_parameters.WriteParameterFiles(
-    # "output/TransformParameters_inverse"
-    # )
+    file_names = [
+        f"InverseTransformParameters.{i}.txt"
+        for i in range(len(parameter_lists))
+    ]
+
+    itk.ParameterObject.WriteParameterFiles(
+        inverse_transform_parameters, file_names
+    )
+
+    inverse_moving = itk.transformix_filter(
+        moving_image,
+        inverse_transform_parameters,
+    )
 
     return (
         np.asarray(result_image),
         result_transform_parameters,
         np.asarray(annotation_image_transformix),
+        np.asarray(inverse_image),
+        np.asarray(inverse_moving),
     )
 
 
