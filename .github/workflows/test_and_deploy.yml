@@ -47,10 +47,28 @@ jobs:
         with:
           qt: true
 
+      # cache atlases needed by the tests
+      - name: Cache Atlases
+        id: atlas-cache
+        uses: actions/cache@v3
+        with:
+          path: | # ensure we don't cache any interrupted atlas download and extraction!
+            ~/.brainglobe/*
+            !~/.brainglobe/atlas.tar.gz
+          key: ${{ runner.os }}-cached-atlases
+          enableCrossOsArchive: false # ~ and $HOME evaluate to different places across OSs!
+
+      - if: ${{ steps.atlas-cache.outputs.cache-hit == 'true' }}
+        name: List files in brainglobe data folder # good to be able to sanity check that user data is as expected
+        run: |
+          ls -af ~/.brainglobe/
+
+
       # Run tests
       - uses: neuroinformatics-unit/actions/test@v2
         with:
           python-version: ${{ matrix.python-version }}
+          secret-codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
   build_sdist_wheels:
     name: Build source distribution
@@ -66,11 +84,6 @@ jobs:
     needs: [build_sdist_wheels]
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: neuroinformatics-unit/actions/upload_pypi@v2
       with:
-        name: artifact
-        path: dist
-    - uses: pypa/gh-action-pypi-publish@v1.5.0
-      with:
-        user: __token__
-        password: ${{ secrets.TWINE_API_KEY }}
+        secret-pypi-key: ${{ secrets.TWINE_API_KEY }}

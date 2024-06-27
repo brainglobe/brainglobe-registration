@@ -24,12 +24,15 @@ classifiers = [
 
 dependencies = [
     "napari>=0.4.18",
-    "bg-atlasapi",
-    "brainglobe-utils>=0.3.4",
-    "numpy",
-    "qtpy",
+    "brainglobe-atlasapi",
+    "brainglobe-utils>=0.4.3",
+    "dask",
+    "dask-image",
     "itk-elastix",
-    "pytransform3d"
+    "lxml_html_clean",
+    "numpy",
+    "pytransform3d",
+    "qtpy",
 ]
 
 [project.urls]

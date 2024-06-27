@@ -2,7 +2,7 @@ from typing import List
 
 import itk
 import numpy as np
-from bg_atlasapi import BrainGlobeAtlas
+from brainglobe_atlasapi import BrainGlobeAtlas
 
 
 def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
