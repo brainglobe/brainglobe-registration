@@ -150,9 +150,9 @@ def test_atlas_reset_button_click(
     qtbot.addWidget(adjust_moving_image_view)
 
     with qtbot.waitSignal(
-        adjust_moving_image_view.atlas_reset_signal, timeout=1000
+        adjust_moving_image_view.reset_atlas_signal, timeout=1000
     ):
-        adjust_moving_image_view.atlas_reset_button.click()
+        adjust_moving_image_view.reset_atlas_button.click()
 
     assert (
         adjust_moving_image_view.adjust_atlas_pitch.value() == 0
