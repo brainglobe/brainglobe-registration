@@ -56,19 +56,13 @@ To install latest development version :
 
     pip install git+https://github.com/brainglobe/brainglobe-registration.git
 
-## Contributing
-
-Contributions are very welcome. Tests can be run with [tox], please ensure
-the coverage at least stays the same before you submit a pull request.
-
 ## License
 
 Distributed under the terms of the [BSD-3] license,
 "brainglobe-registration" is free and open source software
 
-## Issues
-
-If you encounter any problems, please [file an issue] along with a detailed description.
+## Seeking help or contributing
+We are always happy to help users of our tools, and welcome any contributions. If you would like to get in contact with us for any reason, please see the [contact page of our website](https://brainglobe.info/contact.html).
 
 
 ## Acknowledgements
