@@ -204,7 +204,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self.run_button.setEnabled(True)
 
         self._atlas = BrainGlobeAtlas(atlas_name)
-        atlas_dask_array = da.from_array(
+        dask_reference = da.from_array(
             self._atlas.reference,
             chunks=(
                 1,
@@ -221,12 +221,15 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             ),
         )
 
+        contrast_max = np.max(
+            dask_reference[dask_reference.shape[0] // 2]
+        ).compute()
         self._atlas_data_layer = self._viewer.add_image(
-            atlas_dask_array,
+            dask_reference,
             name=atlas_name,
             colormap="gray",
             blending="translucent",
-            contrast_limits=[0, 350],
+            contrast_limits=[0, contrast_max],
             multiscale=False,
         )
         self._atlas_annotations_layer = self._viewer.add_labels(
@@ -437,16 +440,14 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
         new_translation = np.asarray(bounding_box) // 2
         post_rotate_translation = np.eye(4)
-        post_rotate_translation[:3, -1] = new_translation
+        post_rotate_translation[:3, -1] = -new_translation
 
         # Combine the matrices. The order of operations is:
         # 1. Translate the origin to the center of the image
         # 2. Rotate the image
         # 3. Translate the origin back to the top left corner
         transform_matrix = (
-            translate_matrix
-            @ full_matrix
-            @ np.linalg.inv(post_rotate_translation)
+            translate_matrix @ full_matrix @ post_rotate_translation
         )
 
         self._atlas_data_layer.data = dask_affine_transform(
@@ -464,6 +465,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
         )
+
+        # Resets the viewer grid to update the grid to the new atlas
+        self._viewer.reset_view()
 
         worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
         worker.returned.connect(self.set_atlas_layer_data)
@@ -483,9 +487,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
     def set_atlas_layer_data(self, new_data):
         self._atlas_data_layer.data = new_data
-        # Resets the viewer grid to update the grid to the new atlas
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
 
     def _on_atlas_reset(self):
         if not self._atlas:
