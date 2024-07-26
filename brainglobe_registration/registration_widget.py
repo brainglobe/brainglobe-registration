@@ -437,7 +437,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
         new_translation = np.asarray(bounding_box) // 2
         post_rotate_translation = np.eye(4)
-        post_rotate_translation[:3, -1] = new_translation
+        post_rotate_translation[:3, -1] = -new_translation
 
         # Combine the matrices. The order of operations is:
         # 1. Translate the origin to the center of the image
@@ -446,7 +446,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         transform_matrix = (
             translate_matrix
             @ full_matrix
-            @ np.linalg.inv(post_rotate_translation)
+            @ post_rotate_translation
         )
 
         self._atlas_data_layer.data = dask_affine_transform(
