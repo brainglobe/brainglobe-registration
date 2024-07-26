@@ -444,9 +444,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         # 2. Rotate the image
         # 3. Translate the origin back to the top left corner
         transform_matrix = (
-            translate_matrix
-            @ full_matrix
-            @ post_rotate_translation
+            translate_matrix @ full_matrix @ post_rotate_translation
         )
 
         self._atlas_data_layer.data = dask_affine_transform(
