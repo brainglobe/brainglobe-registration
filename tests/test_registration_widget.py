@@ -14,11 +14,23 @@ def registration_widget(make_napari_viewer_with_images):
 
 @pytest.fixture()
 def registration_widget_with_example_atlas(make_napari_viewer_with_images):
+    """
+    Create an initialised RegistrationWidget with the "example_mouse_100um"
+    loaded.
+
+    Parameters
+    ------------
+    make_napari_viewer_with_images for testing
+        Fixture that creates a napari viewer
+    """
     viewer = make_napari_viewer_with_images
 
     widget = RegistrationWidget(viewer)
 
-    widget._on_atlas_dropdown_index_changed(2)
+    # Based on the downloaded atlases by the fixture in conftest.py,
+    # the example atlas will be in the third position.
+    example_atlas_index = 2
+    widget._on_atlas_dropdown_index_changed(example_atlas_index)
 
     return widget
 

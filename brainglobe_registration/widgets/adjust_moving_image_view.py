@@ -65,11 +65,11 @@ class AdjustMovingImageView(QWidget):
         rotation_range = 360
 
         self.adjust_moving_image_pixel_size_x = QDoubleSpinBox(parent=self)
-        self.adjust_moving_image_pixel_size_x.setDecimals(2)
-        self.adjust_moving_image_pixel_size_x.setRange(0.01, 100.00)
+        self.adjust_moving_image_pixel_size_x.setDecimals(3)
+        self.adjust_moving_image_pixel_size_x.setRange(0.001, 100.00)
         self.adjust_moving_image_pixel_size_y = QDoubleSpinBox(parent=self)
-        self.adjust_moving_image_pixel_size_y.setDecimals(2)
-        self.adjust_moving_image_pixel_size_y.setRange(0.01, 100.00)
+        self.adjust_moving_image_pixel_size_y.setDecimals(3)
+        self.adjust_moving_image_pixel_size_y.setRange(0.001, 100.00)
         self.scale_moving_image_button = QPushButton()
         self.scale_moving_image_button.setText("Scale Image")
         self.scale_moving_image_button.clicked.connect(
