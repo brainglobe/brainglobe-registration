@@ -3,7 +3,6 @@ from typing import Dict, List, Tuple
 
 import itk
 import numpy as np
-import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 
 
@@ -56,6 +55,10 @@ def run_registration(
         The result transform parameters.
     npt.NDArray
         The transformed annotation image.
+    npt.NDArray
+        The inverse image.
+    npt.NDArray
+        The inverse moving image.
     """
     # convert to ITK, view only
     atlas_image_elastix = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
