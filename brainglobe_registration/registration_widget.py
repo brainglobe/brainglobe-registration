@@ -95,11 +95,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         else:
             self._moving_image = None
 
-        self.main_tabs = QTabWidget(parent=self)
-        self.main_tabs.setTabPosition(QTabWidget.West)
-
-        self.parameters_tab = QTabWidget()
-
         self.get_atlas_widget = SelectImagesView(
             available_atlases=self._available_atlases,
             sample_image_names=self._sample_images,
@@ -143,10 +138,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self._on_default_file_selection_change
         )
 
-        self.run_button = QPushButton("Run")
-        self.run_button.clicked.connect(self._on_run_button_click)
-        self.run_button.setEnabled(False)
-
         self.add_widget(
             header_widget(
                 "brainglobe-<br>registration",  # line break at <br>
@@ -164,7 +155,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self.parameter_setting_tabs_lists = []
-        self.parameters_tab = QTabWidget()
+        self.parameters_tab = QTabWidget(parent=self)
 
         for transform_type in self.transform_params:
             new_tab = RegistrationParameterListView(
@@ -176,9 +167,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self.parameter_setting_tabs_lists.append(new_tab)
 
         self.add_widget(self.parameters_tab, widget_title="Advanced Settings")
-        self.add_widget(self.run_button, collapsible=False)
 
-        self.layout().itemAt(1).widget().collapse(animate=False)
+        self.run_button = QPushButton("Run")
+        self.run_button.clicked.connect(self._on_run_button_click)
+        self.run_button.setEnabled(False)
+        self.add_widget(self.run_button, collapsible=False)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
@@ -438,46 +431,39 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         # Create the rotation matrix
         roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
-        pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
         yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
+        pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
 
-        rot_matrix = roll_matrix @ pitch_matrix @ yaw_matrix
+        # Combine rotation matrices
+        rotation_matrix = yaw_matrix @ pitch_matrix @ roll_matrix
 
         full_matrix = np.eye(4)
-        full_matrix[:-1, :-1] = rot_matrix
+        full_matrix[:3, :3] = rotation_matrix
 
         # Translate the origin to the center of the image
-        origin = np.asarray(self._atlas.reference.shape) // 2
+        origin = np.asarray(self._atlas.reference.shape) / 2
         translate_matrix = np.eye(4)
-        translate_matrix[:-1, -1] = origin
+        translate_matrix[:-1, -1] = -origin
 
         bounding_box = calculate_rotated_bounding_box(
             self._atlas.reference.shape, full_matrix
         )
-        new_translation = np.asarray(bounding_box) // 2
+        new_translation = np.asarray(bounding_box) / 2
         post_rotate_translation = np.eye(4)
-        post_rotate_translation[:3, -1] = -new_translation
+        post_rotate_translation[:3, -1] = new_translation
 
         # Combine the matrices. The order of operations is:
         # 1. Translate the origin to the center of the image
         # 2. Rotate the image
         # 3. Translate the origin back to the top left corner
         transform_matrix = (
-            translate_matrix @ full_matrix @ post_rotate_translation
+            post_rotate_translation @ full_matrix @ translate_matrix
         )
 
         self._atlas_data_layer.data = dask_affine_transform(
             self._atlas.reference,
-            transform_matrix,
+            np.linalg.inv(transform_matrix),
             order=2,
-            output_shape=bounding_box,
-            output_chunks=(2, bounding_box[1], bounding_box[2]),
-        )
-
-        self._atlas_annotations_layer.data = dask_affine_transform(
-            self._atlas.annotation,
-            transform_matrix,
-            order=0,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
         )
