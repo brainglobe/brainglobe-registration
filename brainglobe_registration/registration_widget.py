@@ -468,6 +468,14 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             output_chunks=(2, bounding_box[1], bounding_box[2]),
         )
 
+        self._atlas_annotations_layer.data = dask_affine_transform(
+            self._atlas.annotation,
+            np.linalg.inv(transform_matrix),
+            order=0,
+            output_shape=bounding_box,
+            output_chunks=(2, bounding_box[1], bounding_box[2]),
+        )
+
         # Resets the viewer grid to update the grid to the new atlas
         self._viewer.reset_view()
 
