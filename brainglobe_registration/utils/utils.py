@@ -5,6 +5,8 @@ import napari
 import numpy as np
 import numpy.typing as npt
 from pytransform3d.rotations import active_matrix_from_angle
+from scipy.ndimage import gaussian_filter
+from skimage import morphology
 
 
 def adjust_napari_image_layer(
@@ -145,12 +147,87 @@ def calculate_rotated_bounding_box(
         ]
     )
 
-    transformed_corners = np.dot(rotation_matrix, corners.T)
-    min_corner = np.min(transformed_corners, axis=1)
-    max_corner = np.max(transformed_corners, axis=1)
+    transformed_corners = np.dot(corners, rotation_matrix.T)
+    min_corner = np.min(transformed_corners, axis=0)
+    max_corner = np.max(transformed_corners, axis=0)
 
     return (
-        int(np.round(max_corner[0] - min_corner[0])),
-        int(np.round(max_corner[1] - min_corner[1])),
-        int(np.round(max_corner[2] - min_corner[2])),
+        int(np.ceil(max_corner[0] - min_corner[0])),
+        int(np.ceil(max_corner[1] - min_corner[1])),
+        int(np.ceil(max_corner[2] - min_corner[2])),
     )
+
+
+def filter_image(image, preprocessing_args=None) -> npt.NDArray:
+    """
+    Filter a 2D image prior to registration
+
+    Parameters
+    ----------
+    image : npt.NDArray
+        The image to filter
+    preprocessing_args : Dict, optional
+        The preprocessing arguments, by default None
+
+    Returns
+    -------
+    npt.NDArray
+        The filtered image
+    """
+    if preprocessing_args and preprocessing_args.preprocessing == "skip":
+        pass
+    else:  # default pre-processing
+        image = filter_plane(image)
+
+    return image
+
+
+def filter_plane(img_plane):
+    """
+    Apply a set of filter to the plane (typically to avoid overfitting details
+    in the image during registration)
+    The filter is composed of a despeckle filter using opening and a pseudo
+    flatfield filter
+
+    Parameters
+    ----------
+    img_plane : npt.NDArray
+        A 2D array to filter
+
+    Returns
+    -------
+    npt.NDArray
+        The filtered array
+    """
+    # img_plane = despeckle_by_opening(img_plane)
+    img_plane = gaussian_filter(img_plane, 2)
+    return img_plane
+
+
+def despeckle_by_opening(img_plane, radius=2):
+    """
+    Despeckle the image plane using a grayscale opening operation
+
+    :param np.array img_plane:
+    :param int radius: The radius of the opening kernel
+    :return: The despeckled image
+    :rtype: np.array
+    """
+    kernel = morphology.disk(radius)
+    morphology.opening(img_plane, out=img_plane, footprint=kernel)
+    return img_plane
+
+
+def pseudo_flatfield(img_plane, sigma=5):
+    """
+    Pseudo flat field filter implementation using a de-trending by a
+    heavily gaussian filtered copy of the image.
+
+    :param np.array img_plane: The image to filter
+    :param int sigma: The sigma of the gaussian filter applied to the
+        image used for de-trending
+    :return: The pseudo flat field filtered image
+    :rtype: np.array
+    """
+    filtered_img = gaussian_filter(img_plane, sigma)
+    return img_plane / (filtered_img + 1)

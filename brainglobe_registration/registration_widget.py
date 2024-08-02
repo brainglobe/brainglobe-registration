@@ -28,6 +28,7 @@ from qtpy.QtWidgets import (
     QPushButton,
     QTabWidget,
 )
+from scipy.ndimage import gaussian_filter
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -407,16 +408,22 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         if self._moving_image_data_backup is None:
             self._moving_image_data_backup = self._moving_image.data.copy()
 
+        filtered_image = gaussian_filter(
+            self._moving_image_data_backup, sigma=20
+        )
+
         x_factor = x / self._atlas.resolution[0]
         y_factor = y / self._atlas.resolution[1]
 
         self._moving_image.data = rescale(
-            self._moving_image_data_backup,
+            filtered_image,
             (y_factor, x_factor),
             mode="constant",
             preserve_range=True,
             anti_aliasing=True,
         )
+        #
+        # self._moving_image.data = filtered_image
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (

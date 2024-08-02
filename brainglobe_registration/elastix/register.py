@@ -5,6 +5,8 @@ import itk
 import numpy as np
 from brainglobe_atlasapi import BrainGlobeAtlas
 
+from brainglobe_registration.utils.utils import filter_image
+
 
 def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
     """
@@ -60,8 +62,14 @@ def run_registration(
     npt.NDArray
         The inverse moving image.
     """
+    # Filter images
+    filtered_atlas_image = filter_image(atlas_image)
+    # filtered_moving_image = filter_image(moving_image)
+
     # convert to ITK, view only
-    atlas_image_elastix = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
+    atlas_image_elastix = itk.GetImageViewFromArray(
+        filtered_atlas_image
+    ).astype(itk.F)
     moving_image_elastix = itk.GetImageViewFromArray(moving_image).astype(
         itk.F
     )
@@ -134,7 +142,7 @@ def run_registration(
     )
 
     inverse_moving = itk.transformix_filter(
-        moving_image_elastix,
+        itk.GetImageViewFromArray(moving_image).astype(itk.F),
         inverse_transform_parameters,
     )
 
