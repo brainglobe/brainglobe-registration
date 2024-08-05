@@ -181,7 +181,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             show_info(
                 "No atlas installed. Please download atlas(es) from https://github.com/brainglobe/brainglobe-atlasapi"
             )
-            return
 
         def check_atlas_installed(self):
             if len(self._available_atlases) == 1:
