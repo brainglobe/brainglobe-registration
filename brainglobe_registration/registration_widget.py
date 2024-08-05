@@ -21,13 +21,10 @@ from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
-from napari.utils.notifications import show_error
+from napari.utils.notifications import show_error, show_info
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import (
-    QPushButton,
-    QTabWidget,
-)
+from qtpy.QtWidgets import QMessageBox, QPushButton, QTabWidget
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -179,6 +176,26 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.add_widget(self.run_button, collapsible=False)
 
         self.layout().itemAt(1).widget().collapse(animate=False)
+
+        if len(self._available_atlases) == 1:
+            show_info(
+                "No atlas installed. Please download atlas(es) from https://github.com/brainglobe/brainglobe-atlasapi"
+            )
+            return
+
+        def check_atlas_installed(self):
+            if len(self._available_atlases) == 1:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Information)
+                msg.setText(
+                    "No atlas installed. Please download atlas(es) from https://github.com/brainglobe/brainglobe-atlasapi"
+                )
+                msg.setWindowTitle("Information")
+                msg.setStandardButtons(QMessageBox.Ok)
+                msg.exec_()
+                return
+
+        check_atlas_installed(self)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
