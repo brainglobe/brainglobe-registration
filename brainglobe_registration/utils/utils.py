@@ -166,8 +166,8 @@ def check_atlas_installed():
             widget=QWidget(),
             title="Information",
             message="No atlases available. Please download atlas(es) "
-            "using <a href='https://github.com/brainglobe/brainglobe-at"
-            "lasapi'>brainglobe-atlasapi</a> or <a href='https://brain"
-            "globe.info/tutorials/manage-atlases-in-GUI.html'>brainrend"
-            "er-napari</a>",
+            "using <a href='https://brainglobe.info/documentation/"
+            "brainglobe-atlasapi/usage/command-line-interface.html'>"
+            "brainglobe-atlasapi</a> or <a href='https://brainglobe.info/"
+            "tutorials/manage-atlases-in-GUI.html'>brainrender-napari</a>",
         )
