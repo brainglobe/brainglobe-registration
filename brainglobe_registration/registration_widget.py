@@ -186,8 +186,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             if len(self._available_atlases) == 1:
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Information)
+                msg.setTextFormat(Qt.RichText)
                 msg.setText(
-                    "No atlas installed. Please download atlas(es) from https://github.com/brainglobe/brainglobe-atlasapi"
+                    "No atlases available. Please download atlas(es) using <a href='https://github.com/brainglobe/brainglobe-atlasapi'>brainglobe-atlasapi</a> or <a href='https://brainglobe.info/tutorials/manage-atlases-in-GUI.html'>brainrender-napari</a>"
                 )
                 msg.setWindowTitle("Information")
                 msg.setStandardButtons(QMessageBox.Ok)
