@@ -163,7 +163,7 @@ def check_atlas_installed():
     available_atlases = get_downloaded_atlases()
     if len(available_atlases) == 0:
         display_info(
-            widget=QWidget(),
+            widget=parent_widget,
             title="Information",
             message="No atlases available. Please download atlas(es) "
             "using <a href='https://brainglobe.info/documentation/"
