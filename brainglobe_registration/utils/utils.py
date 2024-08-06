@@ -158,7 +158,7 @@ def calculate_rotated_bounding_box(
     )
 
 
-def check_atlas_installed():
+def check_atlas_installed(parent_widget: QWidget):
     available_atlases = get_downloaded_atlases()
     if len(available_atlases) == 0:
         display_info(
