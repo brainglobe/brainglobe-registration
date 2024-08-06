@@ -159,7 +159,7 @@ def calculate_rotated_bounding_box(
     )
 
 
-def check_atlas_installed():
+def check_atlas_installed(parent_widget: QWidget):
     """
     Function checks if user has any atlases installed. If not, message box
     appears in napari, directing user to download atlases via attached links.
