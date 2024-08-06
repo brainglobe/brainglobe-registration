@@ -175,7 +175,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
-        self.add_widget(self.parameters_tab, widget_title="Advanced Settings")
+        self.add_widget(
+            self.parameters_tab, widget_title="Advanced Settings (optional)"
+        )
         self.add_widget(self.run_button, collapsible=False)
 
         self.layout().itemAt(1).widget().collapse(animate=False)
