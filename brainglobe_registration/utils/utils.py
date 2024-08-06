@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.dialog import display_info
+from qtpy.QtWidgets import QWidget
 from pytransform3d.rotations import active_matrix_from_angle
 
 
