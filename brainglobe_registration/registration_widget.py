@@ -178,7 +178,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         self.layout().itemAt(1).widget().collapse(animate=False)
 
-        check_atlas_installed()
+        check_atlas_installed(self)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
