@@ -159,7 +159,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self.parameter_setting_tabs_lists = []
-        self.parameters_tab = QTabWidget()
+        self.parameters_tab = QTabWidget(parent=self)
 
         for transform_type in self.transform_params:
             new_tab = RegistrationParameterListView(
