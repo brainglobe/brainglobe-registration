@@ -21,10 +21,10 @@ from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
-from napari.utils.notifications import show_error, show_info
+from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import QMessageBox, QPushButton, QTabWidget
+from qtpy.QtWidgets import QPushButton, QTabWidget
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -32,6 +32,7 @@ from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     calculate_rotated_bounding_box,
+    check_atlas_installed,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
@@ -177,25 +178,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         self.layout().itemAt(1).widget().collapse(animate=False)
 
-        if len(self._available_atlases) == 1:
-            show_info(
-                "No atlases available. Please download atlas(es) with brainglobe-atlasapi (https://github.com/brainglobe/brainglobe-atlasapi) or brainrender-napari (https://brainglobe.info/tutorials/manage-atlases-in-GUI.html)"
-            )
-
-        def check_atlas_installed(self):
-            if len(self._available_atlases) == 1:
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Information)
-                msg.setTextFormat(Qt.RichText)
-                msg.setText(
-                    "No atlases available. Please download atlas(es) using <a href='https://github.com/brainglobe/brainglobe-atlasapi'>brainglobe-atlasapi</a> or <a href='https://brainglobe.info/tutorials/manage-atlases-in-GUI.html'>brainrender-napari</a>"
-                )
-                msg.setWindowTitle("Information")
-                msg.setStandardButtons(QMessageBox.Ok)
-                msg.exec_()
-                return
-
-        check_atlas_installed(self)
+        check_atlas_installed()
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
