@@ -163,12 +163,6 @@ def calculate_rotated_bounding_box(
 def check_atlas_installed():
     available_atlases = get_downloaded_atlases()
     if len(available_atlases) == 0:
-        show_info(
-            "No atlases available. Please download atlas(es) with "
-            "brainglobe-atlasapi (https://github.com/brainglobe/brain"
-            "globe-atlasapi) or brainrender-napari (https://brainglobe.info"
-            "/tutorials/manage-atlases-in-GUI.html)"
-        )
         display_info(
             widget=QWidget(),
             title="Information",
