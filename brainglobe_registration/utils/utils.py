@@ -4,7 +4,10 @@ from typing import Dict, List, Tuple
 import napari
 import numpy as np
 import numpy.typing as npt
+from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
+from brainglobe_utils.qtpy.dialog import display_info
 from pytransform3d.rotations import active_matrix_from_angle
+from qtpy.QtWidgets import QWidget
 
 
 def adjust_napari_image_layer(
@@ -154,3 +157,21 @@ def calculate_rotated_bounding_box(
         int(np.round(max_corner[1] - min_corner[1])),
         int(np.round(max_corner[2] - min_corner[2])),
     )
+
+
+def check_atlas_installed(parent_widget: QWidget):
+    """
+    Function checks if user has any atlases installed. If not, message box
+    appears in napari, directing user to download atlases via attached links.
+    """
+    available_atlases = get_downloaded_atlases()
+    if len(available_atlases) == 0:
+        display_info(
+            widget=parent_widget,
+            title="Information",
+            message="No atlases available. Please download atlas(es) "
+            "using <a href='https://brainglobe.info/documentation/"
+            "brainglobe-atlasapi/usage/command-line-interface.html'>"
+            "brainglobe-atlasapi</a> or <a href='https://brainglobe.info/"
+            "tutorials/manage-atlases-in-GUI.html'>brainrender-napari</a>",
+        )

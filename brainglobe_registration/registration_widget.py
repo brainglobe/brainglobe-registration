@@ -24,10 +24,7 @@ from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import (
-    QPushButton,
-    QTabWidget,
-)
+from qtpy.QtWidgets import QPushButton, QTabWidget
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -35,6 +32,7 @@ from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     calculate_rotated_bounding_box,
+    check_atlas_installed,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
@@ -181,6 +179,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.add_widget(self.run_button, collapsible=False)
 
         self.layout().itemAt(1).widget().collapse(animate=False)
+
+        check_atlas_installed(self)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
