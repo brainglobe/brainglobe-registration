@@ -18,13 +18,15 @@ import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
+from brainglobe_utils.qtpy.dialog import display_info
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
+from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import QPushButton, QTabWidget
+from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -141,6 +143,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self._on_default_file_selection_change
         )
 
+        # Use decorator to connect to layer deletion event
+        self._connect_events()
+
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
@@ -181,6 +186,66 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.layout().itemAt(1).widget().collapse(animate=False)
 
         check_atlas_installed(self)
+
+    def _connect_events(self):
+        @self._viewer.layers.events.removed.connect
+        def _on_layer_deleted(event: Event):
+            self._handle_layer_deletion(event)
+
+    def _handle_layer_deletion(self, event: Event):
+        deleted_layer = event.value
+        self._update_dropdowns()
+
+        # Check if the deleted layer is the moving image
+        if self._moving_image == deleted_layer:
+            self._moving_image = None
+            self._moving_image_data_backup = None
+
+        # Check if deleted layer is the atlas reference / atlas annotations
+        if (
+            hasattr(self, "_atlas_data_layer")
+            and self._atlas_data_layer == deleted_layer
+        ):
+            self._delete_atlas_layers()
+
+        if (
+            hasattr(self, "_atlas_annotations_layer")
+            and self._atlas_annotations_layer == deleted_layer
+        ):
+            self._delete_atlas_layers()
+
+    def _delete_atlas_layers(self):
+        # Delete atlas reference layer if it exists
+        if (
+            hasattr(self, "_atlas_data_layer")
+            and self._atlas_data_layer in self._viewer.layers
+        ):
+            self._viewer.layers.remove(self._atlas_data_layer)
+            self._atlas_data_layer = None
+
+        # Delete atlas annotations layer if it exists
+        if (
+            hasattr(self, "_atlas_annotations_layer")
+            and self._atlas_annotations_layer in self._viewer.layers
+        ):
+            self._viewer.layers.remove(self._atlas_annotations_layer)
+            self._atlas_annotations_layer = None
+
+        # Clear atlas attributes
+        self._atlas = None
+        self._atlas_data_layer = None
+        self._atlas_annotations_layer = None
+
+        # Reset the atlas selection combobox
+        if hasattr(self, "get_atlas_widget"):
+            self.get_atlas_widget.reset_atlas_combobox()
+
+    def _update_dropdowns(self):
+        # Extract the names of the remaining layers
+        layer_names = [layer.name for layer in self._viewer.layers]
+        # Update the dropdowns in SelectImagesView
+        if hasattr(self, "get_atlas_widget"):
+            self.get_atlas_widget.update_sample_image_names(layer_names)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
@@ -273,6 +338,20 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(self):
+
+        if self._atlas_data_layer is None:
+            display_info(
+                widget=QWidget(),
+                title="Warning",
+                message="Please select an atlas before clicking 'Run'.",
+            )
+
+        if self._moving_image == self._atlas_data_layer:
+            display_info(
+                widget=QWidget(),
+                title="Warning",
+                message="Your moving image cannot be an atlas.",
+            )
 
         current_atlas_slice = self._viewer.dims.current_step[0]
 
