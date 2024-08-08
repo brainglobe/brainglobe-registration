@@ -203,14 +203,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         # Check if deleted layer is the atlas reference / atlas annotations
         if (
-            hasattr(self, "_atlas_data_layer")
-            and self._atlas_data_layer == deleted_layer
-        ):
-            self._delete_atlas_layers()
-
-        if (
-            hasattr(self, "_atlas_annotations_layer")
-            and self._atlas_annotations_layer == deleted_layer
+            self._atlas_data_layer == deleted_layer
+            or self._atlas_annotations_layer == deleted_layer
         ):
             self._delete_atlas_layers()
 
