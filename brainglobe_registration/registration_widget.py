@@ -194,45 +194,36 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
     def _handle_layer_deletion(self, event: Event):
         deleted_layer = event.value
-        self._update_dropdowns()
 
         # Check if the deleted layer is the moving image
         if self._moving_image == deleted_layer:
             self._moving_image = None
             self._moving_image_data_backup = None
+            self._update_dropdowns()
 
         # Check if deleted layer is the atlas reference / atlas annotations
         if (
             self._atlas_data_layer == deleted_layer
             or self._atlas_annotations_layer == deleted_layer
         ):
-            self._delete_atlas_layers()
+            # Reset the atlas selection combobox
+            self.get_atlas_widget.reset_atlas_combobox()
+
+        # self._update_dropdowns()
 
     def _delete_atlas_layers(self):
         # Delete atlas reference layer if it exists
-        if (
-            hasattr(self, "_atlas_data_layer")
-            and self._atlas_data_layer in self._viewer.layers
-        ):
+        if self._atlas_data_layer in self._viewer.layers:
             self._viewer.layers.remove(self._atlas_data_layer)
-            self._atlas_data_layer = None
 
         # Delete atlas annotations layer if it exists
-        if (
-            hasattr(self, "_atlas_annotations_layer")
-            and self._atlas_annotations_layer in self._viewer.layers
-        ):
+        if self._atlas_annotations_layer in self._viewer.layers:
             self._viewer.layers.remove(self._atlas_annotations_layer)
-            self._atlas_annotations_layer = None
 
         # Clear atlas attributes
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
-
-        # Reset the atlas selection combobox
-        if hasattr(self, "get_atlas_widget"):
-            self.get_atlas_widget.reset_atlas_combobox()
 
     def _update_dropdowns(self):
         # Extract the names of the remaining layers
@@ -244,6 +235,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
         if index == 0:
+            self._delete_atlas_layers()
             if self._atlas:
                 current_atlas_layer_index = find_layer_index(
                     self._viewer, self._atlas.atlas_name

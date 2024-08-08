@@ -1,5 +1,6 @@
 from typing import List
 
+from brainglobe_utils.qtpy.dialog import display_info
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import (
     QComboBox,
@@ -98,7 +99,14 @@ class SelectImagesView(QWidget):
 
     def update_sample_image_names(self, sample_image_names: List[str]):
         self.available_sample_dropdown.clear()
-        self.available_sample_dropdown.addItems(sample_image_names)
+        if len(sample_image_names) == 0:
+            display_info(
+                widget=QWidget(),
+                title="Warning",
+                message="Image list empty: please upload an image.",
+            )
+        else:
+            self.available_sample_dropdown.addItems(sample_image_names)
 
     def _on_atlas_index_change(self):
         """
