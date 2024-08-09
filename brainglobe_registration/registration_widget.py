@@ -339,7 +339,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         if self._moving_image == self._atlas_data_layer:
             display_info(
-                widget=QWidget(),
+                widget=self,
                 title="Warning",
                 message="Your moving image cannot be an atlas.",
             )
