@@ -26,7 +26,7 @@ from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import QPushButton, QTabWidget, QWidget
+from qtpy.QtWidgets import QPushButton, QTabWidget
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -222,31 +222,19 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
+        self.run_button.setEnabled(False)
+        self._viewer.grid.enabled = False
 
     def _update_dropdowns(self):
         # Extract the names of the remaining layers
         layer_names = [layer.name for layer in self._viewer.layers]
         # Update the dropdowns in SelectImagesView
-        if hasattr(self, "get_atlas_widget"):
-            self.get_atlas_widget.update_sample_image_names(layer_names)
+        self.get_atlas_widget.update_sample_image_names(layer_names)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
         if index == 0:
             self._delete_atlas_layers()
-            if self._atlas:
-                current_atlas_layer_index = find_layer_index(
-                    self._viewer, self._atlas.atlas_name
-                )
-
-                self._viewer.layers.pop(current_atlas_layer_index)
-                self._atlas = None
-                self._atlas_data_layer = None
-                self._atlas_annotations_layer = None
-                self.run_button.setEnabled(False)
-                self._viewer.grid.enabled = False
-
-            return
 
         atlas_name = self._available_atlases[index]
 
