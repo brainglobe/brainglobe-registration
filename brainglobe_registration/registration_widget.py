@@ -302,6 +302,12 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         viewer_index = find_layer_index(
             self._viewer, self._sample_images[index]
         )
+        if viewer_index == -1:
+            self._moving_image = None
+            self._moving_image_data_backup = None
+
+            return
+
         self._moving_image = self._viewer.layers[viewer_index]
         self._moving_image_data_backup = self._moving_image.data.copy()
 
@@ -331,6 +337,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 title="Warning",
                 message="Please select an atlas before clicking 'Run'.",
             )
+            return
 
         if self._moving_image == self._atlas_data_layer:
             display_info(
@@ -338,6 +345,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 title="Warning",
                 message="Your moving image cannot be an atlas.",
             )
+            return
 
         current_atlas_slice = self._viewer.dims.current_step[0]
 
