@@ -209,8 +209,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             # Reset the atlas selection combobox
             self.get_atlas_widget.reset_atlas_combobox()
 
-        # self._update_dropdowns()
-
     def _delete_atlas_layers(self):
         # Delete atlas reference layer if it exists
         if self._atlas_data_layer in self._viewer.layers:
