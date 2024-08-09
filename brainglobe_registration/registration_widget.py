@@ -331,7 +331,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         if self._atlas_data_layer is None:
             display_info(
-                widget=QWidget(),
+                widget=self,
                 title="Warning",
                 message="Please select an atlas before clicking 'Run'.",
             )
