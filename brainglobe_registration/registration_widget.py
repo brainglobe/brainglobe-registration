@@ -93,11 +93,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         else:
             self._moving_image = None
 
-        self.main_tabs = QTabWidget(parent=self)
-        self.main_tabs.setTabPosition(QTabWidget.West)
-
-        self.parameters_tab = QTabWidget()
-
         self.get_atlas_widget = SelectImagesView(
             available_atlases=self._available_atlases,
             sample_image_names=self._sample_images,
@@ -162,7 +157,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self.parameter_setting_tabs_lists = []
-        self.parameters_tab = QTabWidget()
+        self.parameters_tab = QTabWidget(parent=self)
 
         for transform_type in self.transform_params:
             new_tab = RegistrationParameterListView(
