@@ -283,10 +283,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         current_atlas_slice = self._viewer.dims.current_step[0]
 
-        # ADD FILTERING HERE
         if self.filter_checkbox.isChecked():
             atlas_layer = filter_plane(
-                self._atlas_data_layer.data[current_atlas_slice, :, :]
+                self._atlas_data_layer.data[
+                    current_atlas_slice, :, :
+                ].compute()
             )
             moving_image_layer = filter_plane(self._moving_image.data)
         else:
@@ -296,9 +297,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             moving_image_layer = self._moving_image.data
 
         result, parameters, registered_annotation_image = run_registration(
-            # self._atlas_data_layer.data[current_atlas_slice, :, :],
             atlas_layer,
-            # self._moving_image.data,
             moving_image_layer,
             self._atlas_annotations_layer.data[current_atlas_slice, :, :],
             self.transform_selections,

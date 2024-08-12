@@ -186,11 +186,22 @@ def filter_plane(img_plane):
     The filter is composed of a despeckle filter using opening and a pseudo
     flatfield filter
 
-    :param np.array img_plane: A 2D array to filter
-    :return: The filtered image
-    :rtype: np.array
+    Parameters
+    ----------
+    img_plane : np.array
+        A 2D array to filter
+
+    Returns
+    ----------
+    np.array
+        Filtered image
+
+    References
+    ----------
+    [1] https://github.com/brainglobe/brainreg/blob/main
+    /brainreg/core/utils/preprocess.py
     """
-    img_plane = np.copy(img_plane)
+
     img_plane = despeckle_by_opening(img_plane)
     img_plane = pseudo_flatfield(img_plane)
     return img_plane
@@ -200,10 +211,17 @@ def despeckle_by_opening(img_plane, radius=2):
     """
     Despeckle the image plane using a grayscale opening operation
 
-    :param np.array img_plane:
-    :param int radius: The radius of the opening kernel
-    :return: The despeckled image
-    :rtype: np.array
+    Parameters
+    ----------
+    img_plane : np.array
+
+    radius: int
+        The radius of the opening kernel
+
+    Returns
+    ----------
+    np.array
+        The despeckled image
     """
     kernel = morphology.disk(radius)
     morphology.opening(img_plane, out=img_plane, footprint=kernel)
@@ -215,11 +233,19 @@ def pseudo_flatfield(img_plane, sigma=5):
     Pseudo flat field filter implementation using a de-trending by a
     heavily gaussian filtered copy of the image.
 
-    :param np.array img_plane: The image to filter
-    :param int sigma: The sigma of the gaussian filter applied to the
+    Parameters
+    ----------
+    img_plane : np.array
+        The image to filter
+
+    sigma : int
+        The sigma of the gaussian filter applied to the
         image used for de-trending
-    :return: The pseudo flat field filtered image
-    :rtype: np.array
+
+    Returns
+    ----------
+    np.array
+        The pseudo flat field filtered image
     """
     filtered_img = gaussian_filter(img_plane, sigma)
     return img_plane / (filtered_img + 1)
