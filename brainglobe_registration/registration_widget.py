@@ -19,9 +19,6 @@ from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from brainglobe_utils.qtpy.logo import header_widget
-from brainreg.core.utils.preprocess import (
-    filter_plane,
-)
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_error
@@ -36,6 +33,7 @@ from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     calculate_rotated_bounding_box,
     check_atlas_installed,
+    filter_plane,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
