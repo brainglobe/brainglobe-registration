@@ -186,8 +186,8 @@ def filter_plane(img_plane):
     The filter is composed of a despeckle filter using opening and a pseudo
     flatfield filter
 
-    Originally from: https://github.com/brainglobe/brainreg/blob/main
-    /brainreg/core/utils/preprocess.py
+    Originally from: [https://github.com/brainglobe/brainreg/blob/main
+    /brainreg/core/utils/preprocess.py]
 
     Parameters
     ----------
@@ -209,8 +209,8 @@ def despeckle_by_opening(img_plane, radius=2):
     """
     Despeckle the image plane using a grayscale opening operation
 
-    Originally from: https://github.com/brainglobe/brainreg/blob/main
-    /brainreg/core/utils/preprocess.py
+    Originally from: [https://github.com/brainglobe/brainreg/blob/main
+    /brainreg/core/utils/preprocess.py]
 
     Parameters
     ----------
@@ -234,8 +234,8 @@ def pseudo_flatfield(img_plane, sigma=5):
     Pseudo flat field filter implementation using a de-trending by a
     heavily gaussian filtered copy of the image.
 
-    Originally from: https://github.com/brainglobe/brainreg/blob/main
-    /brainreg/core/utils/preprocess.py
+    Originally from: [https://github.com/brainglobe/brainreg/blob/main
+    /brainreg/core/utils/preprocess.py]
 
     Parameters
     ----------
