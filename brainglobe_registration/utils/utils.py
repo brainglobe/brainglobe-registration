@@ -215,7 +215,8 @@ def despeckle_by_opening(img_plane, radius=2):
     Parameters
     ----------
     img_plane : np.array
-
+        The image to filter
+        
     radius: int
         The radius of the opening kernel
 
