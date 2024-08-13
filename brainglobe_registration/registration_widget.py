@@ -63,6 +63,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
         self._automatic_deletion_flag = False
+        # Flag to differentiate between manual and automatic atlas deletion
 
         self.transform_params: dict[str, dict] = {
             "rigid": {},
@@ -242,6 +243,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         atlas_name = self._available_atlases[index]
 
         if self._atlas:
+            # Set flag to True when atlas is changed, not manually deleted
+            # Ensures atlas index does not reset to 0
             self._automatic_deletion_flag = True
             try:
                 self._delete_atlas_layers()
