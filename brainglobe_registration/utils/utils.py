@@ -248,7 +248,7 @@ def pseudo_flatfield(img_plane, sigma=5):
         image used for de-trending
 
     Returns
-    ----------
+    -------
     np.array
         The pseudo flat field filtered image
     """
