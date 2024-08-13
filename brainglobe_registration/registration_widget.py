@@ -249,6 +249,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             try:
                 self._viewer.layers.pop(current_atlas_layer_index)
                 self._delete_atlas_layers()
+                self.run_button.setEnabled(True)
+                self._viewer.grid.enabled = True
             finally:
                 self._automatic_deletion_flag = False
         else:
