@@ -221,7 +221,7 @@ def despeckle_by_opening(img_plane, radius=2):
         The radius of the opening kernel
 
     Returns
-    ----------
+    -------
     np.array
         The despeckled image
     """
