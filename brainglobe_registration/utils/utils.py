@@ -195,7 +195,7 @@ def filter_plane(img_plane):
         A 2D array to filter
 
     Returns
-    ----------
+    -------
     np.array
         Filtered image
     """
