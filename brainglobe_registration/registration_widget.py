@@ -229,7 +229,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
     def _update_dropdowns(self):
         # Extract the names of the remaining layers
-        layer_names = [layer.name for layer in self._viewer.layers]
+        layer_names = get_image_layer_names(self._viewer)
         # Update the dropdowns in SelectImagesView
         self.get_atlas_widget.update_sample_image_names(layer_names)
 
@@ -242,19 +242,13 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         atlas_name = self._available_atlases[index]
 
         if self._atlas:
-            current_atlas_layer_index = find_layer_index(
-                self._viewer, self._atlas.atlas_name
-            )
             self._automatic_deletion_flag = True
             try:
-                self._viewer.layers.pop(current_atlas_layer_index)
                 self._delete_atlas_layers()
-                self.run_button.setEnabled(True)
-                self._viewer.grid.enabled = True
             finally:
                 self._automatic_deletion_flag = False
-        else:
-            self.run_button.setEnabled(True)
+
+        self.run_button.setEnabled(True)
 
         self._atlas = BrainGlobeAtlas(atlas_name)
         dask_reference = da.from_array(
