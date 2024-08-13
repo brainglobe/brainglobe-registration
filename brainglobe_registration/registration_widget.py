@@ -26,15 +26,15 @@ from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import QPushButton, QTabWidget
+from qtpy.QtWidgets import QCheckBox, QPushButton, QTabWidget
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
-from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     calculate_rotated_bounding_box,
     check_atlas_installed,
+    filter_plane,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
@@ -96,11 +96,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         else:
             self._moving_image = None
 
-        self.main_tabs = QTabWidget(parent=self)
-        self.main_tabs.setTabPosition(QTabWidget.West)
-
-        self.parameters_tab = QTabWidget()
-
         self.get_atlas_widget = SelectImagesView(
             available_atlases=self._available_atlases,
             sample_image_names=self._sample_images,
@@ -146,6 +141,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         # Use decorator to connect to layer deletion event
         self._connect_events()
+        self.filter_checkbox = QCheckBox("Filter Images")
+        self.filter_checkbox.setChecked(False)
 
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
@@ -168,7 +165,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self.parameter_setting_tabs_lists = []
-        self.parameters_tab = QTabWidget()
+        self.parameters_tab = QTabWidget(parent=self)
 
         for transform_type in self.transform_params:
             new_tab = RegistrationParameterListView(
@@ -182,6 +179,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
+
+        self.add_widget(self.filter_checkbox, collapsible=False)
+
         self.add_widget(self.run_button, collapsible=False)
 
         self.layout().itemAt(1).widget().collapse(animate=False)
@@ -319,6 +319,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(self):
+        from brainglobe_registration.elastix.register import run_registration
 
         if self._atlas_data_layer is None:
             display_info(
@@ -338,9 +339,22 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         current_atlas_slice = self._viewer.dims.current_step[0]
 
+        if self.filter_checkbox.isChecked():
+            atlas_layer = filter_plane(
+                self._atlas_data_layer.data[
+                    current_atlas_slice, :, :
+                ].compute()
+            )
+            moving_image_layer = filter_plane(self._moving_image.data)
+        else:
+            atlas_layer = self._atlas_data_layer.data[
+                current_atlas_slice, :, :
+            ]
+            moving_image_layer = self._moving_image.data
+
         result, parameters, registered_annotation_image = run_registration(
-            self._atlas_data_layer.data[current_atlas_slice, :, :],
-            self._moving_image.data,
+            atlas_layer,
+            moving_image_layer,
             self._atlas_annotations_layer.data[current_atlas_slice, :, :],
             self.transform_selections,
         )
