@@ -62,6 +62,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
+        self._automatic_deletion_flag = False
 
         self.transform_params: dict[str, dict] = {
             "rigid": {},
@@ -190,7 +191,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     def _connect_events(self):
         @self._viewer.layers.events.removed.connect
         def _on_layer_deleted(event: Event):
-            self._handle_layer_deletion(event)
+            if not self._automatic_deletion_flag:
+                self._handle_layer_deletion(event)
 
     def _handle_layer_deletion(self, event: Event):
         deleted_layer = event.value
@@ -235,6 +237,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         # Hacky way of having an empty first dropdown
         if index == 0:
             self._delete_atlas_layers()
+            return
 
         atlas_name = self._available_atlases[index]
 
@@ -242,8 +245,12 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             current_atlas_layer_index = find_layer_index(
                 self._viewer, self._atlas.atlas_name
             )
-
-            self._viewer.layers.pop(current_atlas_layer_index)
+            self._automatic_deletion_flag = True
+            try:
+                self._viewer.layers.pop(current_atlas_layer_index)
+                self._delete_atlas_layers()
+            finally:
+                self._automatic_deletion_flag = False
         else:
             self.run_button.setEnabled(True)
 
@@ -300,7 +307,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
         if not self._moving_image:
             show_error(
-                "No moving image selected. "
+                "No moving image selected."
                 "Please select a moving image before adjusting"
             )
             return
