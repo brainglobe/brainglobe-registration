@@ -98,7 +98,8 @@ class SelectImagesView(QWidget):
 
     def update_sample_image_names(self, sample_image_names: List[str]):
         self.available_sample_dropdown.clear()
-        self.available_sample_dropdown.addItems(sample_image_names)
+        if len(sample_image_names) != 0:
+            self.available_sample_dropdown.addItems(sample_image_names)
 
     def _on_atlas_index_change(self):
         """
@@ -121,6 +122,10 @@ class SelectImagesView(QWidget):
         self.moving_image_index_change.emit(
             self.available_sample_dropdown.currentIndex()
         )
+
+    def reset_atlas_combobox(self):
+        if self.available_atlas_dropdown is not None:
+            self.available_atlas_dropdown.setCurrentIndex(0)
 
     def _on_sample_popup_about_to_show(self):
         self.sample_image_popup_about_to_show.emit()

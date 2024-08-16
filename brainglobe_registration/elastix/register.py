@@ -1,7 +1,8 @@
-from typing import List
+from typing import List, Tuple
 
 import itk
 import numpy as np
+import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 
 
@@ -28,28 +29,30 @@ def run_registration(
     atlas_image,
     moving_image,
     annotation_image,
-    parameter_lists: List[tuple[str, dict]],
-) -> tuple[np.ndarray, itk.ParameterObject, np.ndarray]:
+    parameter_lists: List[Tuple[str, dict]],
+) -> Tuple[npt.NDArray, itk.ParameterObject, npt.NDArray]:
     """
     Run the registration process on the given images.
 
     Parameters
     ----------
-    atlas_image : np.ndarray
+    atlas_image : npt.NDArray
         The atlas image.
-    moving_image : np.ndarray
+    moving_image : npt.NDArray
         The moving image.
-    annotation_image : np.ndarray
+    annotation_image : npt.NDArray
         The annotation image.
     parameter_lists : List[tuple[str, dict]], optional
         The list of parameter lists, by default None
 
     Returns
     -------
-    np.ndarray
+    npt.NDArray
         The result image.
     itk.ParameterObject
         The result transform parameters.
+    npt.NDArray
+        The transformed annotation image.
     """
     # convert to ITK, view only
     atlas_image = itk.GetImageViewFromArray(atlas_image).astype(itk.F)

@@ -9,25 +9,32 @@ Users can download and add the atlas images/structures as layers to the viewer.
 """
 
 from pathlib import Path
+from typing import Optional
 
+import dask.array as da
+import napari.layers
 import numpy as np
+import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
+from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
+from brainglobe_utils.qtpy.dialog import display_info
 from brainglobe_utils.qtpy.logo import header_widget
+from dask_image.ndinterp import affine_transform as dask_affine_transform
+from napari.qt.threading import thread_worker
+from napari.utils.events import Event
+from napari.utils.notifications import show_error
 from napari.viewer import Viewer
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import (
-    QGroupBox,
-    QPushButton,
-    QTabWidget,
-    QVBoxLayout,
-    QWidget,
-)
+from pytransform3d.rotations import active_matrix_from_angle
+from qtpy.QtWidgets import QCheckBox, QPushButton, QTabWidget
 from skimage.segmentation import find_boundaries
+from skimage.transform import rescale
 
-from brainglobe_registration.elastix.register import run_registration
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_rotated_bounding_box,
+    check_atlas_installed,
+    filter_plane,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
@@ -44,13 +51,19 @@ from brainglobe_registration.widgets.transform_select_view import (
 )
 
 
-class RegistrationWidget(QWidget):
+class RegistrationWidget(CollapsibleWidgetContainer):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
+        self.setContentsMargins(10, 10, 10, 10)
 
         self._viewer = napari_viewer
-        self._atlas: BrainGlobeAtlas = None
-        self._moving_image = None
+        self._atlas: Optional[BrainGlobeAtlas] = None
+        self._atlas_data_layer: Optional[napari.layers.Image] = None
+        self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
+        self._moving_image: Optional[napari.layers.Image] = None
+        self._moving_image_data_backup: Optional[npt.NDArray] = None
+        self._automatic_deletion_flag = False
+        # Flag to differentiate between manual and automatic atlas deletion
 
         self.transform_params: dict[str, dict] = {
             "rigid": {},
@@ -84,22 +97,6 @@ class RegistrationWidget(QWidget):
         else:
             self._moving_image = None
 
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(
-            header_widget(
-                "brainglobe-<br>registration",  # line break at <br>
-                "Registration with Elastix",
-                github_repo_name="brainglobe-registration",
-            )
-        )
-
-        self.main_tabs = QTabWidget(parent=self)
-        self.main_tabs.setTabPosition(QTabWidget.West)
-
-        self.settings_tab = QGroupBox()
-        self.settings_tab.setLayout(QVBoxLayout())
-        self.parameters_tab = QTabWidget()
-
         self.get_atlas_widget = SelectImagesView(
             available_atlases=self._available_atlases,
             sample_image_names=self._sample_images,
@@ -119,9 +116,17 @@ class RegistrationWidget(QWidget):
         self.adjust_moving_image_widget.adjust_image_signal.connect(
             self._on_adjust_moving_image
         )
-
         self.adjust_moving_image_widget.reset_image_signal.connect(
             self._on_adjust_moving_image_reset_button_click
+        )
+        self.adjust_moving_image_widget.scale_image_signal.connect(
+            self._on_scale_moving_image
+        )
+        self.adjust_moving_image_widget.atlas_rotation_signal.connect(
+            self._on_adjust_atlas_rotation
+        )
+        self.adjust_moving_image_widget.reset_atlas_signal.connect(
+            self._on_atlas_reset
         )
 
         self.transform_select_view = TransformSelectView()
@@ -135,17 +140,33 @@ class RegistrationWidget(QWidget):
             self._on_default_file_selection_change
         )
 
+        # Use decorator to connect to layer deletion event
+        self._connect_events()
+        self.filter_checkbox = QCheckBox("Filter Images")
+        self.filter_checkbox.setChecked(False)
+
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.settings_tab.layout().addWidget(self.get_atlas_widget)
-        self.settings_tab.layout().addWidget(self.adjust_moving_image_widget)
-        self.settings_tab.layout().addWidget(self.transform_select_view)
-        self.settings_tab.layout().addWidget(self.run_button)
-        self.settings_tab.layout().setAlignment(Qt.AlignTop)
+        self.add_widget(
+            header_widget(
+                "brainglobe-<br>registration",  # line break at <br>
+                "Registration with Elastix",
+                github_repo_name="brainglobe-registration",
+            ),
+            collapsible=False,
+        )
+        self.add_widget(self.get_atlas_widget, widget_title="Select Images")
+        self.add_widget(
+            self.adjust_moving_image_widget, widget_title="Prepare Images"
+        )
+        self.add_widget(
+            self.transform_select_view, widget_title="Select Transformations"
+        )
 
         self.parameter_setting_tabs_lists = []
+        self.parameters_tab = QTabWidget(parent=self)
 
         for transform_type in self.transform_params:
             new_tab = RegistrationParameterListView(
@@ -156,67 +177,188 @@ class RegistrationWidget(QWidget):
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
-        self.main_tabs.addTab(self.settings_tab, "Settings")
-        self.main_tabs.addTab(self.parameters_tab, "Parameters")
+        self.add_widget(
+            self.parameters_tab, widget_title="Advanced Settings (optional)"
+        )
 
-        self.layout().addWidget(self.main_tabs)
+        self.add_widget(self.filter_checkbox, collapsible=False)
+
+        self.add_widget(self.run_button, collapsible=False)
+
+        self.layout().itemAt(1).widget().collapse(animate=False)
+
+        check_atlas_installed(self)
+
+    def _connect_events(self):
+        @self._viewer.layers.events.removed.connect
+        def _on_layer_deleted(event: Event):
+            if not self._automatic_deletion_flag:
+                self._handle_layer_deletion(event)
+
+    def _handle_layer_deletion(self, event: Event):
+        deleted_layer = event.value
+
+        # Check if the deleted layer is the moving image
+        if self._moving_image == deleted_layer:
+            self._moving_image = None
+            self._moving_image_data_backup = None
+            self._update_dropdowns()
+
+        # Check if deleted layer is the atlas reference / atlas annotations
+        if (
+            self._atlas_data_layer == deleted_layer
+            or self._atlas_annotations_layer == deleted_layer
+        ):
+            # Reset the atlas selection combobox
+            self.get_atlas_widget.reset_atlas_combobox()
+
+    def _delete_atlas_layers(self):
+        # Delete atlas reference layer if it exists
+        if self._atlas_data_layer in self._viewer.layers:
+            self._viewer.layers.remove(self._atlas_data_layer)
+
+        # Delete atlas annotations layer if it exists
+        if self._atlas_annotations_layer in self._viewer.layers:
+            self._viewer.layers.remove(self._atlas_annotations_layer)
+
+        # Clear atlas attributes
+        self._atlas = None
+        self._atlas_data_layer = None
+        self._atlas_annotations_layer = None
+        self.run_button.setEnabled(False)
+        self._viewer.grid.enabled = False
+
+    def _update_dropdowns(self):
+        # Extract the names of the remaining layers
+        layer_names = get_image_layer_names(self._viewer)
+        # Update the dropdowns in SelectImagesView
+        self.get_atlas_widget.update_sample_image_names(layer_names)
 
     def _on_atlas_dropdown_index_changed(self, index):
         # Hacky way of having an empty first dropdown
         if index == 0:
-            if self._atlas:
-                curr_atlas_layer_index = find_layer_index(
-                    self._viewer, self._atlas.atlas_name
-                )
-
-                self._viewer.layers.pop(curr_atlas_layer_index)
-                self._atlas = None
-                self.run_button.setEnabled(False)
-                self._viewer.grid.enabled = False
-
+            self._delete_atlas_layers()
             return
 
         atlas_name = self._available_atlases[index]
-        atlas = BrainGlobeAtlas(atlas_name)
 
         if self._atlas:
-            curr_atlas_layer_index = find_layer_index(
-                self._viewer, self._atlas.atlas_name
-            )
+            # Set flag to True when atlas is changed, not manually deleted
+            # Ensures atlas index does not reset to 0
+            self._automatic_deletion_flag = True
+            try:
+                self._delete_atlas_layers()
+            finally:
+                self._automatic_deletion_flag = False
 
-            self._viewer.layers.pop(curr_atlas_layer_index)
-        else:
-            self.run_button.setEnabled(True)
+        self.run_button.setEnabled(True)
 
-        self._viewer.add_image(
-            atlas.reference,
+        self._atlas = BrainGlobeAtlas(atlas_name)
+        dask_reference = da.from_array(
+            self._atlas.reference,
+            chunks=(
+                1,
+                self._atlas.reference.shape[1],
+                self._atlas.reference.shape[2],
+            ),
+        )
+        dask_annotations = da.from_array(
+            self._atlas.annotation,
+            chunks=(
+                1,
+                self._atlas.annotation.shape[1],
+                self._atlas.annotation.shape[2],
+            ),
+        )
+
+        contrast_max = np.max(
+            dask_reference[dask_reference.shape[0] // 2]
+        ).compute()
+        self._atlas_data_layer = self._viewer.add_image(
+            dask_reference,
             name=atlas_name,
             colormap="gray",
             blending="translucent",
+            contrast_limits=[0, contrast_max],
+            multiscale=False,
+        )
+        self._atlas_annotations_layer = self._viewer.add_labels(
+            dask_annotations,
+            name="Annotations",
+            visible=False,
         )
 
-        self._atlas = BrainGlobeAtlas(atlas_name=atlas_name)
         self._viewer.grid.enabled = True
 
     def _on_sample_dropdown_index_changed(self, index):
         viewer_index = find_layer_index(
             self._viewer, self._sample_images[index]
         )
+        if viewer_index == -1:
+            self._moving_image = None
+            self._moving_image_data_backup = None
+
+            return
+
         self._moving_image = self._viewer.layers[viewer_index]
+        self._moving_image_data_backup = self._moving_image.data.copy()
 
     def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
+        if not self._moving_image:
+            show_error(
+                "No moving image selected."
+                "Please select a moving image before adjusting"
+            )
+            return
         adjust_napari_image_layer(self._moving_image, x, y, rotate)
 
     def _on_adjust_moving_image_reset_button_click(self):
+        if not self._moving_image:
+            show_error(
+                "No moving image selected. "
+                "Please select a moving image before adjusting"
+            )
+            return
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_run_button_click(self):
+        from brainglobe_registration.elastix.register import run_registration
+
+        if self._atlas_data_layer is None:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select an atlas before clicking 'Run'.",
+            )
+            return
+
+        if self._moving_image == self._atlas_data_layer:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Your moving image cannot be an atlas.",
+            )
+            return
+
         current_atlas_slice = self._viewer.dims.current_step[0]
 
+        if self.filter_checkbox.isChecked():
+            atlas_layer = filter_plane(
+                self._atlas_data_layer.data[
+                    current_atlas_slice, :, :
+                ].compute()
+            )
+            moving_image_layer = filter_plane(self._moving_image.data)
+        else:
+            atlas_layer = self._atlas_data_layer.data[
+                current_atlas_slice, :, :
+            ]
+            moving_image_layer = self._moving_image.data
+
         result, parameters, registered_annotation_image = run_registration(
-            self._atlas.reference[current_atlas_slice, :, :],
-            self._moving_image.data,
-            self._atlas.annotation[current_atlas_slice, :, :],
+            atlas_layer,
+            moving_image_layer,
+            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
             self.transform_selections,
         )
 
@@ -313,3 +455,133 @@ class RegistrationWidget(QWidget):
     def _on_sample_popup_about_to_show(self):
         self._sample_images = get_image_layer_names(self._viewer)
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
+
+    def _on_scale_moving_image(self, x: float, y: float):
+        """
+        Scale the moving image to have resolution equal to the atlas.
+
+        Parameters
+        ------------
+        x : float
+            Moving image x pixel size (> 0.0).
+        y : float
+            Moving image y pixel size (> 0.0).
+
+        Will show an error if the pixel sizes are less than or equal to 0.
+        Will show an error if the moving image or atlas is not selected.
+        """
+        if x <= 0 or y <= 0:
+            show_error("Pixel sizes must be greater than 0")
+            return
+
+        if not (self._moving_image and self._atlas):
+            show_error(
+                "Sample image or atlas not selected. "
+                "Please select a sample image and atlas before scaling",
+            )
+            return
+
+        if self._moving_image_data_backup is None:
+            self._moving_image_data_backup = self._moving_image.data.copy()
+
+        x_factor = x / self._atlas.resolution[0]
+        y_factor = y / self._atlas.resolution[1]
+
+        self._moving_image.data = rescale(
+            self._moving_image_data_backup,
+            (y_factor, x_factor),
+            mode="constant",
+            preserve_range=True,
+            anti_aliasing=True,
+        )
+
+    def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
+        if not (
+            self._atlas
+            and self._atlas_data_layer
+            and self._atlas_annotations_layer
+        ):
+            show_error(
+                "No atlas selected. Please select an atlas before rotating"
+            )
+            return
+
+        # Create the rotation matrix
+        roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
+        pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
+        yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
+
+        rot_matrix = roll_matrix @ pitch_matrix @ yaw_matrix
+
+        full_matrix = np.eye(4)
+        full_matrix[:-1, :-1] = rot_matrix
+
+        # Translate the origin to the center of the image
+        origin = np.asarray(self._atlas.reference.shape) // 2
+        translate_matrix = np.eye(4)
+        translate_matrix[:-1, -1] = origin
+
+        bounding_box = calculate_rotated_bounding_box(
+            self._atlas.reference.shape, full_matrix
+        )
+        new_translation = np.asarray(bounding_box) // 2
+        post_rotate_translation = np.eye(4)
+        post_rotate_translation[:3, -1] = -new_translation
+
+        # Combine the matrices. The order of operations is:
+        # 1. Translate the origin to the center of the image
+        # 2. Rotate the image
+        # 3. Translate the origin back to the top left corner
+        transform_matrix = (
+            translate_matrix @ full_matrix @ post_rotate_translation
+        )
+
+        self._atlas_data_layer.data = dask_affine_transform(
+            self._atlas.reference,
+            transform_matrix,
+            order=2,
+            output_shape=bounding_box,
+            output_chunks=(2, bounding_box[1], bounding_box[2]),
+        )
+
+        self._atlas_annotations_layer.data = dask_affine_transform(
+            self._atlas.annotation,
+            transform_matrix,
+            order=0,
+            output_shape=bounding_box,
+            output_chunks=(2, bounding_box[1], bounding_box[2]),
+        )
+
+        # Resets the viewer grid to update the grid to the new atlas
+        self._viewer.reset_view()
+
+        worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
+        worker.returned.connect(self.set_atlas_layer_data)
+        worker.start()
+
+    @thread_worker
+    def compute_atlas_rotation(self, dask_array: da.Array):
+        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
+        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(False)
+
+        computed_array = dask_array.compute()
+
+        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
+        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(True)
+
+        return computed_array
+
+    def set_atlas_layer_data(self, new_data):
+        self._atlas_data_layer.data = new_data
+
+    def _on_atlas_reset(self):
+        if not self._atlas:
+            show_error(
+                "No atlas selected. Please select an atlas before resetting"
+            )
+            return
+
+        self._atlas_data_layer.data = self._atlas.reference
+        self._atlas_annotations_layer.data = self._atlas.annotation
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True

@@ -26,6 +26,8 @@ dependencies = [
     "napari>=0.4.18",
     "brainglobe-atlasapi",
     "brainglobe-utils>=0.4.3",
+    "dask",
+    "dask-image",
     "itk-elastix",
     "lxml_html_clean",
     "numpy",
