@@ -150,7 +150,7 @@ def calculate_rotated_bounding_box(
         ]
     )
 
-    transformed_corners = rotation_matrix @ corners.T
+    transformed_corners = np.dot(rotation_matrix, corners.T)
     min_corner = np.min(transformed_corners, axis=1)
     max_corner = np.max(transformed_corners, axis=1)
 
