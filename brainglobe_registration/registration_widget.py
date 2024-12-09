@@ -554,7 +554,10 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         # Resets the viewer grid to update the grid to the new atlas
+        # The grid is disabled and re-enabled to force the grid to update
         self._viewer.reset_view()
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
 
         worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
         worker.returned.connect(self.set_atlas_layer_data)
