@@ -161,7 +161,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.output_directory_widget.setLayout(QHBoxLayout())
 
         self.output_directory_text_field = QLineEdit()
-        self.output_directory_text_field.setText(str(Path.home()))
         self.output_directory_text_field.editingFinished.connect(
             self._on_output_directory_text_edited
         )
@@ -405,11 +404,14 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             ]
             moving_image_layer = self._moving_image.data
 
-        result, parameters, registered_annotation_image = run_registration(
-            atlas_layer,
-            moving_image_layer,
-            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
-            self.transform_selections,
+        result, parameters, registered_annotation_image, deformation_field = (
+            run_registration(
+                atlas_layer,
+                moving_image_layer,
+                self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+                self.transform_selections,
+                self.output_directory,
+            )
         )
 
         boundaries = find_boundaries(

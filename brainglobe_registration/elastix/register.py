@@ -1,9 +1,11 @@
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import itk
 import numpy as np
 import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
+from tifffile import imwrite
 
 
 def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
@@ -30,7 +32,8 @@ def run_registration(
     moving_image,
     annotation_image,
     parameter_lists: List[Tuple[str, dict]],
-) -> Tuple[npt.NDArray, itk.ParameterObject, npt.NDArray]:
+    output_directory: Optional[Path] = None,
+) -> Tuple[npt.NDArray, itk.ParameterObject, npt.NDArray, npt.NDArray]:
     """
     Run the registration process on the given images.
 
@@ -42,8 +45,10 @@ def run_registration(
         The moving image.
     annotation_image : npt.NDArray
         The annotation image.
-    parameter_lists : List[tuple[str, dict]], optional
-        The list of parameter lists, by default None
+    parameter_lists : List[tuple[str, dict]]
+        The list of registration parameters, one for each transform.
+    output_directory : Optional[Path], optional
+        The output directory for the registration results, by default None
 
     Returns
     -------
@@ -53,6 +58,8 @@ def run_registration(
         The result transform parameters.
     npt.NDArray
         The transformed annotation image.
+    npt.NDArray
+        The deformation field.
     """
     # convert to ITK, view only
     atlas_image = itk.GetImageViewFromArray(atlas_image).astype(itk.F)
@@ -89,10 +96,27 @@ def run_registration(
         "FinalBSplineInterpolationOrder", temp_interp_order
     )
 
+    transformix_object = itk.TransformixFilter.New(
+        moving_image, result_transform_parameters
+    )
+    transformix_object.SetComputeDeformationField(True)
+    transformix_object.UpdateLargestPossibleRegion()
+
+    deformation_field = itk.GetArrayFromImage(
+        transformix_object.GetOutputDeformationField()
+    )
+
+    print(deformation_field.shape)
+
+    # Switch the axes from ITK to numpy
+    imwrite("deformation_field_0.tif", deformation_field[:, :, 1])
+    imwrite("deformation_field_1.tif", deformation_field[:, :, 0])
+
     return (
         np.asarray(result_image),
         result_transform_parameters,
         np.asarray(annotation_image_transformix),
+        deformation_field,
     )
 
 
