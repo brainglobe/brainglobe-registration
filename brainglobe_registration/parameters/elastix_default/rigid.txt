@@ -21,4 +21,4 @@
 (ResultImageFormat "tiff")
 (Transform "EulerTransform")
 (WriteIterationInfo "false")
-(WriteResultImage "false")
+(WriteResultImage "true")

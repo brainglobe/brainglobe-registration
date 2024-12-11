@@ -21,4 +21,4 @@
 (ResultImageFormat "tiff")
 (Transform "AffineTransform")
 (WriteIterationInfo "false")
-(WriteResultImage "false")
+(WriteResultImage "true")

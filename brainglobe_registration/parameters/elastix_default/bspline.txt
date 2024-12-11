@@ -24,4 +24,4 @@
 (ResultImageFormat "tiff")
 (Transform "BSplineTransform")
 (WriteIterationInfo "false")
-(WriteResultImage "false")
+(WriteResultImage "true")
