@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -74,6 +75,9 @@ def run_registration(
 
     elastix_object.SetParameterObject(parameter_object)
 
+    if output_directory:
+        elastix_object.SetOutputDirectory(str(output_directory))
+
     # update filter object
     elastix_object.UpdateLargestPossibleRegion()
 
@@ -100,17 +104,27 @@ def run_registration(
         moving_image, result_transform_parameters
     )
     transformix_object.SetComputeDeformationField(True)
+
+    if output_directory:
+        transformix_object.SetOutputDirectory(str(output_directory))
+
     transformix_object.UpdateLargestPossibleRegion()
 
-    deformation_field = itk.GetArrayFromImage(
-        transformix_object.GetOutputDeformationField()
-    )
+    deformation_field = transformix_object.GetOutputDeformationField()
 
-    print(deformation_field.shape)
-
-    # Switch the axes from ITK to numpy
-    imwrite("deformation_field_0.tif", deformation_field[:, :, 1])
-    imwrite("deformation_field_1.tif", deformation_field[:, :, 0])
+    if output_directory:
+        # Switch the axes from ITK to numpy
+        imwrite(
+            output_directory / "deformation_field_0.tif",
+            deformation_field[:, :, 1],
+        )
+        imwrite(
+            output_directory / "deformation_field_1.tif",
+            deformation_field[:, :, 0],
+        )
+        os.unlink(output_directory / "deformationField.tiff")
+    else:
+        os.unlink("deformationField.tiff")
 
     return (
         np.asarray(result_image),
