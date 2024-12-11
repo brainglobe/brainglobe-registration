@@ -115,11 +115,11 @@ def run_registration(
     if output_directory:
         # Switch the axes from ITK to numpy
         imwrite(
-            output_directory / "deformation_field_0.tif",
+            output_directory / "deformation_field_0.tiff",
             deformation_field[:, :, 1],
         )
         imwrite(
-            output_directory / "deformation_field_1.tif",
+            output_directory / "deformation_field_1.tiff",
             deformation_field[:, :, 0],
         )
         os.unlink(output_directory / "deformationField.tiff")
