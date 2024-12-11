@@ -26,7 +26,16 @@ from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import QCheckBox, QPushButton, QTabWidget
+from qtpy.QtWidgets import (
+    QCheckBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTabWidget,
+    QWidget,
+)
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 
@@ -62,8 +71,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
-        self._automatic_deletion_flag = False
         # Flag to differentiate between manual and automatic atlas deletion
+        self._automatic_deletion_flag = False
 
         self.transform_params: dict[str, dict] = {
             "rigid": {},
@@ -91,6 +100,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         # Hacky way of having an empty first option for the dropdown
         self._available_atlases = ["------"] + get_downloaded_atlases()
         self._sample_images = get_image_layer_names(self._viewer)
+
+        self.output_directory: Optional[Path] = None
 
         if len(self._sample_images) > 0:
             self._moving_image = self._viewer.layers[0]
@@ -142,8 +153,27 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         # Use decorator to connect to layer deletion event
         self._connect_events()
+
         self.filter_checkbox = QCheckBox("Filter Images")
         self.filter_checkbox.setChecked(False)
+
+        self.output_directory_widget = QWidget()
+        self.output_directory_widget.setLayout(QHBoxLayout())
+
+        self.output_directory_text_field = QLineEdit()
+        self.output_directory_text_field.setText(str(Path.home()))
+        self.output_directory_text_field.editingFinished.connect(
+            self._on_output_directory_text_edited
+        )
+        self.output_directory_widget.layout().addWidget(
+            self.output_directory_text_field
+        )
+
+        self.open_file_dialog = QPushButton("Browse")
+        self.open_file_dialog.clicked.connect(
+            self._on_open_file_dialog_clicked
+        )
+        self.output_directory_widget.layout().addWidget(self.open_file_dialog)
 
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
@@ -182,6 +212,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self.add_widget(self.filter_checkbox, collapsible=False)
+
+        self.add_widget(QLabel("Output Directory"), collapsible=False)
+        self.add_widget(self.output_directory_widget, collapsible=False)
 
         self.add_widget(self.run_button, collapsible=False)
 
@@ -320,6 +353,23 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             )
             return
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
+
+    def _on_output_directory_text_edited(self):
+        self.output_directory = Path(self.output_directory_text_field.text())
+
+    def _on_open_file_dialog_clicked(self) -> None:
+        """
+        Open a file dialog to select the output directory.
+        """
+        output_directory_str = QFileDialog.getExistingDirectory(
+            self, "Select the output directory", str(Path.home())
+        )
+        # A blank string is returned if the user cancels the dialog
+        if not output_directory_str:
+            return
+
+        self.output_directory = Path(output_directory_str)
+        self.output_directory_text_field.setText(str(self.output_directory))
 
     def _on_run_button_click(self):
         from brainglobe_registration.elastix.register import run_registration
