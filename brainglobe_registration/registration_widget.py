@@ -38,6 +38,7 @@ from qtpy.QtWidgets import (
 )
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
+from tifffile import imwrite
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
@@ -397,21 +398,25 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                     current_atlas_slice, :, :
                 ].compute()
             )
-            moving_image_layer = filter_plane(self._moving_image.data)
+            moving_image = filter_plane(self._moving_image.data)
         else:
             atlas_layer = self._atlas_data_layer.data[
                 current_atlas_slice, :, :
             ]
-            moving_image_layer = self._moving_image.data
+            moving_image = self._moving_image.data
 
         result, parameters, registered_annotation_image, deformation_field = (
             run_registration(
                 atlas_layer,
-                moving_image_layer,
+                moving_image,
                 self._atlas_annotations_layer.data[current_atlas_slice, :, :],
                 self.transform_selections,
                 self.output_directory,
             )
+        )
+
+        registered_annotation_image = registered_annotation_image.astype(
+            np.uint32, copy=False
         )
 
         boundaries = find_boundaries(
@@ -426,7 +431,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._viewer.layers[atlas_layer_index].visible = False
 
         self._viewer.add_labels(
-            registered_annotation_image.astype(np.uint32, copy=False),
+            registered_annotation_image,
             name="Registered Annotations",
             visible=False,
         )
@@ -439,6 +444,16 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self._viewer.grid.enabled = False
+
+        if self.output_directory:
+            self.save_outputs(
+                boundaries,
+                deformation_field,
+                moving_image,
+                result,
+                result,
+                registered_annotation_image,
+            )
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
@@ -641,3 +656,55 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas_annotations_layer.data = self._atlas.annotation
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+    def save_outputs(
+        self,
+        boundaries: npt.NDArray,
+        deformation_field: npt.NDArray,
+        downsampled: npt.NDArray,
+        data_in_atlas_space: npt.NDArray,
+        atlas_in_data_space: npt.NDArray,
+        annotation_in_data_space: npt.NDArray,
+    ):
+        """
+        Save the outputs of the registration to the output directory.
+
+        The outputs are saved as per
+        https://brainglobe.info/documentation/brainreg/user-guide/output-files.html
+
+        Parameters
+        ----------
+        boundaries: npt.NDArray
+            The area boundaries of the registered annotation image.
+        deformation_field: npt.NDArray
+            The deformation field.
+        downsampled: npt.NDArray
+            The downsampled moving image.
+        data_in_atlas_space: npt.NDArray
+            The moving image in atlas space.
+        atlas_in_data_space: npt.NDArray
+            The atlas in data space.
+        annotation_in_data_space: npt.NDArray
+            The annotation in data space.
+        """
+        assert self._moving_image
+        assert self.output_directory
+
+        imwrite(self.output_directory / "boundaries.tiff", boundaries)
+
+        for i in range(deformation_field.shape[-1]):
+            imwrite(
+                self.output_directory / f"deformation_field_{i}.tiff",
+                deformation_field[:, :, i],
+            )
+
+        imwrite(self.output_directory / "downsampled.tiff", downsampled)
+        imwrite(
+            self.output_directory
+            / f"downsampled_standard_{self._moving_image.name}.tiff",
+            data_in_atlas_space,
+        )
+        imwrite(
+            self.output_directory / "registered_atlas.tiff",
+            annotation_in_data_space,
+        )
