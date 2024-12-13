@@ -375,8 +375,10 @@ class RegistrationWidget(CollapsibleWidgetContainer):
     def _on_run_button_click(self):
         from brainglobe_registration.elastix.register import (
             calculate_deformation_field,
+            invert_transformation,
             run_registration,
             transform_annotation_image,
+            transform_image,
         )
 
         if self._atlas_data_layer is None:
@@ -417,6 +419,15 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self.output_directory,
         )
 
+        inverse_result, inverse_parameters = invert_transformation(
+            atlas_layer,
+            self.transform_selections,
+            parameters,
+            self.output_directory,
+        )
+
+        data_in_atlas_space = transform_image(moving_image, inverse_parameters)
+
         registered_annotation_image = transform_annotation_image(
             self._atlas_annotations_layer.data[current_atlas_slice, :, :],
             parameters,
@@ -453,6 +464,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             blending="additive",
             opacity=0.8,
         )
+        self._viewer.add_image(
+            data_in_atlas_space,
+            name="Inverse Registered Image",
+            visible=False,
+        )
 
         self._viewer.grid.enabled = False
 
@@ -461,7 +477,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 boundaries,
                 deformation_field,
                 moving_image,
-                result,
+                data_in_atlas_space,
                 result,
                 registered_annotation_image,
                 registered_hemisphere,
