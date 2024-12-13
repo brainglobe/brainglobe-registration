@@ -1,9 +1,12 @@
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import napari
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
+from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.dialog import display_info
 from pytransform3d.rotations import active_matrix_from_angle
@@ -254,3 +257,81 @@ def pseudo_flatfield(img_plane, sigma=5):
     """
     filtered_img = gaussian_filter(img_plane, sigma)
     return img_plane / (filtered_img + 1)
+
+
+def calculate_areas(
+    atlas: BrainGlobeAtlas,
+    annotation_image: npt.NDArray[np.uint32],
+    hemispheres: npt.NDArray,
+    output_path: Path,
+    left_hemisphere_label: int = 2,
+    right_hemisphere_label: int = 1,
+):
+    """
+    Calculate the areas of the structures in the annotation image.
+
+    Parameters
+    ----------
+    atlas: BrainGlobeAtlas
+        The atlas object to which the annotation image belongs.
+    annotation_image: npt.NDArray[np.uint32]
+        The annotation image.
+    hemispheres: npt.NDArray
+        The hemisphere labels for each pixel in the annotation image.
+    output_path:
+        The path to save the output csv file.
+    left_hemisphere_label:
+        The label for the left hemisphere.
+    right_hemisphere_label:
+        The label for the right hemisphere.
+    """
+    count_left = Counter(
+        annotation_image[hemispheres == left_hemisphere_label].flatten()
+    )
+    count_right = Counter(
+        annotation_image[hemispheres == right_hemisphere_label].flatten()
+    )
+
+    # Remove the background label
+    count_left.pop(0)
+    count_right.pop(0)
+
+    structures_reference_df = atlas.lookup_df
+
+    df = pd.DataFrame(
+        index=structures_reference_df.id,
+        columns=[
+            "structure_name",
+            "left_area_mm2",
+            "right_area_mm2",
+            "total_area_mm2",
+        ],
+    )
+    pixel_area_in_mm2 = atlas.resolution[1] * atlas.resolution[2] / (1000**2)
+
+    for structure_id in count_left.keys():
+        structure_line = structures_reference_df[
+            structures_reference_df["id"] == structure_id
+        ]
+
+        if len(structure_line) == 0:
+            print(
+                f"Value: {structure_id} is not in the atlas structure "
+                f"reference file. Not calculating the area."
+            )
+            continue
+
+        left_area = count_left[structure_id] * pixel_area_in_mm2
+        right_area = count_right[structure_id] * pixel_area_in_mm2
+        total_area = left_area + right_area
+
+        df.loc[structure_id] = {
+            "structure_name": structure_line["name"].values[0],
+            "left_area_mm2": left_area,
+            "right_area_mm2": right_area,
+            "total_area_mm2": total_area,
+        }
+
+    df.dropna(how="all", inplace=True)
+
+    df.to_csv(output_path, index=False)

@@ -42,6 +42,7 @@ from tifffile import imwrite
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_areas,
     calculate_rotated_bounding_box,
     check_atlas_installed,
     filter_plane,
@@ -372,7 +373,11 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.output_directory_text_field.setText(str(self.output_directory))
 
     def _on_run_button_click(self):
-        from brainglobe_registration.elastix.register import run_registration
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            run_registration,
+            transform_annotation_image,
+        )
 
         if self._atlas_data_layer is None:
             display_info(
@@ -405,23 +410,29 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             ]
             moving_image = self._moving_image.data
 
-        result, parameters, registered_annotation_image, deformation_field = (
-            run_registration(
-                atlas_layer,
-                moving_image,
-                self._atlas_annotations_layer.data[current_atlas_slice, :, :],
-                self.transform_selections,
-                self.output_directory,
-            )
+        result, parameters = run_registration(
+            atlas_layer,
+            moving_image,
+            self.transform_selections,
+            self.output_directory,
         )
 
-        registered_annotation_image = registered_annotation_image.astype(
-            np.uint32, copy=False
+        registered_annotation_image = transform_annotation_image(
+            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+            parameters,
+        )
+
+        registered_hemisphere = transform_annotation_image(
+            self._atlas.hemispheres[current_atlas_slice, :, :], parameters
         )
 
         boundaries = find_boundaries(
             registered_annotation_image, mode="inner"
         ).astype(np.int8, copy=False)
+
+        deformation_field = calculate_deformation_field(
+            moving_image, parameters
+        )
 
         self._viewer.add_image(result, name="Registered Image", visible=False)
 
@@ -453,6 +464,15 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                 result,
                 result,
                 registered_annotation_image,
+                registered_hemisphere,
+            )
+
+            areas_path = self.output_directory / "areas.csv"
+            calculate_areas(
+                self._atlas,
+                registered_annotation_image,
+                registered_hemisphere,
+                areas_path,
             )
 
     def _on_transform_type_added(
@@ -665,6 +685,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         data_in_atlas_space: npt.NDArray,
         atlas_in_data_space: npt.NDArray,
         annotation_in_data_space: npt.NDArray,
+        registered_hemisphere: npt.NDArray,
     ):
         """
         Save the outputs of the registration to the output directory.
@@ -685,7 +706,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         atlas_in_data_space: npt.NDArray
             The atlas in data space.
         annotation_in_data_space: npt.NDArray
-            The annotation in data space.
+            The annotation in data space.#
+        registered_hemisphere: npt.NDArray
+            The hemisphere annotation in data space.
         """
         assert self._moving_image
         assert self.output_directory
@@ -707,4 +730,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         imwrite(
             self.output_directory / "registered_atlas.tiff",
             annotation_in_data_space,
+        )
+
+        imwrite(
+            self.output_directory / "registered_hemispheres.tiff",
+            registered_hemisphere,
         )
