@@ -2,6 +2,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import dask.array as da
 import napari
 import numpy as np
 import numpy.typing as npt
@@ -335,3 +336,51 @@ def calculate_areas(
     df.dropna(how="all", inplace=True)
 
     df.to_csv(output_path, index=False)
+
+
+def convert_atlas_labels(
+    annotation_image: npt.NDArray[np.uint32],
+    max_value=131072,
+) -> Tuple[npt.NDArray[np.uint32], Dict[int, int]]:
+    """
+    Adjust the atlas labels such that they can be represented accurately
+    by a single precision float (np.float32).
+
+    This is done by mapping the labels greater than the max_value 2**17 to new
+    values starting from 2**16.
+
+    This assumes that there are no atlas IDs between 2**16 and max_value,
+    and there are fewer than 2**16 atlas IDs greater than max_value.
+
+    Parameters
+    ----------
+    annotation_image
+    max_value
+
+    Returns
+    -------
+
+    """
+    values = np.unique(annotation_image)
+
+    if isinstance(values, da.Array):
+        values = values.compute()
+
+    mapping = {}
+    new_value = 2**16
+    for value in values:
+        if value > max_value:
+            mapping[value] = new_value
+            annotation_image[annotation_image == value] = new_value
+            new_value += 1
+
+    return annotation_image, mapping
+
+
+def restore_atlas_labels(
+    annotation_image: npt.NDArray[np.uint32], mapping: Dict[int, int]
+) -> npt.NDArray[np.uint32]:
+    for old_value, new_value in mapping.items():
+        annotation_image[annotation_image == new_value] = old_value
+
+    return annotation_image

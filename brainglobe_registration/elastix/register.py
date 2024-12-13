@@ -6,6 +6,11 @@ import numpy as np
 import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 
+from brainglobe_registration.utils.utils import (
+    convert_atlas_labels,
+    restore_atlas_labels,
+)
+
 
 def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
     """
@@ -104,21 +109,31 @@ def transform_annotation_image(
     npt.NDArray
         The transformed annotation image.
     """
+    adjusted_annotation_image, mapping = convert_atlas_labels(annotation_image)
+
+    annotation_image = itk.GetImageViewFromArray(
+        adjusted_annotation_image
+    ).astype(itk.F)
     temp_interp_order = transform_parameters.GetParameter(
         0, "FinalBSplineInterpolationOrder"
     )
     transform_parameters.SetParameter("FinalBSplineInterpolationOrder", "0")
 
-    transformed_annotation = itk.transformix_filter(
-        annotation_image,
-        transform_parameters,
-    )
+    transformix_object = itk.TransformixFilter.New(annotation_image)
+    transformix_object.SetTransformParameterObject(transform_parameters)
+    transformix_object.UpdateLargestPossibleRegion()
+
+    transformed_annotation = transformix_object.GetOutput()
 
     transform_parameters.SetParameter(
         "FinalBSplineInterpolationOrder", temp_interp_order
     )
     transformed_annotation_array = np.asarray(transformed_annotation).astype(
         np.uint32
+    )
+
+    transformed_annotation_array = restore_atlas_labels(
+        transformed_annotation_array, mapping
     )
 
     return transformed_annotation_array
