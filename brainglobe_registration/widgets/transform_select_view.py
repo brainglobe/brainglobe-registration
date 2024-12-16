@@ -76,17 +76,19 @@ class TransformSelectView(QTableWidget):
 
         # Set up the table
         self.setColumnCount(2)
-        self.setRowCount(len(self.transform_type_options))
+        # Set row count to one less as rigid will not be shown by default
+        self.setRowCount(len(self.transform_type_options) - 1)
         self.setHorizontalHeaderLabels(["Transform Type", "Default File"])
 
         # Add dropdown menus to the table for each transform type option
-        for i in range(len(self.transform_type_options) - 1):
+        # Subtract 2 to exclude the empty and rigid options
+        for i in range(len(self.transform_type_options) - 2):
             # Create and configure the transform type dropdown menu
             self.transform_type_selections.append(QComboBox())
             self.transform_type_selections[i].addItems(
                 self.transform_type_options
             )
-            self.transform_type_selections[i].setCurrentIndex(i + 1)
+            self.transform_type_selections[i].setCurrentIndex(i + 2)
             self.transform_type_selections[i].currentIndexChanged.connect(
                 self.transform_type_signaller.map
             )
@@ -94,7 +96,7 @@ class TransformSelectView(QTableWidget):
             # Create and configure the file option dropdown menu
             self.file_selections.append(QComboBox())
             self.file_selections[i].addItems(self.file_options)
-            self.file_selections[i].setCurrentIndex(0)
+            self.file_selections[i].setCurrentIndex(1)
             self.file_selections[i].currentIndexChanged.connect(
                 self.file_signaller.map
             )
@@ -118,9 +120,10 @@ class TransformSelectView(QTableWidget):
             self.transform_type_signaller.map
         )
 
+        # Subtract 2 to exclude the empty and rigid options
         self.transform_type_signaller.setMapping(
             self.transform_type_selections[-1],
-            len(self.transform_type_options) - 1,
+            len(self.transform_type_options) - 2,
         )
 
         self.file_selections.append(QComboBox())
@@ -131,19 +134,20 @@ class TransformSelectView(QTableWidget):
             self.file_signaller.map
         )
 
+        # Subtract 2 to exclude the empty and rigid options
         self.file_signaller.setMapping(
-            self.file_selections[-1], len(self.transform_type_options) - 1
+            self.file_selections[-1], len(self.transform_type_options) - 2
         )
 
         self.setCellWidget(
-            len(self.transform_type_options) - 1,
+            len(self.transform_type_options) - 2,
             0,
             self.transform_type_selections[-1],
         )
         self.setCellWidget(
-            len(self.transform_type_options) - 1, 1, self.file_selections[-1]
+            len(self.transform_type_options) - 2, 1, self.file_selections[-1]
         )
-        self.file_selections[-1].setEnabled(False)
+
         self.resizeRowsToContents()
         self.resizeColumnsToContents()
 
