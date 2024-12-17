@@ -3,10 +3,12 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
+from brainglobe_atlasapi import BrainGlobeAtlas
 from pytransform3d.rotations import active_matrix_from_angle
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_areas,
     calculate_rotated_bounding_box,
     convert_atlas_labels,
     find_layer_index,
@@ -165,3 +167,29 @@ def test_convert_atlas_labels():
     restored_image = restore_atlas_labels(result, mapping)
 
     assert np.array_equal(restored_image, mock_annotations)
+
+
+def test_calculate_areas(tmp_path):
+    atlas = BrainGlobeAtlas("allen_mouse_100um")
+
+    mid_point = atlas.annotation.shape[0] // 2
+    mock_annotations = atlas.annotation[mid_point, :, :]
+    hemispheres = atlas.hemispheres[mid_point, :, :]
+
+    output_path = tmp_path / "areas.csv"
+
+    out_df = calculate_areas(atlas, mock_annotations, hemispheres, output_path)
+
+    assert output_path.exists()
+    assert out_df.columns.size == 4
+
+    # Based on regression testing, the following values are expected
+    assert out_df.loc[672, "structure_name"] == "Caudoputamen"
+    assert out_df.loc[672, "left_area_mm2"] == 1.98
+    assert out_df.loc[672, "right_area_mm2"] == 2.0
+    assert out_df.loc[672, "total_area_mm2"] == 3.98
+
+    assert out_df.loc[961, "structure_name"] == "Piriform area"
+    assert out_df.loc[961, "left_area_mm2"] == 1.27
+    assert out_df.loc[961, "right_area_mm2"] == 1.28
+    assert out_df.loc[961, "total_area_mm2"] == 2.55
