@@ -267,7 +267,7 @@ def calculate_areas(
     output_path: Path,
     left_hemisphere_label: int = 2,
     right_hemisphere_label: int = 1,
-):
+) -> pd.DataFrame:
     """
     Calculate the areas of the structures in the annotation image.
 
@@ -279,12 +279,17 @@ def calculate_areas(
         The annotation image.
     hemispheres: npt.NDArray
         The hemisphere labels for each pixel in the annotation image.
-    output_path:
+    output_path: Path
         The path to save the output csv file.
-    left_hemisphere_label:
+    left_hemisphere_label: int, optional
         The label for the left hemisphere.
-    right_hemisphere_label:
+    right_hemisphere_label: int, optional
         The label for the right hemisphere.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the structure names and areas.
     """
     count_left = Counter(
         annotation_image[hemispheres == left_hemisphere_label].flatten()
@@ -336,6 +341,8 @@ def calculate_areas(
     df.dropna(how="all", inplace=True)
 
     df.to_csv(output_path, index=False)
+
+    return df
 
 
 def convert_atlas_labels(
