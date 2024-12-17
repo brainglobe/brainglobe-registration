@@ -357,7 +357,9 @@ def convert_atlas_labels(
     npt.NDArray[np.uint32]
         The adjusted annotation image.
     Dict[int, int]
-        A dictionary mapping the original values to the new values
+        A dictionary mapping the original values to the new values.
+            key: original annotation ID
+            value: new annotation ID
     """
     # Returns a sorted array of unique values in the annotation image
     values = np.unique(annotation_image)
@@ -383,6 +385,24 @@ def convert_atlas_labels(
 def restore_atlas_labels(
     annotation_image: npt.NDArray[np.uint32], mapping: Dict[int, int]
 ) -> npt.NDArray[np.uint32]:
+    """
+    Restore the original atlas labels from the adjusted labels based on the
+    provided mapping.
+    .
+    Parameters
+    ----------
+    annotation_image: npt.NDArray[np.uint32]
+        The adjusted annotation image.
+    mapping: Dict[int, int]
+        A dictionary mapping the original values to the new values.
+            key: original annotation ID
+            value: new annotation ID
+
+    Returns
+    -------
+    npt.NDArray[np.uint32]
+        The restored annotation image.
+    """
     for old_value, new_value in mapping.items():
         annotation_image[annotation_image == new_value] = old_value
 
