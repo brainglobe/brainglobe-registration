@@ -340,38 +340,41 @@ def calculate_areas(
 
 def convert_atlas_labels(
     annotation_image: npt.NDArray[np.uint32],
-    max_value=131072,
 ) -> Tuple[npt.NDArray[np.uint32], Dict[int, int]]:
     """
     Adjust the atlas labels such that they can be represented accurately
     by a single precision float (np.float32).
 
-    This is done by mapping the labels greater than the max_value 2**17 to new
-    values starting from 2**16.
-
-    This assumes that there are no atlas IDs between 2**16 and max_value,
-    and there are fewer than 2**16 atlas IDs greater than max_value.
+    This is done by mapping the labels greater than 2**16 to new
+    consecutive values starting from 2**16.
 
     Parameters
     ----------
     annotation_image
-    max_value
 
     Returns
     -------
-
+    npt.NDArray[np.uint32]
+        The adjusted annotation image.
+    Dict[int, int]
+        A dictionary mapping the original values to the new values
     """
+    # Returns a sorted array of unique values in the annotation image
     values = np.unique(annotation_image)
 
     if isinstance(values, da.Array):
         values = values.compute()
 
+    # Create a mapping of the original values to the new values
+    # and adjust the annotation image
     mapping = {}
     new_value = 2**16
     for value in values:
-        if value > max_value:
+        if value > new_value:
             mapping[value] = new_value
             annotation_image[annotation_image == value] = new_value
+            new_value += 1
+        elif value == new_value:
             new_value += 1
 
     return annotation_image, mapping
