@@ -4,31 +4,11 @@ from typing import List, Optional, Tuple
 import itk
 import numpy as np
 import numpy.typing as npt
-from brainglobe_atlasapi import BrainGlobeAtlas
 
 from brainglobe_registration.utils.utils import (
     convert_atlas_labels,
     restore_atlas_labels,
 )
-
-
-def get_atlas_by_name(atlas_name: str) -> BrainGlobeAtlas:
-    """
-    Get a BrainGlobeAtlas object by its name.
-
-    Parameters
-    ----------
-    atlas_name : str
-        The name of the atlas.
-
-    Returns
-    -------
-    BrainGlobeAtlas
-        The BrainGlobeAtlas object.
-    """
-    atlas = BrainGlobeAtlas(atlas_name)
-
-    return atlas
 
 
 def run_registration(
@@ -70,11 +50,6 @@ def run_registration(
     parameter_object = setup_parameter_object(parameter_lists=parameter_lists)
 
     elastix_object.SetParameterObject(parameter_object)
-
-    # if output_directory:
-    #     elastix_object.SetOutputDirectory(str(output_directory))
-
-    # update filter object
     elastix_object.UpdateLargestPossibleRegion()
 
     # get results
