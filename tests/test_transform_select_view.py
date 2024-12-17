@@ -22,22 +22,26 @@ def test_transform_select_view(transform_select_view, qtbot):
         transform_select_view.horizontalHeaderItem(1).text() == "Default File"
     )
 
-    assert transform_select_view.rowCount() == len(
-        transform_select_view.transform_type_options
+    # At initialisation only affine and bspline transforms are shown
+    assert (
+        transform_select_view.rowCount()
+        == len(transform_select_view.transform_type_options) - 1
     )
     assert transform_select_view.columnCount() == 2
 
-    for i in range(len(transform_select_view.transform_type_options) - 1):
+    # At initialisation affine and bspline transforms are shown
+    # with ara_tools as the default file
+    for i in range(len(transform_select_view.transform_type_options) - 2):
         assert (
             transform_select_view.cellWidget(i, 0).currentText()
-            == transform_select_view.transform_type_options[i + 1]
+            == transform_select_view.transform_type_options[i + 2]
         )
         assert (
             transform_select_view.cellWidget(i, 1).currentText()
-            == transform_select_view.file_options[0]
+            == transform_select_view.file_options[1]
         )
 
-    last_row = len(transform_select_view.transform_type_options) - 1
+    last_row = len(transform_select_view.transform_type_options) - 2
 
     assert (
         transform_select_view.cellWidget(last_row, 0).currentText()
@@ -161,7 +165,8 @@ def test_file_option_default_on_transform_change(transform_select_view, qtbot):
         == transform_select_view.file_options[file_option_index]
     )
 
-    transform_select_view.cellWidget(0, 0).setCurrentIndex(2)
+    # Change the transform type from affine to rigid
+    transform_select_view.cellWidget(0, 0).setCurrentIndex(1)
 
     assert (
         transform_select_view.cellWidget(0, 1).currentText()
