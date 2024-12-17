@@ -348,6 +348,9 @@ def convert_atlas_labels(
     This is done by mapping the labels greater than 2**16 to new
     consecutive values starting from 2**16.
 
+    Slow to run if a large number of unique values are greater than 2**16.
+    Based on current BrainGlobe atlases, this should not be the case.
+
     Parameters
     ----------
     annotation_image
