@@ -58,7 +58,7 @@ class TransformSelectView(QTableWidget):
             "ara_tools",
             "brainregister_IBL",
         ]
-        self.transform_type_options = ["", "rigid", "affine", "bspline"]
+        self.transform_type_options = ["", "affine", "bspline"]
 
         # Create signal mappers for the transform type and file option
         # dropdown menus
@@ -82,7 +82,7 @@ class TransformSelectView(QTableWidget):
         # Add dropdown menus to the table for each transform type option
         for i in range(len(self.transform_type_options) - 1):
             # Create and configure the transform type dropdown menu
-            self.transform_type_selections.append(QComboBox())
+            self.transform_type_selections.append(QComboBox(self))
             self.transform_type_selections[i].addItems(
                 self.transform_type_options
             )
@@ -92,9 +92,9 @@ class TransformSelectView(QTableWidget):
             )
 
             # Create and configure the file option dropdown menu
-            self.file_selections.append(QComboBox())
+            self.file_selections.append(QComboBox(self))
             self.file_selections[i].addItems(self.file_options)
-            self.file_selections[i].setCurrentIndex(0)
+            self.file_selections[i].setCurrentIndex(1)
             self.file_selections[i].currentIndexChanged.connect(
                 self.file_signaller.map
             )
@@ -110,7 +110,7 @@ class TransformSelectView(QTableWidget):
             self.setCellWidget(i, 1, self.file_selections[i])
 
         # Add an extra row to the table for adding new transform types
-        self.transform_type_selections.append(QComboBox())
+        self.transform_type_selections.append(QComboBox(self))
         self.transform_type_selections[-1].addItems(
             self.transform_type_options
         )
@@ -123,7 +123,7 @@ class TransformSelectView(QTableWidget):
             len(self.transform_type_options) - 1,
         )
 
-        self.file_selections.append(QComboBox())
+        self.file_selections.append(QComboBox(self))
         self.file_selections[-1].addItems(self.file_options)
         self.file_selections[-2].setEnabled(True)
         self.file_selections[-1].setEnabled(False)
@@ -131,6 +131,7 @@ class TransformSelectView(QTableWidget):
             self.file_signaller.map
         )
 
+        # Subtract 1 to account for the empty transform type option
         self.file_signaller.setMapping(
             self.file_selections[-1], len(self.transform_type_options) - 1
         )
@@ -143,7 +144,7 @@ class TransformSelectView(QTableWidget):
         self.setCellWidget(
             len(self.transform_type_options) - 1, 1, self.file_selections[-1]
         )
-        self.file_selections[-1].setEnabled(False)
+
         self.resizeRowsToContents()
         self.resizeColumnsToContents()
 
@@ -172,7 +173,7 @@ class TransformSelectView(QTableWidget):
                 current_length = self.rowCount()
                 self.setRowCount(self.rowCount() + 1)
 
-                self.transform_type_selections.append(QComboBox())
+                self.transform_type_selections.append(QComboBox(self))
                 self.transform_type_selections[-1].addItems(
                     self.transform_type_options
                 )
@@ -183,7 +184,7 @@ class TransformSelectView(QTableWidget):
                     self.transform_type_selections[-1], current_length
                 )
 
-                self.file_selections.append(QComboBox())
+                self.file_selections.append(QComboBox(self))
                 self.file_selections[-1].addItems(self.file_options)
                 self.file_selections[-2].setEnabled(True)
                 self.file_selections[-1].setEnabled(False)

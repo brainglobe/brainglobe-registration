@@ -1,5 +1,5 @@
 import pytest
-from PIL import Image
+from tifffile import imread
 
 from brainglobe_registration.elastix.register import (
     run_registration,
@@ -9,12 +9,12 @@ from brainglobe_registration.elastix.register import (
 
 @pytest.fixture
 def sample_atlas_slice():
-    return Image.open("test_images/Atlas_Hipp.tif")
+    return imread("test_images/Atlas_Hipp.tif")
 
 
 @pytest.fixture
 def sample_moving_image():
-    return Image.open("test_images/sample_hipp.tif")
+    return imread("test_images/sample_hipp.tif")
 
 
 @pytest.mark.slow
