@@ -77,7 +77,6 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._automatic_deletion_flag = False
 
         self.transform_params: dict[str, dict] = {
-            "rigid": {},
             "affine": {},
             "bspline": {},
         }
@@ -87,7 +86,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             file_path = (
                 Path(__file__).parent.resolve()
                 / "parameters"
-                / "elastix_default"
+                / "ara_tools"
                 / f"{transform_type}.txt"
             )
 
