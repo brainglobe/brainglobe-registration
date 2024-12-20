@@ -96,9 +96,9 @@ def transform_annotation_image(
     """
     adjusted_annotation_image, mapping = convert_atlas_labels(annotation_image)
 
-    annotation_image = itk.GetImageViewFromArray(
-        adjusted_annotation_image
-    ).astype(itk.F)
+    annotation_image = itk.GetImageFromArray(adjusted_annotation_image).astype(
+        itk.F
+    )
     temp_interp_order = transform_parameters.GetParameter(
         0, "FinalBSplineInterpolationOrder"
     )
