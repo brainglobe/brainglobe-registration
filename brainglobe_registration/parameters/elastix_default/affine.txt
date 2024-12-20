@@ -18,7 +18,7 @@
 (Registration "MultiResolutionRegistration")
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
-(ResultImageFormat "nii")
+(ResultImageFormat "tiff")
 (Transform "AffineTransform")
 (WriteIterationInfo "false")
 (WriteResultImage "true")

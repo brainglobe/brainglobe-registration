@@ -26,12 +26,23 @@ from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import QCheckBox, QPushButton, QTabWidget
+from qtpy.QtWidgets import (
+    QCheckBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTabWidget,
+    QWidget,
+)
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
+from tifffile import imwrite
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_areas,
     calculate_rotated_bounding_box,
     check_atlas_installed,
     filter_plane,
@@ -62,11 +73,10 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
-        self._automatic_deletion_flag = False
         # Flag to differentiate between manual and automatic atlas deletion
+        self._automatic_deletion_flag = False
 
         self.transform_params: dict[str, dict] = {
-            "rigid": {},
             "affine": {},
             "bspline": {},
         }
@@ -76,7 +86,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             file_path = (
                 Path(__file__).parent.resolve()
                 / "parameters"
-                / "elastix_default"
+                / "ara_tools"
                 / f"{transform_type}.txt"
             )
 
@@ -91,6 +101,8 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         # Hacky way of having an empty first option for the dropdown
         self._available_atlases = ["------"] + get_downloaded_atlases()
         self._sample_images = get_image_layer_names(self._viewer)
+
+        self.output_directory: Optional[Path] = None
 
         if len(self._sample_images) > 0:
             self._moving_image = self._viewer.layers[0]
@@ -142,8 +154,26 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         # Use decorator to connect to layer deletion event
         self._connect_events()
+
         self.filter_checkbox = QCheckBox("Filter Images")
         self.filter_checkbox.setChecked(False)
+
+        self.output_directory_widget = QWidget()
+        self.output_directory_widget.setLayout(QHBoxLayout())
+
+        self.output_directory_text_field = QLineEdit()
+        self.output_directory_text_field.editingFinished.connect(
+            self._on_output_directory_text_edited
+        )
+        self.output_directory_widget.layout().addWidget(
+            self.output_directory_text_field
+        )
+
+        self.open_file_dialog = QPushButton("Browse")
+        self.open_file_dialog.clicked.connect(
+            self._on_open_file_dialog_clicked
+        )
+        self.output_directory_widget.layout().addWidget(self.open_file_dialog)
 
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
@@ -182,6 +212,9 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         )
 
         self.add_widget(self.filter_checkbox, collapsible=False)
+
+        self.add_widget(QLabel("Output Directory"), collapsible=False)
+        self.add_widget(self.output_directory_widget, collapsible=False)
 
         self.add_widget(self.run_button, collapsible=False)
 
@@ -321,8 +354,31 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             return
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
+    def _on_output_directory_text_edited(self):
+        self.output_directory = Path(self.output_directory_text_field.text())
+
+    def _on_open_file_dialog_clicked(self) -> None:
+        """
+        Open a file dialog to select the output directory.
+        """
+        output_directory_str = QFileDialog.getExistingDirectory(
+            self, "Select the output directory", str(Path.home())
+        )
+        # A blank string is returned if the user cancels the dialog
+        if not output_directory_str:
+            return
+
+        self.output_directory = Path(output_directory_str)
+        self.output_directory_text_field.setText(str(self.output_directory))
+
     def _on_run_button_click(self):
-        from brainglobe_registration.elastix.register import run_registration
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            invert_transformation,
+            run_registration,
+            transform_annotation_image,
+            transform_image,
+        )
 
         if self._atlas_data_layer is None:
             display_info(
@@ -348,23 +404,45 @@ class RegistrationWidget(CollapsibleWidgetContainer):
                     current_atlas_slice, :, :
                 ].compute()
             )
-            moving_image_layer = filter_plane(self._moving_image.data)
+            moving_image = filter_plane(self._moving_image.data)
         else:
             atlas_layer = self._atlas_data_layer.data[
                 current_atlas_slice, :, :
             ]
-            moving_image_layer = self._moving_image.data
+            moving_image = self._moving_image.data
 
-        result, parameters, registered_annotation_image = run_registration(
+        result, parameters = run_registration(
             atlas_layer,
-            moving_image_layer,
-            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+            moving_image,
             self.transform_selections,
+            self.output_directory,
+        )
+
+        inverse_result, inverse_parameters = invert_transformation(
+            atlas_layer,
+            self.transform_selections,
+            parameters,
+            self.output_directory,
+        )
+
+        data_in_atlas_space = transform_image(moving_image, inverse_parameters)
+
+        registered_annotation_image = transform_annotation_image(
+            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+            parameters,
+        )
+
+        registered_hemisphere = transform_annotation_image(
+            self._atlas.hemispheres[current_atlas_slice, :, :], parameters
         )
 
         boundaries = find_boundaries(
             registered_annotation_image, mode="inner"
         ).astype(np.int8, copy=False)
+
+        deformation_field = calculate_deformation_field(
+            moving_image, parameters
+        )
 
         self._viewer.add_image(result, name="Registered Image", visible=False)
 
@@ -374,7 +452,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._viewer.layers[atlas_layer_index].visible = False
 
         self._viewer.add_labels(
-            registered_annotation_image.astype(np.uint32, copy=False),
+            registered_annotation_image,
             name="Registered Annotations",
             visible=False,
         )
@@ -385,8 +463,32 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             blending="additive",
             opacity=0.8,
         )
+        self._viewer.add_image(
+            data_in_atlas_space,
+            name="Inverse Registered Image",
+            visible=False,
+        )
 
         self._viewer.grid.enabled = False
+
+        if self.output_directory:
+            self.save_outputs(
+                boundaries,
+                deformation_field,
+                moving_image,
+                data_in_atlas_space,
+                result,
+                registered_annotation_image,
+                registered_hemisphere,
+            )
+
+            areas_path = self.output_directory / "areas.csv"
+            calculate_areas(
+                self._atlas,
+                registered_annotation_image,
+                registered_hemisphere,
+                areas_path,
+            )
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
@@ -589,3 +691,63 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self._atlas_annotations_layer.data = self._atlas.annotation
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+    def save_outputs(
+        self,
+        boundaries: npt.NDArray,
+        deformation_field: npt.NDArray,
+        downsampled: npt.NDArray,
+        data_in_atlas_space: npt.NDArray,
+        atlas_in_data_space: npt.NDArray,
+        annotation_in_data_space: npt.NDArray,
+        registered_hemisphere: npt.NDArray,
+    ):
+        """
+        Save the outputs of the registration to the output directory.
+
+        The outputs are saved as per
+        https://brainglobe.info/documentation/brainreg/user-guide/output-files.html
+
+        Parameters
+        ----------
+        boundaries: npt.NDArray
+            The area boundaries of the registered annotation image.
+        deformation_field: npt.NDArray
+            The deformation field.
+        downsampled: npt.NDArray
+            The downsampled moving image.
+        data_in_atlas_space: npt.NDArray
+            The moving image in atlas space.
+        atlas_in_data_space: npt.NDArray
+            The atlas in data space.
+        annotation_in_data_space: npt.NDArray
+            The annotation in data space.#
+        registered_hemisphere: npt.NDArray
+            The hemisphere annotation in data space.
+        """
+        assert self._moving_image
+        assert self.output_directory
+
+        imwrite(self.output_directory / "boundaries.tiff", boundaries)
+
+        for i in range(deformation_field.shape[-1]):
+            imwrite(
+                self.output_directory / f"deformation_field_{i}.tiff",
+                deformation_field[:, :, i],
+            )
+
+        imwrite(self.output_directory / "downsampled.tiff", downsampled)
+        imwrite(
+            self.output_directory
+            / f"downsampled_standard_{self._moving_image.name}.tiff",
+            data_in_atlas_space,
+        )
+        imwrite(
+            self.output_directory / "registered_atlas.tiff",
+            annotation_in_data_space,
+        )
+
+        imwrite(
+            self.output_directory / "registered_hemispheres.tiff",
+            registered_hemisphere,
+        )
