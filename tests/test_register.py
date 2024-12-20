@@ -7,10 +7,12 @@ from brainglobe_atlasapi import BrainGlobeAtlas
 from tifffile import imread
 
 from brainglobe_registration.elastix.register import (
+    calculate_deformation_field,
     invert_transformation,
     run_registration,
     setup_parameter_object,
     transform_annotation_image,
+    transform_image,
 )
 
 SLICE_NUMBER = 293
@@ -134,9 +136,35 @@ def test_invert_transformation(invert_transform):
 def test_transform_image(invert_transform, sample_moving_image):
     invert_image, invert_parameters, _ = invert_transform
 
+    transformed_image = transform_image(sample_moving_image, invert_parameters)
 
-def test_calculate_deformation_field():
-    pass
+    expected_image = imread(
+        Path(__file__).parent / "test_images/registered_sample.tiff"
+    )
+
+    assert np.allclose(transformed_image, expected_image, atol=0.1)
+
+
+def test_calculate_deformation_field(
+    sample_moving_image, registration_affine_only
+):
+    result_image, transform_parameters = registration_affine_only
+
+    deformation_field = calculate_deformation_field(
+        sample_moving_image, transform_parameters
+    )
+
+    deformation_field_0 = imread(
+        Path(__file__).parent / "test_images/deformation_field_0.tiff"
+    )
+    deformation_field_1 = imread(
+        Path(__file__).parent / "test_images/deformation_field_1.tiff"
+    )
+    expected_deformation_field = np.stack(
+        (deformation_field_0, deformation_field_1), axis=-1
+    )
+
+    assert np.allclose(deformation_field, expected_deformation_field, atol=0.1)
 
 
 def test_setup_parameter_object_empty_list():
