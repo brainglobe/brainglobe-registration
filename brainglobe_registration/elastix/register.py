@@ -56,14 +56,15 @@ def run_registration(
     result_image = elastix_object.GetOutput()
     result_transform_parameters = elastix_object.GetTransformParameterObject()
 
-    file_names = [
-        f"{output_directory}/TransformParameters.{i}.txt"
-        for i in range(len(parameter_lists))
-    ]
+    if output_directory:
+        file_names = [
+            f"{output_directory}/TransformParameters.{i}.txt"
+            for i in range(len(parameter_lists))
+        ]
 
-    itk.ParameterObject.WriteParameterFile(
-        result_transform_parameters, file_names
-    )
+        itk.ParameterObject.WriteParameterFile(
+            result_transform_parameters, file_names
+        )
 
     return (
         np.asarray(result_image),

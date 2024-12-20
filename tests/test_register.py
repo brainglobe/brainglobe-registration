@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import numpy as np
 import pytest
 from tifffile import imread
 
@@ -7,23 +10,35 @@ from brainglobe_registration.elastix.register import (
 )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_atlas_slice():
-    return imread("test_images/Atlas_Hipp.tif")
+    return imread(Path(__file__).parent / "test_images/Atlas_Hipp.tif")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def sample_moving_image():
-    return imread("test_images/sample_hipp.tif")
+    return imread(Path(__file__).parent / "test_images/sample_hipp.tif")
 
 
-@pytest.mark.slow
-def test_run_registration(sample_atlas_slice, sample_moving_image):
-    result_image, transform_parameters = run_registration(
+@pytest.fixture(scope="module")
+def registration_affine_only(
+    sample_atlas_slice, sample_moving_image, parameter_lists_affine_only
+):
+    yield run_registration(
         sample_atlas_slice,
         sample_moving_image,
+        parameter_lists_affine_only,
     )
-    assert result_image is not None
+
+
+def test_run_registration(registration_affine_only):
+    result_image, transform_parameters = registration_affine_only
+
+    expected_result_image = imread(
+        Path(__file__).parent / "test_images/registered_atlas.tiff"
+    )
+
+    assert np.allclose(result_image, expected_result_image, atol=0.1)
     assert transform_parameters is not None
 
 

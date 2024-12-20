@@ -7,6 +7,8 @@ from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi import config as bg_config
 from PIL import Image
 
+from brainglobe_registration.utils.utils import open_parameter_file
+
 
 @pytest.fixture()
 def make_napari_viewer_with_images(make_napari_viewer, pytestconfig):
@@ -20,6 +22,34 @@ def make_napari_viewer_with_images(make_napari_viewer, pytestconfig):
     viewer.add_image(np.asarray(atlas_image), name="atlas_image")
 
     return viewer
+
+
+@pytest.fixture(scope="session")
+def parameter_lists():
+    transform_list = []
+    for transform_type in ["affine", "bspline"]:
+        file_path = (
+            Path(__file__).parent.parent.resolve()
+            / "brainglobe_registration"
+            / "parameters"
+            / "ara_tools"
+            / f"{transform_type}.txt"
+        )
+        transform_list.append((transform_type, open_parameter_file(file_path)))
+
+    return transform_list
+
+
+@pytest.fixture(scope="session")
+def parameter_lists_affine_only():
+    file_path = (
+        Path(__file__).parent.parent.resolve()
+        / "brainglobe_registration"
+        / "parameters"
+        / "ara_tools"
+        / "affine.txt"
+    )
+    return [("affine", open_parameter_file(file_path))]
 
 
 def pytest_addoption(parser):
