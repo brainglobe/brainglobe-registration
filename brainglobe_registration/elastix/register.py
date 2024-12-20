@@ -231,14 +231,15 @@ def invert_transformation(
         0, "InitialTransformParameterFileName", "NoInitialTransform"
     )
 
-    file_names = [
-        f"{output_directory}/InverseTransformParameters.{i}.txt"
-        for i in range(len(parameter_list))
-    ]
+    if output_directory:
+        file_names = [
+            f"{output_directory}/InverseTransformParameters.{i}.txt"
+            for i in range(len(parameter_list))
+        ]
 
-    itk.ParameterObject.WriteParameterFiles(
-        result_transform_parameters, file_names
-    )
+        itk.ParameterObject.WriteParameterFiles(
+            result_transform_parameters, file_names
+        )
 
     return (
         np.asarray(result_image),
