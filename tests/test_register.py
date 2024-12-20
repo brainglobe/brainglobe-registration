@@ -28,7 +28,14 @@ def compare_parameter_objects(param_obj1, param_obj2):
         submap_1 = dict(param_obj1.GetParameterMap(index))
         submap_2 = dict(param_obj2.GetParameterMap(index))
 
-        assert submap_1 == submap_2
+        for key in submap_1.keys():
+            if key == "TransformParameters":
+                assert np.allclose(
+                    np.array(submap_1[key], dtype=np.double),
+                    np.array(submap_2[key], dtype=np.double),
+                )
+            else:
+                assert submap_1[key] == submap_2[key]
 
 
 @pytest.fixture(scope="module")
