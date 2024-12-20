@@ -118,6 +118,7 @@ def setup_preexisting_local_atlases():
     in the test user data."""
     preexisting_atlases = [
         ("example_mouse_100um", "v1.2"),
+        ("allen_mouse_25um", "v1.2"),
         ("allen_mouse_100um", "v1.2"),
         ("osten_mouse_100um", "v1.1"),
     ]
