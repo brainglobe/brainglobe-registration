@@ -29,7 +29,12 @@ def compare_parameter_objects(param_obj1, param_obj2):
         submap_2 = dict(param_obj2.GetParameterMap(index))
 
         for key in submap_1.keys():
-            if key == "TransformParameters":
+            if key in [
+                "TransformParameters",
+                "CenterOfRotationPoint",
+                "GridOrigin",
+                "GridSpacing",
+            ]:
                 assert np.allclose(
                     np.array(submap_1[key], dtype=np.double),
                     np.array(submap_2[key], dtype=np.double),
