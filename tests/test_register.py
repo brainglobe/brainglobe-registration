@@ -55,7 +55,8 @@ def atlas_reference(atlas, slice_number=SLICE_NUMBER):
 
 @pytest.fixture(scope="module")
 def atlas_annotation(atlas, slice_number=SLICE_NUMBER):
-    return atlas.annotation[slice_number, :, :]
+    # Need the astype call to avoid a crash on Windows
+    return atlas.annotation[slice_number, :, :].astype(np.uint32)
 
 
 @pytest.fixture(scope="module")

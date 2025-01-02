@@ -427,8 +427,17 @@ class RegistrationWidget(CollapsibleWidgetContainer):
 
         data_in_atlas_space = transform_image(moving_image, inverse_parameters)
 
-        registered_annotation_image = transform_annotation_image(
+        # Creating fresh array is necessary to avoid a crash on Windows
+        # Otherwise self._atlas_annotations_layer.data.dtype.type returns
+        # np.uintc which is not supported by ITK. After creating a new array
+        # annotations.dtype.type returns np.uint32 which is supported by ITK.
+        annotation = np.array(
             self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+            dtype=np.uint32,
+        )
+
+        registered_annotation_image = transform_annotation_image(
+            annotation,
             parameters,
         )
 

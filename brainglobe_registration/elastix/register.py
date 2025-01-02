@@ -73,7 +73,7 @@ def run_registration(
 
 
 def transform_annotation_image(
-    annotation_image: npt.NDArray,
+    annotation_image: npt.NDArray[np.uint32],
     transform_parameters: itk.ParameterObject,
 ) -> npt.NDArray[np.uint32]:
     """
