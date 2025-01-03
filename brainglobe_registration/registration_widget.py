@@ -33,6 +33,7 @@ from qtpy.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QTabWidget,
     QWidget,
 )
@@ -62,10 +63,11 @@ from brainglobe_registration.widgets.transform_select_view import (
 )
 
 
-class RegistrationWidget(CollapsibleWidgetContainer):
+class RegistrationWidget(QScrollArea):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
-        self.setContentsMargins(10, 10, 10, 10)
+        self.widget = CollapsibleWidgetContainer()
+        self.widget.setContentsMargins(10, 10, 10, 10)
 
         self._viewer = napari_viewer
         self._atlas: Optional[BrainGlobeAtlas] = None
@@ -179,7 +181,7 @@ class RegistrationWidget(CollapsibleWidgetContainer):
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.add_widget(
+        self.widget.add_widget(
             header_widget(
                 "brainglobe-<br>registration",  # line break at <br>
                 "Registration with Elastix",
@@ -187,11 +189,13 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             ),
             collapsible=False,
         )
-        self.add_widget(self.get_atlas_widget, widget_title="Select Images")
-        self.add_widget(
+        self.widget.add_widget(
+            self.get_atlas_widget, widget_title="Select Images"
+        )
+        self.widget.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
         )
-        self.add_widget(
+        self.widget.add_widget(
             self.transform_select_view, widget_title="Select Transformations"
         )
 
@@ -207,20 +211,22 @@ class RegistrationWidget(CollapsibleWidgetContainer):
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
-        self.add_widget(
+        self.widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
 
-        self.add_widget(self.filter_checkbox, collapsible=False)
+        self.widget.add_widget(self.filter_checkbox, collapsible=False)
 
-        self.add_widget(QLabel("Output Directory"), collapsible=False)
-        self.add_widget(self.output_directory_widget, collapsible=False)
+        self.widget.add_widget(QLabel("Output Directory"), collapsible=False)
+        self.widget.add_widget(self.output_directory_widget, collapsible=False)
+        self.widget.add_widget(self.run_button, collapsible=False)
 
-        self.add_widget(self.run_button, collapsible=False)
-
-        self.layout().itemAt(1).widget().collapse(animate=False)
+        self.widget.layout().itemAt(1).widget().collapse(animate=False)
 
         check_atlas_installed(self)
+
+        self.setWidgetResizable(True)
+        self.setWidget(self.widget)
 
     def _connect_events(self):
         @self._viewer.layers.events.removed.connect
