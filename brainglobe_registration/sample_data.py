@@ -18,4 +18,4 @@ def load_sample_data() -> List[LayerData]:
         files("brainglobe_registration").joinpath("resources/sample_hipp.tif")
     )
 
-    return [(imread(path), {"name": "Sample Data"})]
+    return [(imread(path), {"name": "2D coronal mouse brain section"})]
