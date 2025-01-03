@@ -3,14 +3,18 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
+from brainglobe_atlasapi import BrainGlobeAtlas
 from pytransform3d.rotations import active_matrix_from_angle
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_areas,
     calculate_rotated_bounding_box,
+    convert_atlas_labels,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
+    restore_atlas_labels,
 )
 
 
@@ -123,3 +127,69 @@ def test_calculate_rotated_bounding_box(basis, rotation, expected_bounds):
     result_shape = calculate_rotated_bounding_box(image_shape, rotation_matrix)
 
     assert result_shape == expected_bounds
+
+
+def test_convert_atlas_labels_no_change():
+    mock_annotations = np.arange(1024).reshape((32, 32))
+
+    result, mapping = convert_atlas_labels(mock_annotations)
+
+    assert np.array_equal(result, mock_annotations)
+    assert len(mapping) == 0
+
+
+def test_convert_atlas_labels_high_labels():
+    mock_annotations = np.arange(2**16, 2**16 + 1024).reshape((32, 32))
+
+    result, mapping = convert_atlas_labels(mock_annotations)
+
+    # Since the labels are consecutive, starting at the max label, there
+    # should be no change to the array and the mapping should be empty
+    assert np.array_equal(result, mock_annotations)
+    assert len(mapping) == 0
+
+
+def test_convert_atlas_labels():
+    rng = np.random.default_rng(42)
+
+    mock_annotations = rng.integers(
+        2**32 - 1, size=(256, 256), dtype=np.uint32
+    )
+
+    result, mapping = convert_atlas_labels(mock_annotations)
+
+    max_value = 2**16
+    unique_values = np.unique(mock_annotations)
+    expected_mapping_count = unique_values[unique_values >= max_value].size
+
+    assert len(mapping) == expected_mapping_count
+
+    restored_image = restore_atlas_labels(result, mapping)
+
+    assert np.array_equal(restored_image, mock_annotations)
+
+
+def test_calculate_areas(tmp_path):
+    atlas = BrainGlobeAtlas("allen_mouse_100um")
+
+    mid_point = atlas.annotation.shape[0] // 2
+    mock_annotations = atlas.annotation[mid_point, :, :]
+    hemispheres = atlas.hemispheres[mid_point, :, :]
+
+    output_path = tmp_path / "areas.csv"
+
+    out_df = calculate_areas(atlas, mock_annotations, hemispheres, output_path)
+
+    assert output_path.exists()
+    assert out_df.columns.size == 4
+
+    # Based on regression testing, the following values are expected
+    assert out_df.loc[672, "structure_name"] == "Caudoputamen"
+    assert out_df.loc[672, "left_area_mm2"] == 1.98
+    assert out_df.loc[672, "right_area_mm2"] == 2.0
+    assert out_df.loc[672, "total_area_mm2"] == 3.98
+
+    assert out_df.loc[961, "structure_name"] == "Piriform area"
+    assert out_df.loc[961, "left_area_mm2"] == 1.27
+    assert out_df.loc[961, "right_area_mm2"] == 1.28
+    assert out_df.loc[961, "total_area_mm2"] == 2.55

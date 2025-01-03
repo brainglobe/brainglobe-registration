@@ -4,9 +4,9 @@
 
 //ImageTypes
 (FixedInternalImagePixelType "float")
-(FixedImageDimension 3)
+(FixedImageDimension 2)
 (MovingInternalImagePixelType "float")
-(MovingImageDimension 3)
+(MovingImageDimension 2)
 
 //Components
 (Registration "MultiResolutionRegistration")
