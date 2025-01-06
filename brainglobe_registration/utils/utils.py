@@ -1,5 +1,5 @@
 from collections import Counter
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Dict, List, Tuple
 
 import dask.array as da
@@ -360,7 +360,8 @@ def convert_atlas_labels(
 
     Parameters
     ----------
-    annotation_image
+    annotation_image: npt.NDArray[np.uint32]
+        The annotation image.
 
     Returns
     -------
@@ -398,7 +399,7 @@ def restore_atlas_labels(
     """
     Restore the original atlas labels from the adjusted labels based on the
     provided mapping.
-    .
+
     Parameters
     ----------
     annotation_image: npt.NDArray[np.uint32]
@@ -417,3 +418,18 @@ def restore_atlas_labels(
         annotation_image[annotation_image == new_value] = old_value
 
     return annotation_image
+
+
+def serialize_registration_widget(obj):
+    if isinstance(obj, napari.layers.Layer):
+        return obj.name
+    elif isinstance(obj, napari.Viewer):
+        return str(obj)
+    elif isinstance(obj, PurePath):
+        return str(obj)
+    elif isinstance(obj, BrainGlobeAtlas):
+        return obj.atlas_name
+    elif isinstance(obj, np.ndarray):
+        return f"<{type(obj)}>, {obj.shape}, {obj.dtype}"
+    else:
+        return obj.__dict__()

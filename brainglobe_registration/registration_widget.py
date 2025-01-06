@@ -8,6 +8,7 @@ shown in a table view using the Qt model/view framework
 Users can download and add the atlas images/structures as layers to the viewer.
 """
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -50,6 +51,7 @@ from brainglobe_registration.utils.utils import (
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
+    serialize_registration_widget,
 )
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
@@ -66,8 +68,8 @@ from brainglobe_registration.widgets.transform_select_view import (
 class RegistrationWidget(QScrollArea):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
-        self.widget = CollapsibleWidgetContainer()
-        self.widget.setContentsMargins(10, 10, 10, 10)
+        self._widget = CollapsibleWidgetContainer()
+        self._widget.setContentsMargins(10, 10, 10, 10)
 
         self._viewer = napari_viewer
         self._atlas: Optional[BrainGlobeAtlas] = None
@@ -181,7 +183,7 @@ class RegistrationWidget(QScrollArea):
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.widget.add_widget(
+        self._widget.add_widget(
             header_widget(
                 "brainglobe-<br>registration",  # line break at <br>
                 "Registration with Elastix",
@@ -189,13 +191,13 @@ class RegistrationWidget(QScrollArea):
             ),
             collapsible=False,
         )
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.get_atlas_widget, widget_title="Select Images"
         )
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
         )
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.transform_select_view, widget_title="Select Transformations"
         )
 
@@ -211,22 +213,24 @@ class RegistrationWidget(QScrollArea):
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
 
-        self.widget.add_widget(self.filter_checkbox, collapsible=False)
+        self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
-        self.widget.add_widget(QLabel("Output Directory"), collapsible=False)
-        self.widget.add_widget(self.output_directory_widget, collapsible=False)
-        self.widget.add_widget(self.run_button, collapsible=False)
+        self._widget.add_widget(QLabel("Output Directory"), collapsible=False)
+        self._widget.add_widget(
+            self.output_directory_widget, collapsible=False
+        )
+        self._widget.add_widget(self.run_button, collapsible=False)
 
-        self.widget.layout().itemAt(1).widget().collapse(animate=False)
+        self._widget.layout().itemAt(1).widget().collapse(animate=False)
 
         check_atlas_installed(self)
 
         self.setWidgetResizable(True)
-        self.setWidget(self.widget)
+        self.setWidget(self._widget)
 
     def _connect_events(self):
         @self._viewer.layers.events.removed.connect
@@ -505,6 +509,11 @@ class RegistrationWidget(QScrollArea):
                 areas_path,
             )
 
+            with open(
+                self.output_directory / "brainglobe_registration.json", "w"
+            ) as f:
+                json.dump(self, f, default=serialize_registration_widget)
+
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
     ) -> None:
@@ -766,3 +775,15 @@ class RegistrationWidget(QScrollArea):
             self.output_directory / "registered_hemispheres.tiff",
             registered_hemisphere,
         )
+
+    def __dict__(self):
+        return {
+            "atlas": self._atlas,
+            "atlas_data_layer": self._atlas_data_layer,
+            "atlas_annotations_layer": self._atlas_annotations_layer,
+            "moving_image": self._moving_image,
+            "adjust_moving_image_widget": self.adjust_moving_image_widget,
+            "transform_selections": self.transform_selections,
+            "filter": self.filter_checkbox.isChecked(),
+            "output_directory": self.output_directory,
+        }
