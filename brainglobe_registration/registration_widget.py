@@ -510,9 +510,11 @@ class RegistrationWidget(QScrollArea):
             )
 
             with open(
-                self.output_directory / "brainglobe_registration.json", "w"
+                self.output_directory / "brainglobe-registration.json", "w"
             ) as f:
-                json.dump(self, f, default=serialize_registration_widget)
+                json.dump(
+                    self, f, default=serialize_registration_widget, indent=4
+                )
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
