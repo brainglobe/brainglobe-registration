@@ -406,6 +406,15 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        if self.output_directory is None:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select an output directory "
+                "before clicking 'Run'.",
+            )
+            return
+
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         if self.filter_checkbox.isChecked():
@@ -490,31 +499,28 @@ class RegistrationWidget(QScrollArea):
 
         self._viewer.grid.enabled = False
 
-        if self.output_directory:
-            self.save_outputs(
-                boundaries,
-                deformation_field,
-                moving_image,
-                data_in_atlas_space,
-                result,
-                registered_annotation_image,
-                registered_hemisphere,
-            )
+        self.save_outputs(
+            boundaries,
+            deformation_field,
+            moving_image,
+            data_in_atlas_space,
+            result,
+            registered_annotation_image,
+            registered_hemisphere,
+        )
 
-            areas_path = self.output_directory / "areas.csv"
-            calculate_areas(
-                self._atlas,
-                registered_annotation_image,
-                registered_hemisphere,
-                areas_path,
-            )
+        areas_path = self.output_directory / "areas.csv"
+        calculate_areas(
+            self._atlas,
+            registered_annotation_image,
+            registered_hemisphere,
+            areas_path,
+        )
 
-            with open(
-                self.output_directory / "brainglobe-registration.json", "w"
-            ) as f:
-                json.dump(
-                    self, f, default=serialize_registration_widget, indent=4
-                )
+        with open(
+            self.output_directory / "brainglobe-registration.json", "w"
+        ) as f:
+            json.dump(self, f, default=serialize_registration_widget, indent=4)
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
