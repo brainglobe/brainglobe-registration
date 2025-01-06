@@ -64,12 +64,12 @@ class AdjustMovingImageView(QWidget):
         offset_range = 2000
         rotation_range = 360
 
-        self.moving_image_pixel_size_x = QDoubleSpinBox(parent=self)
-        self.moving_image_pixel_size_x.setDecimals(3)
-        self.moving_image_pixel_size_x.setRange(0.001, 100.00)
-        self.moving_image_pixel_size_y = QDoubleSpinBox(parent=self)
-        self.moving_image_pixel_size_y.setDecimals(3)
-        self.moving_image_pixel_size_y.setRange(0.001, 100.00)
+        self.adjust_moving_image_pixel_size_x = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_pixel_size_x.setDecimals(3)
+        self.adjust_moving_image_pixel_size_x.setRange(0.001, 100.00)
+        self.adjust_moving_image_pixel_size_y = QDoubleSpinBox(parent=self)
+        self.adjust_moving_image_pixel_size_y.setDecimals(3)
+        self.adjust_moving_image_pixel_size_y.setRange(0.001, 100.00)
         self.scale_moving_image_button = QPushButton()
         self.scale_moving_image_button.setText("Scale Image")
         self.scale_moving_image_button.clicked.connect(
@@ -123,11 +123,11 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(QLabel("Adjust the moving image scale:"))
         self.layout().addRow(
             "Sample image X pixel size (\u03BCm / pixel):",
-            self.moving_image_pixel_size_x,
+            self.adjust_moving_image_pixel_size_x,
         )
         self.layout().addRow(
             "Sample image Y pixel size (\u03BCm / pixel):",
-            self.moving_image_pixel_size_y,
+            self.adjust_moving_image_pixel_size_y,
         )
         self.layout().addRow(self.scale_moving_image_button)
 
@@ -173,8 +173,8 @@ class AdjustMovingImageView(QWidget):
         Emit the scale_image_signal with the entered pixel sizes.
         """
         self.scale_image_signal.emit(
-            self.moving_image_pixel_size_x.value(),
-            self.moving_image_pixel_size_y.value(),
+            self.adjust_moving_image_pixel_size_x.value(),
+            self.adjust_moving_image_pixel_size_y.value(),
         )
 
     def _on_adjust_atlas_rotation(self):
@@ -199,8 +199,8 @@ class AdjustMovingImageView(QWidget):
 
     def __dict__(self):
         return {
-            "pixel_size_x": self.moving_image_pixel_size_x.value(),
-            "pixel_size_y": self.moving_image_pixel_size_y.value(),
+            "pixel_size_x": self.adjust_moving_image_pixel_size_x.value(),
+            "pixel_size_y": self.adjust_moving_image_pixel_size_y.value(),
             "atlas_pitch": self.adjust_atlas_pitch.value(),
             "atlas_yaw": self.adjust_atlas_yaw.value(),
             "atlas_roll": self.adjust_atlas_roll.value(),
