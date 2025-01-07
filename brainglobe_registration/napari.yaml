@@ -10,7 +10,7 @@ contributions:
       title: Sample Data
   sample_data:
     - command: brainglobe-registration.load_sample
-      display_name: Sample Data
+      display_name: 2D coronal mouse brain section
       key: example
   widgets:
     - command: brainglobe-registration.make_registration_widget
