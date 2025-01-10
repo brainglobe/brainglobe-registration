@@ -29,7 +29,12 @@ def registration_widget_with_example_atlas(make_napari_viewer_with_images):
 
     # Based on the downloaded atlases by the fixture in conftest.py,
     # the example atlas will be in the third position.
-    example_atlas_index = 2
+    example_atlas_index = -1
+    for i, atlas in enumerate(widget._available_atlases):
+        if atlas == "example_mouse_100um":
+            example_atlas_index = i
+            break
+
     widget._on_atlas_dropdown_index_changed(example_atlas_index)
 
     return widget

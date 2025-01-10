@@ -8,6 +8,7 @@ shown in a table view using the Qt model/view framework
 Users can download and add the atlas images/structures as layers to the viewer.
 """
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -26,18 +27,31 @@ from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
-from qtpy.QtWidgets import QCheckBox, QPushButton, QScrollArea, QTabWidget
+from qtpy.QtWidgets import (
+    QCheckBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QTabWidget,
+    QWidget,
+)
 from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
+from tifffile import imwrite
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
+    calculate_areas,
     calculate_rotated_bounding_box,
     check_atlas_installed,
     filter_plane,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
+    serialize_registration_widget,
 )
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
@@ -54,8 +68,8 @@ from brainglobe_registration.widgets.transform_select_view import (
 class RegistrationWidget(QScrollArea):
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
-        self.widget = CollapsibleWidgetContainer()
-        self.widget.setContentsMargins(10, 10, 10, 10)
+        self._widget = CollapsibleWidgetContainer()
+        self._widget.setContentsMargins(10, 10, 10, 10)
 
         self._viewer = napari_viewer
         self._atlas: Optional[BrainGlobeAtlas] = None
@@ -63,11 +77,10 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
-        self._automatic_deletion_flag = False
         # Flag to differentiate between manual and automatic atlas deletion
+        self._automatic_deletion_flag = False
 
         self.transform_params: dict[str, dict] = {
-            "rigid": {},
             "affine": {},
             "bspline": {},
         }
@@ -77,7 +90,7 @@ class RegistrationWidget(QScrollArea):
             file_path = (
                 Path(__file__).parent.resolve()
                 / "parameters"
-                / "elastix_default"
+                / "ara_tools"
                 / f"{transform_type}.txt"
             )
 
@@ -92,6 +105,8 @@ class RegistrationWidget(QScrollArea):
         # Hacky way of having an empty first option for the dropdown
         self._available_atlases = ["------"] + get_downloaded_atlases()
         self._sample_images = get_image_layer_names(self._viewer)
+
+        self.output_directory: Optional[Path] = None
 
         if len(self._sample_images) > 0:
             self._moving_image = self._viewer.layers[0]
@@ -143,14 +158,32 @@ class RegistrationWidget(QScrollArea):
 
         # Use decorator to connect to layer deletion event
         self._connect_events()
+
         self.filter_checkbox = QCheckBox("Filter Images")
         self.filter_checkbox.setChecked(False)
+
+        self.output_directory_widget = QWidget()
+        self.output_directory_widget.setLayout(QHBoxLayout())
+
+        self.output_directory_text_field = QLineEdit()
+        self.output_directory_text_field.editingFinished.connect(
+            self._on_output_directory_text_edited
+        )
+        self.output_directory_widget.layout().addWidget(
+            self.output_directory_text_field
+        )
+
+        self.open_file_dialog = QPushButton("Browse")
+        self.open_file_dialog.clicked.connect(
+            self._on_open_file_dialog_clicked
+        )
+        self.output_directory_widget.layout().addWidget(self.open_file_dialog)
 
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.widget.add_widget(
+        self._widget.add_widget(
             header_widget(
                 "brainglobe-<br>registration",  # line break at <br>
                 "Registration with Elastix",
@@ -158,13 +191,13 @@ class RegistrationWidget(QScrollArea):
             ),
             collapsible=False,
         )
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.get_atlas_widget, widget_title="Select Images"
         )
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
         )
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.transform_select_view, widget_title="Select Transformations"
         )
 
@@ -180,20 +213,24 @@ class RegistrationWidget(QScrollArea):
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
-        self.widget.add_widget(
+        self._widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
 
-        self.widget.add_widget(self.filter_checkbox, collapsible=False)
+        self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
-        self.widget.add_widget(self.run_button, collapsible=False)
+        self._widget.add_widget(QLabel("Output Directory"), collapsible=False)
+        self._widget.add_widget(
+            self.output_directory_widget, collapsible=False
+        )
+        self._widget.add_widget(self.run_button, collapsible=False)
 
-        self.widget.layout().itemAt(1).widget().collapse(animate=False)
+        self._widget.layout().itemAt(1).widget().collapse(animate=False)
 
         check_atlas_installed(self)
 
         self.setWidgetResizable(True)
-        self.setWidget(self.widget)
+        self.setWidget(self._widget)
 
     def _connect_events(self):
         @self._viewer.layers.events.removed.connect
@@ -327,8 +364,31 @@ class RegistrationWidget(QScrollArea):
             return
         adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
+    def _on_output_directory_text_edited(self):
+        self.output_directory = Path(self.output_directory_text_field.text())
+
+    def _on_open_file_dialog_clicked(self) -> None:
+        """
+        Open a file dialog to select the output directory.
+        """
+        output_directory_str = QFileDialog.getExistingDirectory(
+            self, "Select the output directory", str(Path.home())
+        )
+        # A blank string is returned if the user cancels the dialog
+        if not output_directory_str:
+            return
+
+        self.output_directory = Path(output_directory_str)
+        self.output_directory_text_field.setText(str(self.output_directory))
+
     def _on_run_button_click(self):
-        from brainglobe_registration.elastix.register import run_registration
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            invert_transformation,
+            run_registration,
+            transform_annotation_image,
+            transform_image,
+        )
 
         if self._atlas_data_layer is None:
             display_info(
@@ -346,6 +406,15 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        if self.output_directory is None:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select an output directory "
+                "before clicking 'Run'.",
+            )
+            return
+
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         if self.filter_checkbox.isChecked():
@@ -354,23 +423,54 @@ class RegistrationWidget(QScrollArea):
                     current_atlas_slice, :, :
                 ].compute()
             )
-            moving_image_layer = filter_plane(self._moving_image.data)
+            moving_image = filter_plane(self._moving_image.data)
         else:
             atlas_layer = self._atlas_data_layer.data[
                 current_atlas_slice, :, :
             ]
-            moving_image_layer = self._moving_image.data
+            moving_image = self._moving_image.data
 
-        result, parameters, registered_annotation_image = run_registration(
+        result, parameters = run_registration(
             atlas_layer,
-            moving_image_layer,
-            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+            moving_image,
             self.transform_selections,
+            self.output_directory,
+        )
+
+        inverse_result, inverse_parameters = invert_transformation(
+            atlas_layer,
+            self.transform_selections,
+            parameters,
+            self.output_directory,
+        )
+
+        data_in_atlas_space = transform_image(moving_image, inverse_parameters)
+
+        # Creating fresh array is necessary to avoid a crash on Windows
+        # Otherwise self._atlas_annotations_layer.data.dtype.type returns
+        # np.uintc which is not supported by ITK. After creating a new array
+        # annotations.dtype.type returns np.uint32 which is supported by ITK.
+        annotation = np.array(
+            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+            dtype=np.uint32,
+        )
+
+        registered_annotation_image = transform_annotation_image(
+            annotation,
+            parameters,
+        )
+
+        registered_hemisphere = transform_annotation_image(
+            self._atlas.hemispheres[current_atlas_slice, :, :], parameters
         )
 
         boundaries = find_boundaries(
             registered_annotation_image, mode="inner"
         ).astype(np.int8, copy=False)
+
+        deformation_field = calculate_deformation_field(
+            moving_image, parameters
+        )
 
         self._viewer.add_image(result, name="Registered Image", visible=False)
 
@@ -380,7 +480,7 @@ class RegistrationWidget(QScrollArea):
         self._viewer.layers[atlas_layer_index].visible = False
 
         self._viewer.add_labels(
-            registered_annotation_image.astype(np.uint32, copy=False),
+            registered_annotation_image,
             name="Registered Annotations",
             visible=False,
         )
@@ -391,8 +491,36 @@ class RegistrationWidget(QScrollArea):
             blending="additive",
             opacity=0.8,
         )
+        self._viewer.add_image(
+            data_in_atlas_space,
+            name="Inverse Registered Image",
+            visible=False,
+        )
 
         self._viewer.grid.enabled = False
+
+        self.save_outputs(
+            boundaries,
+            deformation_field,
+            moving_image,
+            data_in_atlas_space,
+            result,
+            registered_annotation_image,
+            registered_hemisphere,
+        )
+
+        areas_path = self.output_directory / "areas.csv"
+        calculate_areas(
+            self._atlas,
+            registered_annotation_image,
+            registered_hemisphere,
+            areas_path,
+        )
+
+        with open(
+            self.output_directory / "brainglobe-registration.json", "w"
+        ) as f:
+            json.dump(self, f, default=serialize_registration_widget, indent=4)
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
@@ -595,3 +723,75 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer.data = self._atlas.annotation
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+    def save_outputs(
+        self,
+        boundaries: npt.NDArray,
+        deformation_field: npt.NDArray,
+        downsampled: npt.NDArray,
+        data_in_atlas_space: npt.NDArray,
+        atlas_in_data_space: npt.NDArray,
+        annotation_in_data_space: npt.NDArray,
+        registered_hemisphere: npt.NDArray,
+    ):
+        """
+        Save the outputs of the registration to the output directory.
+
+        The outputs are saved as per
+        https://brainglobe.info/documentation/brainreg/user-guide/output-files.html
+
+        Parameters
+        ----------
+        boundaries: npt.NDArray
+            The area boundaries of the registered annotation image.
+        deformation_field: npt.NDArray
+            The deformation field.
+        downsampled: npt.NDArray
+            The downsampled moving image.
+        data_in_atlas_space: npt.NDArray
+            The moving image in atlas space.
+        atlas_in_data_space: npt.NDArray
+            The atlas in data space.
+        annotation_in_data_space: npt.NDArray
+            The annotation in data space.#
+        registered_hemisphere: npt.NDArray
+            The hemisphere annotation in data space.
+        """
+        assert self._moving_image
+        assert self.output_directory
+
+        imwrite(self.output_directory / "boundaries.tiff", boundaries)
+
+        for i in range(deformation_field.shape[-1]):
+            imwrite(
+                self.output_directory / f"deformation_field_{i}.tiff",
+                deformation_field[:, :, i],
+            )
+
+        imwrite(self.output_directory / "downsampled.tiff", downsampled)
+        imwrite(
+            self.output_directory
+            / f"downsampled_standard_{self._moving_image.name}.tiff",
+            data_in_atlas_space,
+        )
+        imwrite(
+            self.output_directory / "registered_atlas.tiff",
+            annotation_in_data_space,
+        )
+
+        imwrite(
+            self.output_directory / "registered_hemispheres.tiff",
+            registered_hemisphere,
+        )
+
+    def __dict__(self):
+        return {
+            "atlas": self._atlas,
+            "atlas_data_layer": self._atlas_data_layer,
+            "atlas_annotations_layer": self._atlas_annotations_layer,
+            "moving_image": self._moving_image,
+            "adjust_moving_image_widget": self.adjust_moving_image_widget,
+            "transform_selections": self.transform_selections,
+            "filter": self.filter_checkbox.isChecked(),
+            "output_directory": self.output_directory,
+        }

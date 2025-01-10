@@ -196,3 +196,15 @@ class AdjustMovingImageView(QWidget):
         self.adjust_atlas_roll.setValue(0)
 
         self.reset_atlas_signal.emit()
+
+    def __dict__(self):
+        return {
+            "pixel_size_x": self.adjust_moving_image_pixel_size_x.value(),
+            "pixel_size_y": self.adjust_moving_image_pixel_size_y.value(),
+            "atlas_pitch": self.adjust_atlas_pitch.value(),
+            "atlas_yaw": self.adjust_atlas_yaw.value(),
+            "atlas_roll": self.adjust_atlas_roll.value(),
+            "moving_image_x_offset": self.adjust_moving_image_x.value(),
+            "moving_image_y_offset": self.adjust_moving_image_y.value(),
+            "moving_image_rotation": self.adjust_moving_image_rotate.value(),
+        }

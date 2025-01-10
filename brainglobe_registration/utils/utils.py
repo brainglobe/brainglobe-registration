@@ -1,9 +1,13 @@
-from pathlib import Path
+from collections import Counter
+from pathlib import Path, PurePath
 from typing import Dict, List, Tuple
 
+import dask.array as da
 import napari
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
+from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.dialog import display_info
 from pytransform3d.rotations import active_matrix_from_angle
@@ -254,3 +258,178 @@ def pseudo_flatfield(img_plane, sigma=5):
     """
     filtered_img = gaussian_filter(img_plane, sigma)
     return img_plane / (filtered_img + 1)
+
+
+def calculate_areas(
+    atlas: BrainGlobeAtlas,
+    annotation_image: npt.NDArray[np.uint32],
+    hemispheres: npt.NDArray,
+    output_path: Path,
+    left_hemisphere_label: int = 2,
+    right_hemisphere_label: int = 1,
+) -> pd.DataFrame:
+    """
+    Calculate the areas of the structures in the annotation image.
+
+    Parameters
+    ----------
+    atlas: BrainGlobeAtlas
+        The atlas object to which the annotation image belongs.
+    annotation_image: npt.NDArray[np.uint32]
+        The annotation image.
+    hemispheres: npt.NDArray
+        The hemisphere labels for each pixel in the annotation image.
+    output_path: Path
+        The path to save the output csv file.
+    left_hemisphere_label: int, optional
+        The label for the left hemisphere.
+    right_hemisphere_label: int, optional
+        The label for the right hemisphere.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing the structure names and areas.
+    """
+    count_left = Counter(
+        annotation_image[hemispheres == left_hemisphere_label].flatten()
+    )
+    count_right = Counter(
+        annotation_image[hemispheres == right_hemisphere_label].flatten()
+    )
+
+    # Remove the background label
+    count_left.pop(0)
+    count_right.pop(0)
+
+    structures_reference_df = atlas.lookup_df
+
+    df = pd.DataFrame(
+        index=structures_reference_df.id,
+        columns=[
+            "structure_name",
+            "left_area_mm2",
+            "right_area_mm2",
+            "total_area_mm2",
+        ],
+    )
+    pixel_area_in_mm2 = atlas.resolution[1] * atlas.resolution[2] / (1000**2)
+
+    for structure_id in count_left.keys():
+        structure_line = structures_reference_df[
+            structures_reference_df["id"] == structure_id
+        ]
+
+        if len(structure_line) == 0:
+            print(
+                f"Value: {structure_id} is not in the atlas structure "
+                f"reference file. Not calculating the area."
+            )
+            continue
+
+        left_area = count_left[structure_id] * pixel_area_in_mm2
+        right_area = count_right[structure_id] * pixel_area_in_mm2
+        total_area = left_area + right_area
+
+        df.loc[structure_id] = {
+            "structure_name": structure_line["name"].values[0],
+            "left_area_mm2": left_area,
+            "right_area_mm2": right_area,
+            "total_area_mm2": total_area,
+        }
+
+    df.dropna(how="all", inplace=True)
+
+    df.to_csv(output_path, index=False)
+
+    return df
+
+
+def convert_atlas_labels(
+    annotation_image: npt.NDArray[np.uint32],
+) -> Tuple[npt.NDArray[np.uint32], Dict[int, int]]:
+    """
+    Adjust the atlas labels such that they can be represented accurately
+    by a single precision float (np.float32).
+
+    This is done by mapping the labels greater than 2**16 to new
+    consecutive values starting from 2**16.
+
+    Slow to run if a large number of unique values are greater than 2**16.
+    Based on current BrainGlobe atlases, this should not be the case.
+
+    Parameters
+    ----------
+    annotation_image: npt.NDArray[np.uint32]
+        The annotation image.
+
+    Returns
+    -------
+    npt.NDArray[np.uint32]
+        The adjusted annotation image.
+    Dict[int, int]
+        A dictionary mapping the original values to the new values.
+            key: original annotation ID
+            value: new annotation ID
+    """
+    # Returns a sorted array of unique values in the annotation image
+    values = np.unique(annotation_image)
+
+    if isinstance(values, da.Array):
+        values = values.compute()
+
+    # Create a mapping of the original values to the new values
+    # and adjust the annotation image
+    mapping = {}
+    new_value = 2**16
+    for value in values:
+        if value > new_value:
+            mapping[value] = new_value
+            annotation_image[annotation_image == value] = new_value
+            new_value += 1
+        elif value == new_value:
+            new_value += 1
+
+    return annotation_image, mapping
+
+
+def restore_atlas_labels(
+    annotation_image: npt.NDArray[np.uint32], mapping: Dict[int, int]
+) -> npt.NDArray[np.uint32]:
+    """
+    Restore the original atlas labels from the adjusted labels based on the
+    provided mapping.
+
+    Parameters
+    ----------
+    annotation_image: npt.NDArray[np.uint32]
+        The adjusted annotation image.
+    mapping: Dict[int, int]
+        A dictionary mapping the original values to the new values.
+            key: original annotation ID
+            value: new annotation ID
+
+    Returns
+    -------
+    npt.NDArray[np.uint32]
+        The restored annotation image.
+    """
+    for old_value, new_value in mapping.items():
+        annotation_image[annotation_image == new_value] = old_value
+
+    return annotation_image
+
+
+def serialize_registration_widget(obj):
+    if isinstance(obj, napari.layers.Layer):
+        return obj.name
+    elif isinstance(obj, napari.Viewer):
+        return str(obj)
+    elif isinstance(obj, PurePath):
+        return str(obj)
+    elif isinstance(obj, BrainGlobeAtlas):
+        return obj.atlas_name
+    elif isinstance(obj, np.ndarray):
+        return f"<{type(obj)}>, {obj.shape}, {obj.dtype}"
+    else:
+        return obj.__dict__()
