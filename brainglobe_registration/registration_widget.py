@@ -22,6 +22,7 @@ from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from brainglobe_utils.qtpy.dialog import display_info
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.ndinterp import affine_transform as dask_affine_transform
+from napari.layers.utils.plane import ClippingPlaneList
 from napari.qt.threading import thread_worker
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
@@ -56,6 +57,7 @@ from brainglobe_registration.utils.utils import (
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
 )
+from brainglobe_registration.widgets.crop_atlas_view import CropAtlasView
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
@@ -77,6 +79,8 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
+        self._reference_clipping_planes: Optional[ClippingPlaneList] = None
+        self._annotation_clipping_planes: Optional[ClippingPlaneList] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
 
@@ -145,6 +149,8 @@ class RegistrationWidget(QScrollArea):
             self._on_atlas_reset
         )
 
+        self.crop_atlas_view = CropAtlasView(self)
+
         self.transform_select_view = TransformSelectView()
         self.transform_select_view.transform_type_added_signal.connect(
             self._on_transform_type_added
@@ -196,6 +202,9 @@ class RegistrationWidget(QScrollArea):
         )
         self._widget.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
+        )
+        self._widget.add_widget(
+            self.crop_atlas_view, widget_title="Crop Atlas"
         )
         self._widget.add_widget(
             self.transform_select_view, widget_title="Select Transformations"
@@ -331,7 +340,33 @@ class RegistrationWidget(QScrollArea):
             visible=False,
         )
 
+        self.crop_atlas_view.update_slider_ranges(self._atlas.reference.shape)
+        self._setup_clipping_planes()
+        self._atlas_data_layer.experimental_clipping_planes = (
+            self._reference_clipping_planes
+        )
+
         self._viewer.grid.enabled = True
+
+    def _setup_clipping_planes(self):
+        clipping_planes_array = np.zeros((6, 2, 3))
+
+        assert self._atlas
+
+        for i in range(3):
+            # Set the normal vector for the "front" clipping plane
+            clipping_planes_array[(i * 2), 1, i] = 1
+            # Set the position of the "back" clipping plane
+            clipping_planes_array[(i * 2) + 1, 0, i] = (
+                self._atlas.reference.shape[i]
+            )
+            # Set the normal vector for the "back" clipping plane
+            clipping_planes_array[(i * 2) + 1, 1, i] = -1
+
+        self._reference_clipping_planes = clipping_planes_array
+        self._atlas_data_layer.experimental_clipping_planes = (
+            ClippingPlaneList.from_array(clipping_planes_array)
+        )
 
     def _on_sample_dropdown_index_changed(self, index):
         viewer_index = find_layer_index(
