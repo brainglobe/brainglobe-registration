@@ -21,7 +21,7 @@ A [napari] plugin for registering images to a BrainGlobe atlas.
 ## Usage
 
 1. Open `napari`.
-2. Install the plugin with `pip install git+https://github.com/brainglobe/brainglobe-registration.git`.
+2. [Install the plugin](#Installation).
 3. Open the widget by selecting `Plugins > BrainGlobe Registration` in the napari menu bar near the
 top left of the window.
 ![brainglobe-registration-plugin](./imgs/brainglobe_registration_plugin_window.png)
@@ -44,18 +44,20 @@ Select from one of the three provided default parameter sets (elastix, ARA, or I
 8. Click `Run` to register the image. The registered image will appear in the napari viewer.
 ![brainglobe-registration-registered](./imgs/brainglobe_registration_registered.png)
 ![brainglobe-registration-registered](./imgs/brainglobe_registration_registered_stacked.png)
+
 ## Installation
 
 We strongly recommend to use a virtual environment manager (like `conda` or `venv`). The installation instructions below
 will not specify the Qt backend for napari, and you will therefore need to install that separately. Please see the
 [`napari` installation instructions](https://napari.org/stable/tutorials/fundamentals/installation.html) for further advice on this.
 
-[WIP] You can install `brainglobe-registration` via [pip]:
+You can install `brainglobe-registration` via [pip]:
 
     pip install brainglobe-registration
 
+or [via napari](https://napari.org/stable/plugins/start_using_plugins/finding_and_installing_plugins.html).
 
-To install latest development version :
+To install the latest development version :
 
     pip install git+https://github.com/brainglobe/brainglobe-registration.git
 
