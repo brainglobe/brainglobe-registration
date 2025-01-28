@@ -57,7 +57,7 @@ You can install `brainglobe-registration` via [pip]:
 
 or [via napari](https://napari.org/stable/plugins/start_using_plugins/finding_and_installing_plugins.html).
 
-To install latest development version :
+To install the latest development version :
 
     pip install git+https://github.com/brainglobe/brainglobe-registration.git
 
