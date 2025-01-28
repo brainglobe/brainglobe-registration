@@ -23,8 +23,17 @@ jobs:
     steps:
       - uses: neuroinformatics-unit/actions/check_manifest@v2
 
+  get-week-number:
+    runs-on: ubuntu-latest
+    outputs:
+        WEEK_NUMBER: ${{ steps.get-week-number.outputs.WEEK_NUMBER }}
+    steps:
+    - name: Get week number
+      id: get-week-number
+      run: echo "WEEK_NUMBER=$(date -u '+%V')" >> "$GITHUB_OUTPUT"
+
   test:
-    needs: [linting, manifest]
+    needs: [linting, manifest, get-week-number]
     name: ${{ matrix.os }} py${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -55,13 +64,16 @@ jobs:
       # cache atlases needed by the tests
       - name: Cache Atlases
         id: atlas-cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
-          path: | # ensure we don't cache any interrupted atlas download and extraction!
-            ~/.brainglobe/*
+          path: | # ensure we don't cache any interrupted atlas download and extraction, if e.g. we cancel the workflow manually
+            ~/.brainglobe
             !~/.brainglobe/atlas.tar.gz
-          key: ${{ runner.os }}-cached-atlases
-          enableCrossOsArchive: false # ~ and $HOME evaluate to different places across OSs!
+          key: brainglobe-${{ runner.os }}-${{ needs.get-week-number.outputs.WEEK_NUMBER }}
+          restore-keys: |
+              brainglobe-${{ runner.os }}-${{ needs.get-week-number.outputs.WEEK_NUMBER }}
+              brainglobe-${{ runner.os }}-
+              brainglobe
 
       - if: ${{ steps.atlas-cache.outputs.cache-hit == 'true' }}
         name: List files in brainglobe data folder # good to be able to sanity check that user data is as expected
