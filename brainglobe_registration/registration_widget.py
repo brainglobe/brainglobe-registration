@@ -407,6 +407,14 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        if self._moving_image is None:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select a moving image before clicking 'Run'.",
+            )
+            return
+
         from brainglobe_registration.elastix.register import (
             calculate_deformation_field,
             invert_transformation,
@@ -415,13 +423,21 @@ class RegistrationWidget(QScrollArea):
             transform_image,
         )
 
-        if self._atlas_data_layer.data.ndim == 3:
+        if self._moving_image.data.ndim == 2:
             current_atlas_slice = self._viewer.dims.current_step[0]
             atlas_image = self._atlas_data_layer.data[
                 current_atlas_slice, :, :
             ].compute()
+            annotation_image = self._atlas_annotations_layer.data[
+                current_atlas_slice, :, :
+            ]
+            hemisphere_image = self._atlas.hemispheres[
+                current_atlas_slice, :, :
+            ]
         else:
             atlas_image = self._atlas_data_layer.data
+            annotation_image = self._atlas_annotations_layer.data
+            hemisphere_image = self._atlas.hemispheres
 
         if self.filter_checkbox.isChecked():
             moving_image = filter_image(self._moving_image.data)
@@ -450,7 +466,7 @@ class RegistrationWidget(QScrollArea):
         # np.uintc which is not supported by ITK. After creating a new array
         # annotations.dtype.type returns np.uint32 which is supported by ITK.
         annotation = np.array(
-            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
+            annotation_image.compute(),
             dtype=np.uint32,
         )
 
@@ -460,7 +476,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         registered_hemisphere = transform_annotation_image(
-            self._atlas.hemispheres[current_atlas_slice, :, :], parameters
+            hemisphere_image, parameters
         )
 
         boundaries = find_boundaries(
