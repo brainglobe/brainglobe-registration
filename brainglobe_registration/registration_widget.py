@@ -42,12 +42,12 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
+from brainglobe_registration.utils.preprocess import filter_image
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     calculate_areas,
     calculate_rotated_bounding_box,
     check_atlas_installed,
-    filter_plane,
     find_layer_index,
     get_image_layer_names,
     open_parameter_file,
@@ -415,30 +415,29 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        current_atlas_slice = self._viewer.dims.current_step[0]
+        if self._atlas_data_layer.data.ndim == 3:
+            current_atlas_slice = self._viewer.dims.current_step[0]
+            atlas_image = self._atlas_data_layer.data[
+                current_atlas_slice, :, :
+            ].compute()
+        else:
+            atlas_image = self._atlas_data_layer.data
 
         if self.filter_checkbox.isChecked():
-            atlas_layer = filter_plane(
-                self._atlas_data_layer.data[
-                    current_atlas_slice, :, :
-                ].compute()
-            )
-            moving_image = filter_plane(self._moving_image.data)
+            moving_image = filter_image(self._moving_image.data)
+            atlas_image = filter_image(atlas_image)
         else:
-            atlas_layer = self._atlas_data_layer.data[
-                current_atlas_slice, :, :
-            ]
             moving_image = self._moving_image.data
 
         result, parameters = run_registration(
-            atlas_layer,
+            atlas_image,
             moving_image,
             self.transform_selections,
             self.output_directory,
         )
 
         inverse_result, inverse_parameters = invert_transformation(
-            atlas_layer,
+            atlas_image,
             self.transform_selections,
             parameters,
             self.output_directory,
