@@ -181,7 +181,7 @@ def check_atlas_installed(parent_widget: QWidget):
         )
 
 
-def calculate_areas(
+def calculate_region_size(
     atlas: BrainGlobeAtlas,
     annotation_image: npt.NDArray[np.uint32],
     hemispheres: npt.NDArray,
@@ -225,16 +225,34 @@ def calculate_areas(
 
     structures_reference_df = atlas.lookup_df
 
-    df = pd.DataFrame(
-        index=structures_reference_df.id,
-        columns=[
+    if annotation_image.ndim == 3:
+        columns = [
+            "structure_name",
+            "left_volume_mm3",
+            "right_volume_mm3",
+            "total_volume_mm3",
+        ]
+        pixel_conversion_factor = (
+            atlas.resolution[0]
+            * atlas.resolution[1]
+            * atlas.resolution[2]
+            / (1000**3)
+        )
+    else:
+        columns = [
             "structure_name",
             "left_area_mm2",
             "right_area_mm2",
             "total_area_mm2",
-        ],
+        ]
+        pixel_conversion_factor = (
+            atlas.resolution[1] * atlas.resolution[2] / (1000**2)
+        )
+
+    df = pd.DataFrame(
+        index=structures_reference_df.id,
+        columns=columns,
     )
-    pixel_area_in_mm2 = atlas.resolution[1] * atlas.resolution[2] / (1000**2)
 
     for structure_id in count_left.keys():
         structure_line = structures_reference_df[
@@ -248,15 +266,15 @@ def calculate_areas(
             )
             continue
 
-        left_area = count_left[structure_id] * pixel_area_in_mm2
-        right_area = count_right[structure_id] * pixel_area_in_mm2
-        total_area = left_area + right_area
+        left_size = count_left[structure_id] * pixel_conversion_factor
+        right_size = count_right[structure_id] * pixel_conversion_factor
+        total_size = left_size + right_size
 
         df.loc[structure_id] = {
-            "structure_name": structure_line["name"].values[0],
-            "left_area_mm2": left_area,
-            "right_area_mm2": right_area,
-            "total_area_mm2": total_area,
+            columns[0]: structure_line["name"].values[0],
+            columns[1]: left_size,
+            columns[2]: right_size,
+            columns[3]: total_size,
         }
 
     df.dropna(how="all", inplace=True)

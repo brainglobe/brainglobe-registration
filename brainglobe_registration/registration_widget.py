@@ -45,7 +45,7 @@ from tifffile import imwrite
 from brainglobe_registration.utils.preprocess import filter_image
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
-    calculate_areas,
+    calculate_region_size,
     calculate_rotated_bounding_box,
     check_atlas_installed,
     find_layer_index,
@@ -524,12 +524,16 @@ class RegistrationWidget(QScrollArea):
             registered_hemisphere,
         )
 
-        areas_path = self.output_directory / "areas.csv"
-        calculate_areas(
+        if self._moving_image.data.ndim == 2:
+            region_stat_path = self.output_directory / "areas.csv"
+        else:
+            region_stat_path = self.output_directory / "volumes.csv"
+
+        calculate_region_size(
             self._atlas,
             registered_annotation_image,
             registered_hemisphere,
-            areas_path,
+            region_stat_path,
         )
 
         with open(

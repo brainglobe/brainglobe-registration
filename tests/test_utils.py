@@ -8,7 +8,7 @@ from pytransform3d.rotations import active_matrix_from_angle
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
-    calculate_areas,
+    calculate_region_size,
     calculate_rotated_bounding_box,
     convert_atlas_labels,
     find_layer_index,
@@ -178,7 +178,9 @@ def test_calculate_areas(tmp_path):
 
     output_path = tmp_path / "areas.csv"
 
-    out_df = calculate_areas(atlas, mock_annotations, hemispheres, output_path)
+    out_df = calculate_region_size(
+        atlas, mock_annotations, hemispheres, output_path
+    )
 
     assert output_path.exists()
     assert out_df.columns.size == 4
