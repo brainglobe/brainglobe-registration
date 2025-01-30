@@ -382,14 +382,6 @@ class RegistrationWidget(QScrollArea):
         self.output_directory_text_field.setText(str(self.output_directory))
 
     def _on_run_button_click(self):
-        from brainglobe_registration.elastix.register import (
-            calculate_deformation_field,
-            invert_transformation,
-            run_registration,
-            transform_annotation_image,
-            transform_image,
-        )
-
         if self._atlas_data_layer is None:
             display_info(
                 widget=self,
@@ -414,6 +406,14 @@ class RegistrationWidget(QScrollArea):
                 "before clicking 'Run'.",
             )
             return
+
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            invert_transformation,
+            run_registration,
+            transform_annotation_image,
+            transform_image,
+        )
 
         if self._atlas_data_layer.data.ndim == 3:
             current_atlas_slice = self._viewer.dims.current_step[0]
