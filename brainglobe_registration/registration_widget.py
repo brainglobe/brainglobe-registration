@@ -445,6 +445,7 @@ class RegistrationWidget(QScrollArea):
         else:
             moving_image = self._moving_image.data
 
+        print("Running registration")
         result, parameters = run_registration(
             atlas_image,
             moving_image,
@@ -452,6 +453,7 @@ class RegistrationWidget(QScrollArea):
             self.output_directory,
         )
 
+        print("Inverting transformation")
         inverse_result, inverse_parameters = invert_transformation(
             atlas_image,
             self.transform_selections,
@@ -465,6 +467,7 @@ class RegistrationWidget(QScrollArea):
         # Otherwise self._atlas_annotations_layer.data.dtype.type returns
         # np.uintc which is not supported by ITK. After creating a new array
         # annotations.dtype.type returns np.uint32 which is supported by ITK.
+        print("Transforming annotation image")
         annotation = np.array(
             annotation_image.compute(),
             dtype=np.uint32,
@@ -483,6 +486,7 @@ class RegistrationWidget(QScrollArea):
             registered_annotation_image, mode="inner"
         ).astype(np.int8, copy=False)
 
+        print("Calculating deformation field")
         deformation_field = calculate_deformation_field(
             moving_image, parameters
         )
@@ -514,6 +518,7 @@ class RegistrationWidget(QScrollArea):
 
         self._viewer.grid.enabled = False
 
+        print("Saving outputs")
         self.save_outputs(
             boundaries,
             deformation_field,
