@@ -122,11 +122,11 @@ class AdjustMovingImageView(QWidget):
 
         self.layout().addRow(QLabel("Adjust the moving image scale:"))
         self.layout().addRow(
-            "Sample image X pixel size (\u03BCm / pixel):",
+            "Sample image X pixel size (\u03bcm / pixel):",
             self.adjust_moving_image_pixel_size_x,
         )
         self.layout().addRow(
-            "Sample image Y pixel size (\u03BCm / pixel):",
+            "Sample image Y pixel size (\u03bcm / pixel):",
             self.adjust_moving_image_pixel_size_y,
         )
         self.layout().addRow(self.scale_moving_image_button)
