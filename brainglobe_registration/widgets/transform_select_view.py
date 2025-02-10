@@ -55,6 +55,7 @@ class TransformSelectView(QTableWidget):
         # Define the available transform types and file options
         self.file_options = [
             "elastix_default",
+            "brainglobe_registration",
             "ara_tools",
             "brainregister_IBL",
         ]

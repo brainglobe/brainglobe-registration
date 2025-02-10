@@ -12,6 +12,3 @@ recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude docs *
 recursive-exclude tests *
-
-exclude brainglobe_registration/parameters/brainglobe_registration/affine.txt
-exclude brainglobe_registration/parameters/brainglobe_registration/bspline.txt
