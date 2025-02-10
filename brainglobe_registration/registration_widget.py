@@ -21,6 +21,7 @@ from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
 from brainglobe_utils.qtpy.dialog import display_info
 from brainglobe_utils.qtpy.logo import header_widget
+from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.events import Event
@@ -42,7 +43,6 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
-from brainglobe_registration.utils.preprocess import filter_image
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
     calculate_region_size,
@@ -75,6 +75,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas: Optional[BrainGlobeAtlas] = None
         self._atlas_data_layer: Optional[napari.layers.Image] = None
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
+        self._atlas_transform_matrix: Optional[npt.NDArray] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
         # Flag to differentiate between manual and automatic atlas deletion
@@ -90,7 +91,7 @@ class RegistrationWidget(QScrollArea):
             file_path = (
                 Path(__file__).parent.resolve()
                 / "parameters"
-                / "ara_tools"
+                / "brainglobe_registration"
                 / f"{transform_type}.txt"
             )
 
@@ -268,6 +269,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
+        self._atlas_transform_matrix = None
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
 
@@ -312,7 +314,7 @@ class RegistrationWidget(QScrollArea):
                 self._atlas.annotation.shape[1],
                 self._atlas.annotation.shape[2],
             ),
-        )
+        ).astype(np.uint32)
 
         contrast_max = np.max(
             dask_reference[dask_reference.shape[0] // 2]
@@ -439,11 +441,17 @@ class RegistrationWidget(QScrollArea):
             annotation_image = self._atlas_annotations_layer.data
             hemisphere_image = self._atlas.hemispheres
 
-        if self.filter_checkbox.isChecked():
-            moving_image = filter_image(self._moving_image.data)
-            atlas_image = filter_image(atlas_image)
-        else:
-            moving_image = self._moving_image.data
+        for transform_selection in self.transform_selections:
+            if "FixedImageDimension" not in transform_selection[1]:
+                transform_selection[1][
+                    "FixedImageDimension"
+                ] = self._moving_image.data.ndim
+            if "MovingImageDimension" not in transform_selection[1]:
+                transform_selection[1][
+                    "MovingImageDimension"
+                ] = self._moving_image.data.ndim
+
+        moving_image = self._moving_image.data
 
         print("Running registration")
         result, parameters = run_registration(
@@ -451,7 +459,10 @@ class RegistrationWidget(QScrollArea):
             moving_image,
             self.transform_selections,
             self.output_directory,
+            filter_images=self.filter_checkbox.isChecked(),
         )
+
+        self._viewer.add_image(result, name="Registered Image", visible=False)
 
         print("Inverting transformation")
         inverse_result, inverse_parameters = invert_transformation(
@@ -459,75 +470,64 @@ class RegistrationWidget(QScrollArea):
             self.transform_selections,
             parameters,
             self.output_directory,
+            filter_images=self.filter_checkbox.isChecked(),
         )
+
+        del inverse_result
 
         data_in_atlas_space = transform_image(moving_image, inverse_parameters)
-
-        # Creating fresh array is necessary to avoid a crash on Windows
-        # Otherwise self._atlas_annotations_layer.data.dtype.type returns
-        # np.uintc which is not supported by ITK. After creating a new array
-        # annotations.dtype.type returns np.uint32 which is supported by ITK.
-        print("Transforming annotation image")
-        annotation = np.array(
-            annotation_image.compute(),
-            dtype=np.uint32,
+        data_in_atlas_space_path = (
+            self.output_directory
+            / f"downsampled_standard_{self._moving_image.name}.tiff"
         )
 
-        registered_annotation_image = transform_annotation_image(
-            annotation,
-            parameters,
+        imwrite(
+            data_in_atlas_space_path,
+            data_in_atlas_space,
         )
 
-        registered_hemisphere = transform_annotation_image(
-            hemisphere_image, parameters
-        )
+        del data_in_atlas_space
 
-        boundaries = find_boundaries(
-            registered_annotation_image, mode="inner"
-        ).astype(np.int8, copy=False)
+        data_in_atlas_space = dask_imread(data_in_atlas_space_path)
 
-        print("Calculating deformation field")
-        deformation_field = calculate_deformation_field(
-            moving_image, parameters
-        )
-
-        self._viewer.add_image(result, name="Registered Image", visible=False)
-
-        atlas_layer_index = find_layer_index(
-            self._viewer, self._atlas.atlas_name
-        )
-        self._viewer.layers[atlas_layer_index].visible = False
-
-        self._viewer.add_labels(
-            registered_annotation_image,
-            name="Registered Annotations",
-            visible=False,
-        )
-        self._viewer.add_image(
-            boundaries,
-            name="Registered Boundaries",
-            visible=True,
-            blending="additive",
-            opacity=0.8,
-        )
         self._viewer.add_image(
             data_in_atlas_space,
             name="Inverse Registered Image",
             visible=False,
         )
 
-        self._viewer.grid.enabled = False
-
-        print("Saving outputs")
-        self.save_outputs(
-            boundaries,
-            deformation_field,
-            moving_image,
-            data_in_atlas_space,
-            result,
-            registered_annotation_image,
-            registered_hemisphere,
+        print("Transforming annotation image")
+        registered_annotation_image = transform_annotation_image(
+            annotation_image.compute(),
+            parameters,
         )
+
+        registered_annotation_image_path = (
+            self.output_directory / "registered_atlas.tiff"
+        )
+        imwrite(registered_annotation_image_path, registered_annotation_image)
+
+        if self._atlas_transform_matrix is not None:
+            hemisphere_image = dask_affine_transform(
+                self._atlas.hemispheres,
+                self._atlas_transform_matrix,
+                order=0,
+                output_shape=self._atlas_data_layer.data.shape,
+                output_chunks=(
+                    1,
+                    self._atlas_data_layer.data.shape[1],
+                    self._atlas_data_layer.data.shape[2],
+                ),
+            )
+
+        registered_hemisphere = transform_annotation_image(
+            hemisphere_image, parameters
+        )
+
+        registered_hemisphere_path = (
+            self.output_directory / "registered_hemisphere.tiff"
+        )
+        imwrite(registered_hemisphere_path, registered_hemisphere)
 
         if self._moving_image.data.ndim == 2:
             region_stat_path = self.output_directory / "areas.csv"
@@ -540,6 +540,54 @@ class RegistrationWidget(QScrollArea):
             registered_hemisphere,
             region_stat_path,
         )
+
+        del registered_hemisphere
+        del hemisphere_image
+
+        boundaries = find_boundaries(
+            registered_annotation_image, mode="inner"
+        ).astype(np.int8, copy=False)
+
+        imwrite(self.output_directory / "boundaries.tiff", boundaries)
+
+        del registered_annotation_image
+
+        registered_annotation_image = dask_imread(
+            registered_annotation_image_path
+        )
+        self._viewer.add_labels(
+            registered_annotation_image,
+            name="Registered Annotations",
+            visible=False,
+        )
+
+        self._viewer.add_image(
+            boundaries,
+            name="Registered Boundaries",
+            visible=True,
+            blending="additive",
+            opacity=0.8,
+        )
+
+        print("Calculating deformation field")
+        deformation_field = calculate_deformation_field(
+            moving_image, parameters
+        )[..., ::-1]
+
+        for i in range(deformation_field.shape[-1]):
+            imwrite(
+                self.output_directory / f"deformation_field_{i}.tiff",
+                deformation_field[..., i],
+            )
+
+        atlas_layer_index = find_layer_index(
+            self._viewer, self._atlas.atlas_name
+        )
+        self._viewer.layers[atlas_layer_index].visible = False
+        self._viewer.grid.enabled = False
+
+        print("Saving outputs")
+        imwrite(self.output_directory / "downsampled.tiff", moving_image)
 
         with open(
             self.output_directory / "brainglobe-registration.json", "w"
@@ -691,13 +739,13 @@ class RegistrationWidget(QScrollArea):
         # 1. Translate the origin to the center of the image
         # 2. Rotate the image
         # 3. Translate the origin back to the top left corner
-        transform_matrix = (
+        self._atlas_transform_matrix = np.linalg.inv(
             post_rotate_translation @ full_matrix @ translate_matrix
         )
 
         self._atlas_data_layer.data = dask_affine_transform(
             self._atlas.reference,
-            np.linalg.inv(transform_matrix),
+            self._atlas_transform_matrix,
             order=2,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
@@ -705,7 +753,7 @@ class RegistrationWidget(QScrollArea):
 
         self._atlas_annotations_layer.data = dask_affine_transform(
             self._atlas.annotation,
-            np.linalg.inv(transform_matrix),
+            self._atlas_transform_matrix,
             order=0,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
