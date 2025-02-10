@@ -286,25 +286,25 @@ def calculate_region_size(
 
 def convert_atlas_labels(
     annotation_image: npt.NDArray[np.uint32],
-) -> Tuple[npt.NDArray[np.uint32], Dict[int, int]]:
+) -> Tuple[npt.NDArray[np.uint16], Dict[int, int]]:
     """
     Adjust the atlas labels such that they can be represented accurately
-    by a single precision float (np.float32).
+    by a single precision float (np.float32) or an unsigned short (np.uint16).
 
-    This is done by mapping the labels greater than 2**16 to new
-    consecutive values starting from 2**16.
+    This is done by mapping the labels greater than 2**15 to new
+    consecutive values starting from 2**15.
 
-    Slow to run if a large number of unique values are greater than 2**16.
+    Slow to run if a large number of unique values are greater than 2**15.
     Based on current BrainGlobe atlases, this should not be the case.
 
     Parameters
     ----------
-    annotation_image: npt.NDArray[np.uint32]
+    annotation_image: npt.NDArray[np.uint16]
         The annotation image.
 
     Returns
     -------
-    npt.NDArray[np.uint32]
+    npt.NDArray[np.uint16]
         The adjusted annotation image.
     Dict[int, int]
         A dictionary mapping the original values to the new values.
@@ -320,7 +320,7 @@ def convert_atlas_labels(
     # Create a mapping of the original values to the new values
     # and adjust the annotation image
     mapping = {}
-    new_value = 2**16
+    new_value = 2**15
     for value in values:
         if value > new_value:
             mapping[value] = new_value
@@ -329,11 +329,11 @@ def convert_atlas_labels(
         elif value == new_value:
             new_value += 1
 
-    return annotation_image, mapping
+    return annotation_image.astype(np.uint16), mapping
 
 
 def restore_atlas_labels(
-    annotation_image: npt.NDArray[np.uint32], mapping: Dict[int, int]
+    annotation_image: npt.NDArray[np.uint16], mapping: Dict[int, int]
 ) -> npt.NDArray[np.uint32]:
     """
     Restore the original atlas labels from the adjusted labels based on the
@@ -341,7 +341,7 @@ def restore_atlas_labels(
 
     Parameters
     ----------
-    annotation_image: npt.NDArray[np.uint32]
+    annotation_image: npt.NDArray[np.uint16]
         The adjusted annotation image.
     mapping: Dict[int, int]
         A dictionary mapping the original values to the new values.
@@ -353,6 +353,7 @@ def restore_atlas_labels(
     npt.NDArray[np.uint32]
         The restored annotation image.
     """
+    annotation_image = annotation_image.astype(np.uint32, copy=False)
     for old_value, new_value in mapping.items():
         annotation_image[annotation_image == new_value] = old_value
 
