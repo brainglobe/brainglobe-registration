@@ -292,7 +292,8 @@ def convert_atlas_labels(
     by a single precision float (np.float32) or an unsigned short (np.uint16).
 
     This is done by mapping the labels greater than 2**15 to new
-    consecutive values starting from 2**15.
+    consecutive values starting from 2**15. Assumes no more than 2**15
+    unique values greater than 2**15.
 
     Slow to run if a large number of unique values are greater than 2**15.
     Based on current BrainGlobe atlases, this should not be the case.
@@ -311,8 +312,10 @@ def convert_atlas_labels(
             key: original annotation ID
             value: new annotation ID
     """
+    # Copy array to avoid modifying the original
+    output_array = np.array(annotation_image, copy=True)
     # Returns a sorted array of unique values in the annotation image
-    values = np.unique(annotation_image)
+    values = np.unique(output_array)
 
     if isinstance(values, da.Array):
         values = values.compute()
@@ -324,12 +327,12 @@ def convert_atlas_labels(
     for value in values:
         if value > new_value:
             mapping[value] = new_value
-            annotation_image[annotation_image == value] = new_value
+            output_array[output_array == value] = new_value
             new_value += 1
         elif value == new_value:
             new_value += 1
 
-    return annotation_image.astype(np.uint16), mapping
+    return output_array.astype(np.uint16), mapping
 
 
 def restore_atlas_labels(

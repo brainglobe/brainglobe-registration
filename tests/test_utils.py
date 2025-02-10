@@ -139,7 +139,7 @@ def test_convert_atlas_labels_no_change():
 
 
 def test_convert_atlas_labels_high_labels():
-    mock_annotations = np.arange(2**16, 2**16 + 1024).reshape((32, 32))
+    mock_annotations = np.arange(2**15, 2**15 + 1024).reshape((32, 32))
 
     result, mapping = convert_atlas_labels(mock_annotations)
 
@@ -153,12 +153,12 @@ def test_convert_atlas_labels():
     rng = np.random.default_rng(42)
 
     mock_annotations = rng.integers(
-        2**32 - 1, size=(256, 256), dtype=np.uint32
+        2**32 - 1, size=(128, 128), dtype=np.uint32
     )
 
     result, mapping = convert_atlas_labels(mock_annotations)
 
-    max_value = 2**16
+    max_value = 2**15
     unique_values = np.unique(mock_annotations)
     expected_mapping_count = unique_values[unique_values >= max_value].size
 
