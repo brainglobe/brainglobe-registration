@@ -443,13 +443,13 @@ class RegistrationWidget(QScrollArea):
 
         for transform_selection in self.transform_selections:
             if "FixedImageDimension" not in transform_selection[1]:
-                transform_selection[1][
-                    "FixedImageDimension"
-                ] = self._moving_image.data.ndim
+                transform_selection[1]["FixedImageDimension"] = str(
+                    self._moving_image.data.ndim
+                )
             if "MovingImageDimension" not in transform_selection[1]:
-                transform_selection[1][
-                    "MovingImageDimension"
-                ] = self._moving_image.data.ndim
+                transform_selection[1]["MovingImageDimension"] = str(
+                    self._moving_image.data.ndim
+                )
 
         moving_image = self._moving_image.data
 
