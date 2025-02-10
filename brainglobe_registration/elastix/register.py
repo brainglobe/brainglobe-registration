@@ -32,9 +32,9 @@ def run_registration(
     parameter_lists : List[tuple[str, dict]]
         The list of registration parameters, one for each transform.
     output_directory : Optional[Path], optional
-        The output directory for the registration results, by default None
+        The output directory for the registration results, by default None.
     filter_images : bool, optional
-        Whether to filter the images before registration, by default True
+        Whether to filter the images before registration, by default True.
 
     Returns
     -------
@@ -233,9 +233,9 @@ def invert_transformation(
     transform_parameters : itk.ParameterObject
         The transform parameters to inverse.
     output_directory : Optional[Path], optional
-        The output directory for the registration results, by default None
+        The output directory for the registration results, by default None.
     filter_images : bool, optional
-        Whether to filter the images before registration, by default True
+        Whether to filter the images before registration, by default True.
 
     Returns
     -------

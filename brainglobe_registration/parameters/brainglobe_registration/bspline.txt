@@ -45,15 +45,12 @@
 //Number of spatial samples used to compute the mutual information in each resolution level:
 (ImageSampler "RandomCoordinate")
 (FixedImageBSplineInterpolationOrder 1 )
-(UseRandomSampleRegion "true")
-(SampleRegionSize 300.0 300.0 300.0)
+(UseRandomSampleRegion "false")
+(SampleRegionSize 100.0 100.0 100.0)
 (NumberOfSpatialSamples 10000 )
 (NewSamplesEveryIteration "true")
 (CheckNumberOfSamples "true")
 (MaximumNumberOfSamplingAttempts 10)
-
-//Order of B-Spline interpolation used in each resolution level:
-(BSplineInterpolationOrder 3)
 
 //Order of B-Spline interpolation used for applying the final deformation:
 (FinalBSplineInterpolationOrder 3)
