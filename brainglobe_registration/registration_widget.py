@@ -44,7 +44,6 @@ from skimage.transform import rescale
 from tifffile import imwrite
 
 from brainglobe_registration.utils.utils import (
-    adjust_napari_image_layer,
     calculate_region_size,
     calculate_rotated_bounding_box,
     check_atlas_installed,
@@ -130,12 +129,6 @@ class RegistrationWidget(QScrollArea):
         )
 
         self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
-        self.adjust_moving_image_widget.adjust_image_signal.connect(
-            self._on_adjust_moving_image
-        )
-        self.adjust_moving_image_widget.reset_image_signal.connect(
-            self._on_adjust_moving_image_reset_button_click
-        )
         self.adjust_moving_image_widget.scale_image_signal.connect(
             self._on_scale_moving_image
         )
@@ -347,24 +340,6 @@ class RegistrationWidget(QScrollArea):
 
         self._moving_image = self._viewer.layers[viewer_index]
         self._moving_image_data_backup = self._moving_image.data.copy()
-
-    def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
-        if not self._moving_image:
-            show_error(
-                "No moving image selected."
-                "Please select a moving image before adjusting"
-            )
-            return
-        adjust_napari_image_layer(self._moving_image, x, y, rotate)
-
-    def _on_adjust_moving_image_reset_button_click(self):
-        if not self._moving_image:
-            show_error(
-                "No moving image selected. "
-                "Please select a moving image before adjusting"
-            )
-            return
-        adjust_napari_image_layer(self._moving_image, 0, 0, 0)
 
     def _on_output_directory_text_edited(self):
         self.output_directory = Path(self.output_directory_text_field.text())
@@ -699,7 +674,7 @@ class RegistrationWidget(QScrollArea):
         self._sample_images = get_image_layer_names(self._viewer)
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
 
-    def _on_scale_moving_image(self, x: float, y: float):
+    def _on_scale_moving_image(self, x: float, y: float, z: float):
         """
         Scale the moving image to have resolution equal to the atlas.
 
@@ -709,11 +684,13 @@ class RegistrationWidget(QScrollArea):
             Moving image x pixel size (> 0.0).
         y : float
             Moving image y pixel size (> 0.0).
+        z : float
+            Moving image z pixel size (> 0.0).
 
         Will show an error if the pixel sizes are less than or equal to 0.
         Will show an error if the moving image or atlas is not selected.
         """
-        if x <= 0 or y <= 0:
+        if x <= 0 or y <= 0 or z <= 0:
             show_error("Pixel sizes must be greater than 0")
             return
 
@@ -730,13 +707,24 @@ class RegistrationWidget(QScrollArea):
         x_factor = x / self._atlas.resolution[0]
         y_factor = y / self._atlas.resolution[1]
 
-        self._moving_image.data = rescale(
-            self._moving_image_data_backup,
-            (y_factor, x_factor),
-            mode="constant",
-            preserve_range=True,
-            anti_aliasing=True,
-        )
+        if self._moving_image.data.ndim == 3:
+            z_factor = z / self._atlas.resolution[2]
+
+            self._moving_image.data = rescale(
+                self._moving_image_data_backup,
+                (z_factor, y_factor, x_factor),
+                mode="constant",
+                preserve_range=True,
+                anti_aliasing=True,
+            )
+        else:
+            self._moving_image.data = rescale(
+                self._moving_image_data_backup,
+                (y_factor, x_factor),
+                mode="constant",
+                preserve_range=True,
+                anti_aliasing=True,
+            )
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
