@@ -103,7 +103,7 @@ class AdjustMovingImageView(QWidget):
             self.adjust_moving_image_pixel_size_y,
         )
         self.layout().addRow(
-            "Sample image Z pixel size (\u03BCm / pixel):",
+            "Sample image Z pixel size (\u03bcm / pixel):",
             self.adjust_moving_image_pixel_size_z,
         )
         self.layout().addRow(self.scale_moving_image_button)
