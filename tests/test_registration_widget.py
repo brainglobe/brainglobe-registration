@@ -103,7 +103,7 @@ def test_scale_moving_image_no_atlas(
     )
     registration_widget._atlas = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10
+        10, 10, 10
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
@@ -119,7 +119,7 @@ def test_scale_moving_image_no_sample_image(
     )
     registration_widget._moving_image = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10
+        10, 10, 10
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
@@ -137,7 +137,7 @@ def test_scale_moving_image_no_sample_image(
         (1.0, 0.5),
     ],
 )
-def test_scale_moving_image(
+def test_scale_moving_image_2d(
     make_napari_viewer_with_images,
     registration_widget,
     mocker,
@@ -154,6 +154,7 @@ def test_scale_moving_image(
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
         mock_atlas.resolution[1] * x_scale_factor,
         mock_atlas.resolution[2] * y_scale_factor,
+        0.001,
     )
 
     assert registration_widget._moving_image.data.shape == (
