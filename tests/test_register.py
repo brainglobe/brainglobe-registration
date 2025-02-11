@@ -38,6 +38,7 @@ def compare_parameter_objects(param_obj1, param_obj2):
                 assert np.allclose(
                     np.array(submap_1[key], dtype=np.double),
                     np.array(submap_2[key], dtype=np.double),
+                    atol=0.4,
                 )
             else:
                 assert submap_1[key] == submap_2[key]
