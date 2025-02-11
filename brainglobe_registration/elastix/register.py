@@ -19,7 +19,7 @@ def run_registration(
     parameter_lists: List[Tuple[str, dict]],
     output_directory: Optional[Path] = None,
     filter_images: bool = True,
-) -> Tuple[da.Array, itk.ParameterObject]:
+) -> itk.ParameterObject:
     """
     Run the registration process on the given images.
 
@@ -38,8 +38,6 @@ def run_registration(
 
     Returns
     -------
-    da.Array
-        The result image.
     itk.ParameterObject
         The result transform parameters.
     """
@@ -62,8 +60,6 @@ def run_registration(
     elastix_object.UpdateLargestPossibleRegion()
 
     # get results
-    result_image = elastix_object.GetOutput()
-    result_image = da.from_array(np.asarray(result_image))
     result_transform_parameters = elastix_object.GetTransformParameterObject()
 
     if output_directory:
@@ -76,10 +72,7 @@ def run_registration(
             result_transform_parameters, file_names
         )
 
-    return (
-        result_image,
-        result_transform_parameters,
-    )
+    return result_transform_parameters
 
 
 def transform_annotation_image(
@@ -105,6 +98,11 @@ def transform_annotation_image(
         The transformed annotation image.
     """
     adjusted_annotation_image, mapping = convert_atlas_labels(annotation_image)
+
+    if adjusted_annotation_image.ndim == 2:
+        adjusted_annotation_image = adjusted_annotation_image.astype(
+            np.float32
+        )
 
     annotation_image = itk.GetImageViewFromArray(adjusted_annotation_image)
 
@@ -156,15 +154,18 @@ def transform_image(
     npt.NDArray
         The transformed image.
     """
-    image = itk.GetImageViewFromArray(image).astype(itk.F)
+    image = itk.GetImageViewFromArray(image)
 
     transformix_object = itk.TransformixFilter.New(image)
     transformix_object.SetTransformParameterObject(transform_parameters)
     transformix_object.UpdateLargestPossibleRegion()
 
     transformed_image = transformix_object.GetOutput()
+    transformed_image = da.from_array(
+        np.asarray(transformed_image).astype(np.int16)
+    )
 
-    return np.asarray(transformed_image)
+    return transformed_image
 
 
 def calculate_deformation_field(
@@ -252,16 +253,13 @@ def invert_transformation(
     )
 
     parameter_object_inverse = setup_parameter_object(parameter_list)
-
     elastix_object.SetInitialTransformParameterObject(transform_parameters)
-
     elastix_object.SetParameterObject(parameter_object_inverse)
 
     elastix_object.UpdateLargestPossibleRegion()
 
     num_initial_transforms = transform_parameters.GetNumberOfParameterMaps()
 
-    result_image = elastix_object.GetOutput()
     out_parameters = elastix_object.GetTransformParameterObject()
     result_transform_parameters = itk.ParameterObject.New()
 
@@ -286,10 +284,7 @@ def invert_transformation(
             result_transform_parameters, file_names
         )
 
-    return (
-        np.asarray(result_image),
-        result_transform_parameters,
-    )
+    return result_transform_parameters
 
 
 def setup_parameter_object(parameter_lists: List[tuple[str, dict]]):

@@ -306,7 +306,7 @@ class RegistrationWidget(QScrollArea):
                 self._atlas.reference.shape[1],
                 self._atlas.reference.shape[2],
             ),
-        )
+        ).astype(np.int16)
         dask_annotations = da.from_array(
             self._atlas.annotation,
             chunks=(
@@ -425,36 +425,65 @@ class RegistrationWidget(QScrollArea):
             transform_image,
         )
 
+        moving_image = self._moving_image.data.astype(np.int16)
+
         if self._moving_image.data.ndim == 2:
             current_atlas_slice = self._viewer.dims.current_step[0]
-            atlas_image = self._atlas_data_layer.data[
-                current_atlas_slice, :, :
-            ].compute()
+            try:
+                atlas_image = (
+                    self._atlas_data_layer.data[current_atlas_slice, :, :]
+                    .compute()
+                    .astype(np.float32)
+                )
+            except AttributeError:
+                atlas_image = self._atlas_data_layer.data[
+                    current_atlas_slice, :, :
+                ].astype(np.float32)
+
+            moving_image = moving_image.astype(np.float32)
             annotation_image = self._atlas_annotations_layer.data[
                 current_atlas_slice, :, :
             ]
-            hemisphere_image = self._atlas.hemispheres[
-                current_atlas_slice, :, :
-            ]
+            # Can't use a short for internal pixels on 2D images
+            for transform_selection in self.transform_selections:
+                fixed_pixel_type = transform_selection[1][
+                    "FixedInternalImagePixelType"
+                ]
+                moving_pixel_type = transform_selection[1][
+                    "MovingInternalImagePixelType"
+                ]
+                if "float" not in fixed_pixel_type:
+                    print(
+                        f"Can not use {fixed_pixel_type} "
+                        f"for internal pixels on 2D images, switching to float"
+                    )
+                    transform_selection[1]["FixedInternalImagePixelType"] = [
+                        "float"
+                    ]
+                if "float" not in moving_pixel_type:
+                    print(
+                        f"Can not use {moving_pixel_type} "
+                        f"for internal pixels on 2D images, switching to float"
+                    )
+                    transform_selection[1]["MovingInternalImagePixelType"] = [
+                        "float"
+                    ]
         else:
             atlas_image = self._atlas_data_layer.data
             annotation_image = self._atlas_annotations_layer.data
-            hemisphere_image = self._atlas.hemispheres
 
         for transform_selection in self.transform_selections:
             if "FixedImageDimension" not in transform_selection[1]:
-                transform_selection[1]["FixedImageDimension"] = str(
-                    self._moving_image.data.ndim
-                )
+                transform_selection[1]["FixedImageDimension"] = [
+                    str(self._moving_image.data.ndim)
+                ]
             if "MovingImageDimension" not in transform_selection[1]:
-                transform_selection[1]["MovingImageDimension"] = str(
-                    self._moving_image.data.ndim
-                )
-
-        moving_image = self._moving_image.data
+                transform_selection[1]["MovingImageDimension"] = [
+                    str(self._moving_image.data.ndim)
+                ]
 
         print("Running registration")
-        result, parameters = run_registration(
+        parameters = run_registration(
             atlas_image,
             moving_image,
             self.transform_selections,
@@ -462,18 +491,20 @@ class RegistrationWidget(QScrollArea):
             filter_images=self.filter_checkbox.isChecked(),
         )
 
-        self._viewer.add_image(result, name="Registered Image", visible=False)
+        atlas_in_data_space = transform_image(atlas_image, parameters)
+
+        self._viewer.add_image(
+            atlas_in_data_space, name="Registered Image", visible=False
+        )
 
         print("Inverting transformation")
-        inverse_result, inverse_parameters = invert_transformation(
+        inverse_parameters = invert_transformation(
             atlas_image,
             self.transform_selections,
             parameters,
             self.output_directory,
             filter_images=self.filter_checkbox.isChecked(),
         )
-
-        del inverse_result
 
         data_in_atlas_space = transform_image(moving_image, inverse_parameters)
         data_in_atlas_space_path = (
@@ -486,10 +517,6 @@ class RegistrationWidget(QScrollArea):
             data_in_atlas_space,
         )
 
-        del data_in_atlas_space
-
-        data_in_atlas_space = dask_imread(data_in_atlas_space_path)
-
         self._viewer.add_image(
             data_in_atlas_space,
             name="Inverse Registered Image",
@@ -497,8 +524,11 @@ class RegistrationWidget(QScrollArea):
         )
 
         print("Transforming annotation image")
+        if isinstance(annotation_image, da.Array):
+            annotation_image = annotation_image.compute()
+
         registered_annotation_image = transform_annotation_image(
-            annotation_image.compute(),
+            annotation_image,
             parameters,
         )
 
@@ -506,6 +536,7 @@ class RegistrationWidget(QScrollArea):
             self.output_directory / "registered_atlas.tiff"
         )
         imwrite(registered_annotation_image_path, registered_annotation_image)
+        hemisphere_image = self._atlas.hemispheres
 
         if self._atlas_transform_matrix is not None:
             hemisphere_image = dask_affine_transform(
@@ -513,12 +544,16 @@ class RegistrationWidget(QScrollArea):
                 self._atlas_transform_matrix,
                 order=0,
                 output_shape=self._atlas_data_layer.data.shape,
-                output_chunks=(
-                    1,
-                    self._atlas_data_layer.data.shape[1],
-                    self._atlas_data_layer.data.shape[2],
-                ),
             )
+
+        if self._moving_image.ndim == 2:
+            current_atlas_slice = self._viewer.dims.current_step[0]
+            hemisphere_image = hemisphere_image[current_atlas_slice, :, :]
+        else:
+            hemisphere_image = hemisphere_image
+
+        if isinstance(hemisphere_image, da.Array):
+            hemisphere_image = hemisphere_image.compute()
 
         registered_hemisphere = transform_annotation_image(
             hemisphere_image, parameters
@@ -550,11 +585,13 @@ class RegistrationWidget(QScrollArea):
 
         imwrite(self.output_directory / "boundaries.tiff", boundaries)
 
-        del registered_annotation_image
+        if self._moving_image.data.ndim != 2:
+            del registered_annotation_image
 
-        registered_annotation_image = dask_imread(
-            registered_annotation_image_path
-        )
+            registered_annotation_image = dask_imread(
+                registered_annotation_image_path
+            )
+
         self._viewer.add_labels(
             registered_annotation_image,
             name="Registered Annotations",
@@ -749,7 +786,7 @@ class RegistrationWidget(QScrollArea):
             order=2,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
-        )
+        ).astype(np.int16)
 
         self._atlas_annotations_layer.data = dask_affine_transform(
             self._atlas.annotation,

@@ -1,172 +1,172 @@
 structure_name,left_area_mm2,right_area_mm2,total_area_mm2
-root,0.318125,0.310625,0.6287499999999999
-"Primary somatosensory area, barrel field, layer 1",0.146875,0.14875,0.295625
-"Primary somatosensory area, barrel field, layer 2/3",0.293125,0.289375,0.5825
-"Primary somatosensory area, barrel field, layer 4",0.275,0.276875,0.551875
-"Primary somatosensory area, barrel field, layer 5",0.2725,0.27,0.5425
-"Primary somatosensory area, barrel field, layer 6a",0.283125,0.285625,0.5687500000000001
-"Primary somatosensory area, barrel field, layer 6b",0.050625,0.046875,0.0975
-"Supplemental somatosensory area, layer 1",0.08,0.08125,0.16125
-"Supplemental somatosensory area, layer 2/3",0.171875,0.17500000000000002,0.34687500000000004
-"Supplemental somatosensory area, layer 4",0.1075,0.10625,0.21375
-"Supplemental somatosensory area, layer 5",0.17375000000000002,0.17125,0.34500000000000003
-"Supplemental somatosensory area, layer 6a",0.145,0.1475,0.2925
-"Supplemental somatosensory area, layer 6b",0.0225,0.023125,0.045625
-"Dorsal auditory area, layer 1",0.090625,0.088125,0.17875
-"Dorsal auditory area, layer 2/3",0.17,0.16875,0.33875
-"Dorsal auditory area, layer 4",0.075,0.08125,0.15625
-"Dorsal auditory area, layer 5",0.228125,0.22875,0.45687500000000003
-"Dorsal auditory area, layer 6a",0.12687500000000002,0.12625,0.25312500000000004
+root,0.31625000000000003,0.308125,0.624375
+"Primary somatosensory area, barrel field, layer 1",0.146875,0.148125,0.29500000000000004
+"Primary somatosensory area, barrel field, layer 2/3",0.2925,0.29,0.5825
+"Primary somatosensory area, barrel field, layer 4",0.274375,0.27625,0.5506249999999999
+"Primary somatosensory area, barrel field, layer 5",0.2725,0.270625,0.5431250000000001
+"Primary somatosensory area, barrel field, layer 6a",0.28250000000000003,0.283125,0.565625
+"Primary somatosensory area, barrel field, layer 6b",0.049375,0.046875,0.09625
+"Supplemental somatosensory area, layer 1",0.079375,0.08125,0.16062500000000002
+"Supplemental somatosensory area, layer 2/3",0.171875,0.17250000000000001,0.344375
+"Supplemental somatosensory area, layer 4",0.1075,0.1075,0.215
+"Supplemental somatosensory area, layer 5",0.174375,0.170625,0.345
+"Supplemental somatosensory area, layer 6a",0.145,0.14875,0.29374999999999996
+"Supplemental somatosensory area, layer 6b",0.0225,0.02375,0.04625
+"Dorsal auditory area, layer 1",0.0925,0.08875,0.18125
+"Dorsal auditory area, layer 2/3",0.168125,0.169375,0.3375
+"Dorsal auditory area, layer 4",0.075625,0.080625,0.15625
+"Dorsal auditory area, layer 5",0.2275,0.22875,0.45625000000000004
+"Dorsal auditory area, layer 6a",0.1275,0.124375,0.251875
 "Dorsal auditory area, layer 6b",0.015,0.015,0.03
-"Primary auditory area, layer 1",0.09125,0.088125,0.179375
-"Primary auditory area, layer 2/3",0.1125,0.11625,0.22875
-"Primary auditory area, layer 4",0.034375,0.033125,0.0675
+"Primary auditory area, layer 1",0.090625,0.08687500000000001,0.1775
+"Primary auditory area, layer 2/3",0.114375,0.115625,0.23
+"Primary auditory area, layer 4",0.034375,0.0325,0.066875
 "Primary auditory area, layer 5",0.011875,0.01125,0.023125
-"Ventral auditory area, layer 1",0.07625,0.075625,0.15187499999999998
-"Ventral auditory area, layer 2/3",0.134375,0.13375,0.268125
-"Ventral auditory area, layer 4",0.08625000000000001,0.08625000000000001,0.17250000000000001
-"Ventral auditory area, layer 5",0.26625,0.268125,0.534375
-"Ventral auditory area, layer 6a",0.165,0.1625,0.3275
-"Ventral auditory area, layer 6b",0.0175,0.020625,0.038125000000000006
-"Anteromedial visual area, layer 1",0.048125,0.04875,0.096875
-"Anteromedial visual area, layer 2/3",0.07375,0.0725,0.14625
+"Ventral auditory area, layer 1",0.074375,0.0775,0.15187499999999998
+"Ventral auditory area, layer 2/3",0.136875,0.1325,0.26937500000000003
+"Ventral auditory area, layer 4",0.08625000000000001,0.085625,0.171875
+"Ventral auditory area, layer 5",0.264375,0.268125,0.5325
+"Ventral auditory area, layer 6a",0.165625,0.16375,0.329375
+"Ventral auditory area, layer 6b",0.0175,0.02,0.037500000000000006
+"Anteromedial visual area, layer 1",0.048125,0.049375,0.0975
+"Anteromedial visual area, layer 2/3",0.073125,0.07187500000000001,0.14500000000000002
 "Anteromedial visual area, layer 4",0.018125,0.018125,0.03625
 "Anteromedial visual area, layer 5",0.075625,0.073125,0.14875
-"Anteromedial visual area, layer 6a",0.04,0.040625,0.080625
+"Anteromedial visual area, layer 6a",0.04125,0.04,0.08125
 "Anteromedial visual area, layer 6b",0.006875,0.00625,0.013125000000000001
-"Retrosplenial area, lateral agranular part, layer 1",0.05,0.048125,0.098125
-"Retrosplenial area, lateral agranular part, layer 2/3",0.06875,0.0725,0.14125
-"Retrosplenial area, lateral agranular part, layer 5",0.091875,0.094375,0.18625
+"Retrosplenial area, lateral agranular part, layer 1",0.050625,0.04875,0.099375
+"Retrosplenial area, lateral agranular part, layer 2/3",0.06875,0.07187500000000001,0.140625
+"Retrosplenial area, lateral agranular part, layer 5",0.09125,0.093125,0.184375
 "Retrosplenial area, lateral agranular part, layer 6a",0.06375,0.064375,0.128125
-"Retrosplenial area, lateral agranular part, layer 6b",0.00875,0.0075,0.01625
-"Retrosplenial area, dorsal part, layer 1",0.099375,0.099375,0.19875
-"Retrosplenial area, dorsal part, layer 2/3",0.14250000000000002,0.13875,0.28125
-"Retrosplenial area, dorsal part, layer 5",0.166875,0.163125,0.32999999999999996
-"Retrosplenial area, dorsal part, layer 6a",0.125,0.124375,0.249375
+"Retrosplenial area, lateral agranular part, layer 6b",0.009375,0.0075,0.016875
+"Retrosplenial area, dorsal part, layer 1",0.1,0.099375,0.19937500000000002
+"Retrosplenial area, dorsal part, layer 2/3",0.141875,0.13875,0.280625
+"Retrosplenial area, dorsal part, layer 5",0.166875,0.16375,0.330625
+"Retrosplenial area, dorsal part, layer 6a",0.124375,0.12375,0.24812499999999998
 "Retrosplenial area, dorsal part, layer 6b",0.008125,0.009375,0.0175
-"Retrosplenial area, ventral part, layer 1",0.11875000000000001,0.08875,0.20750000000000002
-"Retrosplenial area, ventral part, layer 2/3",0.136875,0.138125,0.275
-"Retrosplenial area, ventral part, layer 5",0.210625,0.211875,0.4225
-"Retrosplenial area, ventral part, layer 6a",0.0675,0.06875,0.13625
-"Retrosplenial area, ventral part, layer 6b",0.01,0.009375,0.019375
-"Anterior area, layer 1",0.14375000000000002,0.145,0.28875
-"Anterior area, layer 2/3",0.26125,0.261875,0.5231250000000001
-"Anterior area, layer 4",0.10875,0.10250000000000001,0.21125
-"Anterior area, layer 5",0.249375,0.255,0.504375
-"Anterior area, layer 6a",0.184375,0.1825,0.366875
-"Anterior area, layer 6b",0.03625,0.03875,0.075
-"Rostrolateral area, layer 1",0.038125,0.04,0.078125
+"Retrosplenial area, ventral part, layer 1",0.11875000000000001,0.09125,0.21000000000000002
+"Retrosplenial area, ventral part, layer 2/3",0.135625,0.138125,0.27375
+"Retrosplenial area, ventral part, layer 5",0.209375,0.21125,0.420625
+"Retrosplenial area, ventral part, layer 6a",0.068125,0.06875,0.13687500000000002
+"Retrosplenial area, ventral part, layer 6b",0.010625,0.009375,0.02
+"Anterior area, layer 1",0.14250000000000002,0.144375,0.286875
+"Anterior area, layer 2/3",0.26,0.260625,0.520625
+"Anterior area, layer 4",0.10875,0.104375,0.213125
+"Anterior area, layer 5",0.249375,0.25375000000000003,0.503125
+"Anterior area, layer 6a",0.185625,0.183125,0.36875
+"Anterior area, layer 6b",0.035625000000000004,0.04,0.075625
+"Rostrolateral area, layer 1",0.039375,0.04,0.079375
 "Rostrolateral area, layer 2/3",0.059375000000000004,0.058750000000000004,0.11812500000000001
-"Rostrolateral area, layer 4",0.0275,0.02875,0.05625
+"Rostrolateral area, layer 4",0.0275,0.0275,0.055
 "Rostrolateral area, layer 5",0.028125,0.02875,0.056875
-"Rostrolateral area, layer 6a",0.013125,0.0125,0.025625000000000002
+"Rostrolateral area, layer 6a",0.0125,0.0125,0.025
 "Rostrolateral area, layer 6b",0.00125,0.000625,0.001875
-"Temporal association areas, layer 1",0.0975,0.09375,0.19125
-"Temporal association areas, layer 2/3",0.13625,0.13625,0.2725
+"Temporal association areas, layer 1",0.09625,0.094375,0.190625
+"Temporal association areas, layer 2/3",0.138125,0.1375,0.275625
 "Temporal association areas, layer 4",0.056875,0.0575,0.114375
-"Temporal association areas, layer 5",0.208125,0.210625,0.41875
-"Temporal association areas, layer 6a",0.165,0.165,0.33
-"Temporal association areas, layer 6b",0.018125,0.015625,0.03375
-"Perirhinal area, layer 1",0.05375,0.053125,0.106875
-"Perirhinal area, layer 2/3",0.080625,0.08125,0.161875
-"Perirhinal area, layer 5",0.045,0.044375,0.089375
-"Perirhinal area, layer 6a",0.004375,0.003125,0.007500000000000001
-Ectorhinal area/Layer 1,0.065625,0.06,0.125625
-Ectorhinal area/Layer 2/3,0.113125,0.11750000000000001,0.23062500000000002
-Ectorhinal area/Layer 5,0.16375,0.165625,0.329375
-Ectorhinal area/Layer 6a,0.12125,0.124375,0.24562499999999998
+"Temporal association areas, layer 5",0.205625,0.210625,0.41625
+"Temporal association areas, layer 6a",0.165625,0.165625,0.33125
+"Temporal association areas, layer 6b",0.018125,0.01625,0.034375
+"Perirhinal area, layer 1",0.054375,0.0525,0.106875
+"Perirhinal area, layer 2/3",0.079375,0.08125,0.16062500000000002
+"Perirhinal area, layer 5",0.045,0.043750000000000004,0.08875
+"Perirhinal area, layer 6a",0.00375,0.003125,0.006875
+Ectorhinal area/Layer 1,0.0675,0.060625,0.128125
+Ectorhinal area/Layer 2/3,0.113125,0.116875,0.23
+Ectorhinal area/Layer 5,0.16375,0.164375,0.328125
+Ectorhinal area/Layer 6a,0.12125,0.12562500000000001,0.246875
 Ectorhinal area/Layer 6b,0.0125,0.0125,0.025
-Olfactory areas,0.0075,0.0075,0.015
-Piriform area,1.081875,1.080625,2.1624999999999996
-"Cortical amygdalar area, posterior part, lateral zone",0.361875,0.36125,0.723125
-"Cortical amygdalar area, posterior part, medial zone",0.289375,0.29125,0.580625
-Piriform-amygdalar area,0.2175,0.21625,0.43374999999999997
+Olfactory areas,0.006875,0.0075,0.014374999999999999
+Piriform area,1.081875,1.079375,2.16125
+"Cortical amygdalar area, posterior part, lateral zone",0.36312500000000003,0.361875,0.7250000000000001
+"Cortical amygdalar area, posterior part, medial zone",0.288125,0.290625,0.5787500000000001
+Piriform-amygdalar area,0.21625,0.215,0.43125
 Hippocampal formation,0.0025,0.003125,0.005625
-Field CA1,1.570625,1.57125,3.1418749999999998
-Field CA2,0.05375,0.05375,0.1075
-Field CA3,0.688125,0.68625,1.3743750000000001
-"Dentate gyrus, molecular layer",0.62625,0.6218750000000001,1.248125
-"Dentate gyrus, polymorph layer",0.104375,0.10250000000000001,0.206875
-"Dentate gyrus, granule cell layer",0.24125,0.245625,0.486875
+Field CA1,1.57,1.570625,3.140625
+Field CA2,0.054375,0.05375,0.108125
+Field CA3,0.6875,0.683125,1.370625
+"Dentate gyrus, molecular layer",0.623125,0.6225,1.245625
+"Dentate gyrus, polymorph layer",0.10312500000000001,0.10187500000000001,0.20500000000000002
+"Dentate gyrus, granule cell layer",0.241875,0.24625,0.48812500000000003
 Fasciola cinerea,0.02875,0.029375000000000002,0.058125
-"Entorhinal area, lateral part, layer 1",0.0475,0.0475,0.095
-"Entorhinal area, lateral part, layer 2",0.058750000000000004,0.056875,0.115625
-"Entorhinal area, lateral part, layer 3",0.0675,0.069375,0.13687500000000002
-"Entorhinal area, lateral part, layer 5",0.075625,0.075,0.150625
-"Entorhinal area, lateral part, layer 6a",0.015625,0.011875,0.0275
-Cortical subplate,0.028125,0.033125,0.06125
-"Endopiriform nucleus, dorsal part",0.18625,0.18875,0.375
+"Entorhinal area, lateral part, layer 1",0.04625,0.049375,0.095625
+"Entorhinal area, lateral part, layer 2",0.058750000000000004,0.05625,0.115
+"Entorhinal area, lateral part, layer 3",0.066875,0.07,0.13687500000000002
+"Entorhinal area, lateral part, layer 5",0.076875,0.074375,0.15125
+"Entorhinal area, lateral part, layer 6a",0.015,0.011875,0.026875
+Cortical subplate,0.0275,0.033125,0.060625
+"Endopiriform nucleus, dorsal part",0.186875,0.19187500000000002,0.37875000000000003
 "Endopiriform nucleus, ventral part",0.11750000000000001,0.114375,0.231875
-Lateral amygdalar nucleus,0.5,0.500625,1.0006249999999999
-"Basolateral amygdalar nucleus, anterior part",0.171875,0.174375,0.34625
-"Basolateral amygdalar nucleus, posterior part",0.244375,0.24625,0.490625
-"Basolateral amygdalar nucleus, ventral part",0.2525,0.2575,0.51
-"Basomedial amygdalar nucleus, posterior part",0.375,0.37375,0.74875
-Posterior amygdalar nucleus,0.18875,0.19,0.37875000000000003
-Striatum,0.2475,0.2475,0.495
-Caudoputamen,0.82375,0.820625,1.6443750000000001
+Lateral amygdalar nucleus,0.50125,0.498125,0.9993749999999999
+"Basolateral amygdalar nucleus, anterior part",0.17125,0.17500000000000002,0.34625000000000006
+"Basolateral amygdalar nucleus, posterior part",0.2425,0.245625,0.48812500000000003
+"Basolateral amygdalar nucleus, ventral part",0.250625,0.25625,0.506875
+"Basomedial amygdalar nucleus, posterior part",0.37625000000000003,0.373125,0.749375
+Posterior amygdalar nucleus,0.18937500000000002,0.18875,0.37812500000000004
+Striatum,0.2475,0.246875,0.494375
+Caudoputamen,0.821875,0.821875,1.64375
 "Central amygdalar nucleus, capsular part",0.043750000000000004,0.043750000000000004,0.08750000000000001
-"Central amygdalar nucleus, lateral part",0.045,0.041875,0.08687500000000001
-"Central amygdalar nucleus, medial part",0.079375,0.08125,0.16062500000000002
+"Central amygdalar nucleus, lateral part",0.044375,0.041875,0.08625
+"Central amygdalar nucleus, medial part",0.08,0.079375,0.159375
 Intercalated amygdalar nucleus,0.040625,0.040625,0.08125
-Medial amygdalar nucleus,0.7987500000000001,0.798125,1.596875
-Thalamus,0.21625,0.2,0.41625
-Ventral medial nucleus of the thalamus,0.32375,0.324375,0.6481250000000001
-Ventral posterolateral nucleus of the thalamus,0.2725,0.27375,0.54625
-"Ventral posterolateral nucleus of the thalamus, parvicellular part",0.090625,0.0925,0.18312499999999998
-Ventral posteromedial nucleus of the thalamus,0.72375,0.7225,1.44625
-"Ventral posteromedial nucleus of the thalamus, parvicellular part",0.30875,0.30625,0.615
+Medial amygdalar nucleus,0.798125,0.7993750000000001,1.5975000000000001
+Thalamus,0.215,0.20125,0.41625
+Ventral medial nucleus of the thalamus,0.323125,0.32375,0.646875
+Ventral posterolateral nucleus of the thalamus,0.2725,0.2725,0.545
+"Ventral posterolateral nucleus of the thalamus, parvicellular part",0.09125,0.091875,0.18312499999999998
+Ventral posteromedial nucleus of the thalamus,0.721875,0.721875,1.44375
+"Ventral posteromedial nucleus of the thalamus, parvicellular part",0.309375,0.3075,0.6168750000000001
 "Subparafascicular nucleus, magnocellular part",0.053125,0.051250000000000004,0.104375
-"Dorsal part of the lateral geniculate complex, shell",0.068125,0.065625,0.13375
-"Dorsal part of the lateral geniculate complex, core",0.2425,0.24125,0.48375
-"Dorsal part of the lateral geniculate complex, ipsilateral zone",0.043750000000000004,0.043750000000000004,0.08750000000000001
-Lateral posterior nucleus of the thalamus,0.65625,0.6587500000000001,1.315
-Posterior complex of the thalamus,0.64875,0.65,1.29875
-Ethmoid nucleus of the thalamus,0.106875,0.10187500000000001,0.20875
-Intermediodorsal nucleus of the thalamus,0.153125,0.13,0.283125
-Mediodorsal nucleus of thalamus,0.4275,0.4225,0.85
-Paraventricular nucleus of the thalamus,0.181875,0.15812500000000002,0.34
+"Dorsal part of the lateral geniculate complex, shell",0.0675,0.066875,0.13437500000000002
+"Dorsal part of the lateral geniculate complex, core",0.241875,0.24,0.481875
+"Dorsal part of the lateral geniculate complex, ipsilateral zone",0.044375,0.043750000000000004,0.08812500000000001
+Lateral posterior nucleus of the thalamus,0.658125,0.65625,1.314375
+Posterior complex of the thalamus,0.649375,0.649375,1.29875
+Ethmoid nucleus of the thalamus,0.106875,0.10250000000000001,0.209375
+Intermediodorsal nucleus of the thalamus,0.15125,0.13,0.28125
+Mediodorsal nucleus of thalamus,0.42562500000000003,0.42312500000000003,0.8487500000000001
+Paraventricular nucleus of the thalamus,0.180625,0.1575,0.338125
 Central medial nucleus of the thalamus,0.03125,0.02625,0.057499999999999996
-Central lateral nucleus of the thalamus,0.185625,0.18937500000000002,0.375
-Parafascicular nucleus,0.17125,0.17375000000000002,0.34500000000000003
-Reticular nucleus of the thalamus,0.155625,0.1525,0.308125
-Ventral part of the lateral geniculate complex,0.1475,0.14625,0.29374999999999996
-Medial habenula,0.13375,0.13625,0.27
-Lateral habenula,0.194375,0.194375,0.38875
-Hypothalamus,0.585,0.573125,1.158125
-"Periventricular hypothalamic nucleus, intermediate part",0.073125,0.07375,0.14687499999999998
-Arcuate hypothalamic nucleus,0.165,0.165,0.33
-Dorsomedial nucleus of the hypothalamus,0.163125,0.168125,0.33125
-Ventral premammillary nucleus,0.04875,0.04875,0.0975
-Posterior hypothalamic nucleus,0.58,0.581875,1.161875
-Lateral hypothalamic area,0.451875,0.453125,0.905
-Parasubthalamic nucleus,0.135625,0.135625,0.27125
-Subthalamic nucleus,0.170625,0.174375,0.345
+Central lateral nucleus of the thalamus,0.185625,0.18812500000000001,0.37375
+Parafascicular nucleus,0.17125,0.17250000000000001,0.34375
+Reticular nucleus of the thalamus,0.15625,0.154375,0.31062500000000004
+Ventral part of the lateral geniculate complex,0.1475,0.1475,0.295
+Medial habenula,0.135,0.13625,0.27125
+Lateral habenula,0.193125,0.195,0.388125
+Hypothalamus,0.5856250000000001,0.571875,1.1575000000000002
+"Periventricular hypothalamic nucleus, intermediate part",0.073125,0.075,0.148125
+Arcuate hypothalamic nucleus,0.165625,0.163125,0.32875
+Dorsomedial nucleus of the hypothalamus,0.161875,0.1675,0.329375
+Ventral premammillary nucleus,0.048125,0.049375,0.0975
+Posterior hypothalamic nucleus,0.58,0.58125,1.16125
+Lateral hypothalamic area,0.449375,0.45375,0.903125
+Parasubthalamic nucleus,0.13625,0.134375,0.270625
+Subthalamic nucleus,0.17,0.174375,0.344375
 Tuberal nucleus,0.19062500000000002,0.19062500000000002,0.38125000000000003
-Zona incerta,0.50375,0.50375,1.0075
+Zona incerta,0.50375,0.503125,1.006875
 Median eminence,0.059375000000000004,0.05,0.109375
 Precommissural nucleus,0.005,0.003125,0.008125
-fiber tracts,0.631875,0.631875,1.26375
-optic tract,0.18,0.185,0.365
-supra-callosal cerebral white matter,0.040625,0.040625,0.08125
-external capsule,0.02625,0.025625000000000002,0.051875000000000004
+fiber tracts,0.629375,0.63,1.259375
+optic tract,0.18,0.185625,0.365625
+supra-callosal cerebral white matter,0.04,0.041875,0.081875
+external capsule,0.025625000000000002,0.025,0.050625
 "corpus callosum, extreme capsule",0.033125,0.035,0.068125
-"corpus callosum, splenium",0.6012500000000001,0.593125,1.194375
-internal capsule,0.413125,0.420625,0.83375
+"corpus callosum, splenium",0.604375,0.591875,1.19625
+internal capsule,0.41250000000000003,0.42125,0.83375
 external medullary lamina of the thalamus,0.003125,0.005625,0.00875
-optic radiation,0.5825,0.5775,1.1600000000000001
-auditory radiation,0.125,0.12875,0.25375000000000003
-nigrostriatal tract,0.04625,0.046875,0.093125
-amygdalar capsule,0.06125,0.0525,0.11374999999999999
-cingulum bundle,0.1625,0.1625,0.325
-alveus,0.2175,0.216875,0.434375
-fimbria,0.22375,0.224375,0.448125
-columns of the fornix,0.02125,0.0225,0.04375
-dorsal hippocampal commissure,0.14625,0.138125,0.284375
-stria terminalis,0.19625,0.18937500000000002,0.385625
-mammillothalamic tract,0.0525,0.051250000000000004,0.10375000000000001
-fasciculus retroflexus,0.07375,0.075,0.14875
+optic radiation,0.5825,0.5750000000000001,1.1575000000000002
+auditory radiation,0.125,0.129375,0.254375
+nigrostriatal tract,0.046875,0.04625,0.093125
+amygdalar capsule,0.060625,0.0525,0.113125
+cingulum bundle,0.16125,0.16125,0.3225
+alveus,0.216875,0.21875,0.43562500000000004
+fimbria,0.22312500000000002,0.2225,0.44562500000000005
+columns of the fornix,0.020625,0.021875000000000002,0.0425
+dorsal hippocampal commissure,0.14625,0.13625,0.2825
+stria terminalis,0.195625,0.19,0.385625
+mammillothalamic tract,0.053125,0.050625,0.10375000000000001
+fasciculus retroflexus,0.074375,0.075,0.14937499999999998
 habenular commissure,0.02,0.019375,0.039375
-lateral ventricle,0.19375,0.19187500000000002,0.385625
-choroid plexus,0.0775,0.068125,0.145625
-third ventricle,0.20500000000000002,0.080625,0.285625
+lateral ventricle,0.195,0.19125,0.38625
+choroid plexus,0.078125,0.068125,0.14625
+third ventricle,0.206875,0.08,0.286875

@@ -84,33 +84,29 @@ def registration_affine_only(
 def invert_transform(
     registration_affine_only, atlas_reference, parameter_lists_affine_only
 ):
-    result_image, transform_parameters = registration_affine_only
-    inverted_image, invert_parameters = invert_transformation(
+    transform_parameters = registration_affine_only
+    invert_parameters = invert_transformation(
         atlas_reference, parameter_lists_affine_only, transform_parameters
     )
 
-    yield inverted_image, invert_parameters, transform_parameters
+    yield invert_parameters, transform_parameters
 
 
 def test_run_registration(registration_affine_only):
-    result_image, transform_parameters = registration_affine_only
+    transform_parameters = registration_affine_only
 
-    expected_result_image = imread(
-        Path(__file__).parent / "test_images/registered_reference.tiff"
-    )
     expected_parameter_object = itk.ParameterObject.New()
     expected_parameter_object.AddParameterFile(
         str(Path(__file__).parent / "test_images/TransformParameters.0.txt")
     )
 
-    assert np.allclose(result_image, expected_result_image, atol=0.1)
     compare_parameter_objects(transform_parameters, expected_parameter_object)
 
 
 def test_transform_annotation_image(
     atlas_annotation, registration_affine_only
 ):
-    result_image, transform_parameters = registration_affine_only
+    transform_parameters = registration_affine_only
 
     transformed_annotation = transform_annotation_image(
         atlas_annotation, transform_parameters
@@ -124,11 +120,8 @@ def test_transform_annotation_image(
 
 
 def test_invert_transformation(invert_transform):
-    invert_image, invert_parameters, original_parameters = invert_transform
+    invert_parameters, original_parameters = invert_transform
 
-    expected_image = imread(
-        Path(__file__).parent / "test_images/inverted_reference.tiff"
-    )
     expected_parameter_object = itk.ParameterObject.New()
     expected_parameter_object.AddParameterFile(
         str(
@@ -137,7 +130,6 @@ def test_invert_transformation(invert_transform):
         )
     )
 
-    assert np.allclose(invert_image, expected_image, atol=0.1)
     compare_parameter_objects(invert_parameters, expected_parameter_object)
 
     for i in range(original_parameters.GetNumberOfParameterMaps()):
@@ -147,7 +139,7 @@ def test_invert_transformation(invert_transform):
 
 
 def test_transform_image(invert_transform, sample_moving_image):
-    invert_image, invert_parameters, _ = invert_transform
+    invert_parameters, _ = invert_transform
 
     transformed_image = transform_image(sample_moving_image, invert_parameters)
 
@@ -161,11 +153,11 @@ def test_transform_image(invert_transform, sample_moving_image):
 def test_calculate_deformation_field(
     sample_moving_image, registration_affine_only
 ):
-    result_image, transform_parameters = registration_affine_only
+    transform_parameters = registration_affine_only
 
     deformation_field = calculate_deformation_field(
         sample_moving_image, transform_parameters
-    )
+    )[..., ::-1]
 
     deformation_field_0 = imread(
         Path(__file__).parent / "test_images/deformation_field_0.tiff"
