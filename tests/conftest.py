@@ -32,10 +32,14 @@ def parameter_lists():
             Path(__file__).parent.parent.resolve()
             / "brainglobe_registration"
             / "parameters"
-            / "ara_tools"
+            / "brainglobe_registration"
             / f"{transform_type}.txt"
         )
         transform_list.append((transform_type, open_parameter_file(file_path)))
+
+    for transform in transform_list:
+        transform[1]["FixedInternalImagePixelType"] = ["float"]
+        transform[1]["MovingInternalImagePixelType"] = ["float"]
 
     return transform_list
 
@@ -46,10 +50,15 @@ def parameter_lists_affine_only():
         Path(__file__).parent.parent.resolve()
         / "brainglobe_registration"
         / "parameters"
-        / "ara_tools"
+        / "brainglobe_registration"
         / "affine.txt"
     )
-    return [("affine", open_parameter_file(file_path))]
+
+    parameter_lists = [("affine", open_parameter_file(file_path))]
+    parameter_lists[0][1]["FixedInternalImagePixelType"] = ["float"]
+    parameter_lists[0][1]["MovingInternalImagePixelType"] = ["float"]
+
+    return parameter_lists
 
 
 def pytest_addoption(parser):
