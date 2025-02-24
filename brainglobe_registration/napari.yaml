@@ -5,13 +5,19 @@ contributions:
     - id: brainglobe-registration.make_registration_widget
       python_name: brainglobe_registration.registration_widget:RegistrationWidget
       title: BrainGlobe Registration
-    - id: brainglobe-registration.load_sample
-      python_name: brainglobe_registration.sample_data:load_sample_data
-      title: Sample Data
+    - id: brainglobe-registration.load_sample_2d
+      python_name: brainglobe_registration.sample_data:load_sample_data_2d
+      title: Sample Data 2D
+    - id: brainglobe-registration.load_sample_3d
+      python_name: brainglobe_registration.sample_data:load_sample_data_3d
+      title: Sample Data 3D
   sample_data:
-    - command: brainglobe-registration.load_sample
+    - command: brainglobe-registration.load_sample_2d
       display_name: 2D coronal mouse brain section
-      key: example
+      key: example_2d
+    - command: brainglobe-registration.load_sample_3d
+      display_name: 3D mouse brain
+      key: example_3d
   widgets:
     - command: brainglobe-registration.make_registration_widget
       display_name: BrainGlobe Registration

@@ -17,97 +17,15 @@ def adjust_moving_image_view() -> AdjustMovingImageView:
 def test_init(qtbot, adjust_moving_image_view):
     qtbot.addWidget(adjust_moving_image_view)
 
-    assert adjust_moving_image_view.layout().rowCount() == 15
+    assert adjust_moving_image_view.layout().rowCount() == 11
 
 
 @pytest.mark.parametrize(
-    "x_value, expected",
-    [
-        (-100, -100),
-        (100, 100),
-        (max_translate + 1, max_translate),
-        (-1 * (max_translate + 1), -1 * max_translate),
-    ],
+    "x_scale, y_scale, z_scale",
+    [(2.5, 2.5, 5.0), (10, 20, 30), (10.2212, 10.2289, 10.2259)],
 )
-def test_x_position_changed(
-    qtbot, adjust_moving_image_view, x_value, expected
-):
-    qtbot.addWidget(adjust_moving_image_view)
-
-    with qtbot.waitSignal(
-        adjust_moving_image_view.adjust_image_signal, timeout=1000
-    ) as blocker:
-        adjust_moving_image_view.adjust_moving_image_x.setValue(x_value)
-
-    assert blocker.args == [expected, 0, 0]
-
-
-@pytest.mark.parametrize(
-    "y_value, expected",
-    [
-        (-100, -100),
-        (100, 100),
-        (max_translate + 1, max_translate),
-        (-1 * (max_translate + 1), -1 * max_translate),
-    ],
-)
-def test_y_position_changed(
-    qtbot, adjust_moving_image_view, y_value, expected
-):
-    qtbot.addWidget(adjust_moving_image_view)
-
-    with qtbot.waitSignal(
-        adjust_moving_image_view.adjust_image_signal, timeout=1000
-    ) as blocker:
-        adjust_moving_image_view.adjust_moving_image_y.setValue(y_value)
-
-    assert blocker.args == [0, expected, 0]
-
-
-@pytest.mark.parametrize(
-    "rotate_value, expected",
-    [
-        (-100, -100),
-        (100, 100),
-        (10.5, 10.5),
-        (max_rotate + 1, max_rotate),
-        (-1 * (max_rotate + 1), -1 * max_rotate),
-    ],
-)
-def test_rotation_position_changed(
-    qtbot, adjust_moving_image_view, rotate_value, expected
-):
-    qtbot.addWidget(adjust_moving_image_view)
-
-    with qtbot.waitSignal(
-        adjust_moving_image_view.adjust_image_signal, timeout=1000
-    ) as blocker:
-        adjust_moving_image_view.adjust_moving_image_rotate.setValue(
-            rotate_value
-        )
-
-    assert blocker.args == [0, 0, expected]
-
-
-def test_reset_image_button_click(qtbot, adjust_moving_image_view):
-    qtbot.addWidget(adjust_moving_image_view)
-
-    with qtbot.waitSignal(
-        adjust_moving_image_view.reset_image_signal, timeout=1000
-    ):
-        adjust_moving_image_view.adjust_moving_image_reset_button.click()
-
-    assert adjust_moving_image_view.adjust_moving_image_x.value() == 0
-    assert adjust_moving_image_view.adjust_moving_image_y.value() == 0
-    assert adjust_moving_image_view.adjust_moving_image_rotate.value() == 0
-
-
-@pytest.mark.parametrize(
-    "x_scale, y_scale",
-    [(2.5, 2.5), (10, 20), (10.2212, 10.2289)],
-)
-def test_scale_image_button_click(
-    qtbot, adjust_moving_image_view, x_scale, y_scale
+def test_scale_image_button_xy_click(
+    qtbot, adjust_moving_image_view, x_scale, y_scale, z_scale
 ):
     qtbot.addWidget(adjust_moving_image_view)
 
@@ -120,9 +38,16 @@ def test_scale_image_button_click(
         adjust_moving_image_view.adjust_moving_image_pixel_size_y.setValue(
             y_scale
         )
+        adjust_moving_image_view.adjust_moving_image_pixel_size_z.setValue(
+            z_scale
+        )
         adjust_moving_image_view.scale_moving_image_button.click()
 
-    assert blocker.args == [round(x_scale, 3), round(y_scale, 3)]
+    assert blocker.args == [
+        round(x_scale, 3),
+        round(y_scale, 3),
+        round(z_scale, 3),
+    ]
 
 
 def test_atlas_rotation_changed(
