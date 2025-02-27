@@ -716,7 +716,7 @@ class RegistrationWidget(QScrollArea):
                 mode="constant",
                 preserve_range=True,
                 anti_aliasing=True,
-            )
+            ).astype(self._moving_image_data_backup.dtype)
         else:
             self._moving_image.data = rescale(
                 self._moving_image_data_backup,
@@ -724,7 +724,7 @@ class RegistrationWidget(QScrollArea):
                 mode="constant",
                 preserve_range=True,
                 anti_aliasing=True,
-            )
+            ).astype(self._moving_image_data_backup.dtype)
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (

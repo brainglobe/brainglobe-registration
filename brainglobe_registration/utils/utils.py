@@ -220,8 +220,11 @@ def calculate_region_size(
     )
 
     # Remove the background label
-    count_left.pop(0)
-    count_right.pop(0)
+    try:
+        count_left.pop(0)
+        count_right.pop(0)
+    except KeyError:
+        pass
 
     structures_reference_df = atlas.lookup_df
 

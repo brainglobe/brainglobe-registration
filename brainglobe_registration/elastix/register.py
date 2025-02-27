@@ -106,8 +106,6 @@ def transform_annotation_image(
 
     annotation_image = itk.GetImageViewFromArray(adjusted_annotation_image)
 
-    del adjusted_annotation_image
-
     temp_interp_order = transform_parameters.GetParameter(
         0, "FinalBSplineInterpolationOrder"
     )
@@ -162,7 +160,7 @@ def transform_image(
 
     transformed_image = transformix_object.GetOutput()
     transformed_image = da.from_array(
-        np.asarray(transformed_image).astype(np.int16)
+        np.asarray(transformed_image).astype(image.dtype)
     )
 
     return transformed_image
