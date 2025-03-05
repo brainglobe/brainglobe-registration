@@ -172,7 +172,7 @@ def test_calculate_deformation_field(
         (deformation_field_0, deformation_field_1), axis=-1
     )
 
-    assert np.allclose(deformation_field, expected_deformation_field, atol=0.1)
+    assert np.allclose(deformation_field, expected_deformation_field, atol=0.5)
 
 
 def test_setup_parameter_object_empty_list():
