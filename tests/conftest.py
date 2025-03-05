@@ -31,7 +31,7 @@ def parameter_lists():
         file_path = (
             Path(__file__).parent.parent.resolve()
             / "brainglobe_registration"
-            / "ara_tools"
+            / "parameters"
             / "brainglobe_registration"
             / f"{transform_type}.txt"
         )
@@ -50,7 +50,7 @@ def parameter_lists_affine_only():
         Path(__file__).parent.parent.resolve()
         / "brainglobe_registration"
         / "parameters"
-        / "ara_tools"
+        / "brainglobe_registration"
         / "affine.txt"
     )
 
