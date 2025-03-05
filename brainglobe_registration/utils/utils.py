@@ -9,8 +9,8 @@ import numpy.typing as npt
 import pandas as pd
 from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
-from brainglobe_utils.qtpy.dialog import display_info
 from pytransform3d.rotations import active_matrix_from_angle
+from qt_niu.dialog import display_info
 from qtpy.QtWidgets import QWidget
 
 

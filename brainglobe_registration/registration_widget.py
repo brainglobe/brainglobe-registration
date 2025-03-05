@@ -18,8 +18,6 @@ import numpy as np
 import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
-from brainglobe_utils.qtpy.collapsible_widget import CollapsibleWidgetContainer
-from brainglobe_utils.qtpy.dialog import display_info
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
@@ -28,6 +26,8 @@ from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
+from qt_niu.collapsible_widget import CollapsibleWidgetContainer
+from qt_niu.dialog import display_info
 from qtpy.QtWidgets import (
     QCheckBox,
     QFileDialog,
