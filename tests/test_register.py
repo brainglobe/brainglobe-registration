@@ -66,6 +66,29 @@ def atlas_hemisphere(atlas, slice_number=SLICE_NUMBER):
 
 
 @pytest.fixture(scope="module")
+def load_transform_parameters():
+    transform_parameters = itk.ParameterObject.New()
+    transform_parameters.AddParameterFile(
+        str(Path(__file__).parent / "test_images/TransformParameters.0.txt")
+    )
+
+    return transform_parameters
+
+
+@pytest.fixture(scope="module")
+def load_invert_parameters():
+    transform_parameters = itk.ParameterObject.New()
+    transform_parameters.AddParameterFile(
+        str(
+            Path(__file__).parent
+            / "test_images/InverseTransformParameters.0.txt"
+        )
+    )
+
+    return transform_parameters
+
+
+@pytest.fixture(scope="module")
 def sample_moving_image():
     return imread(
         Path(__file__).parent / "test_images/sample_hipp.tif"
@@ -107,12 +130,9 @@ def test_run_registration(registration_affine_only):
 
 
 def test_transform_annotation_image(
-    atlas_annotation, registration_affine_only
+    atlas_annotation, load_transform_parameters
 ):
-    transform_parameters = itk.ParameterObject.New()
-    transform_parameters.AddParameterFile(
-        str(Path(__file__).parent / "test_images/TransformParameters.0.txt")
-    )
+    transform_parameters = load_transform_parameters
 
     transformed_annotation = transform_annotation_image(
         atlas_annotation, transform_parameters
@@ -144,8 +164,8 @@ def test_invert_transformation(invert_transform):
         ) == ("3",)
 
 
-def test_transform_image(invert_transform, sample_moving_image):
-    invert_parameters, _ = invert_transform
+def test_transform_image(load_invert_parameters, sample_moving_image):
+    invert_parameters = load_invert_parameters
 
     transformed_image = transform_image(sample_moving_image, invert_parameters)
 
@@ -157,9 +177,9 @@ def test_transform_image(invert_transform, sample_moving_image):
 
 
 def test_calculate_deformation_field(
-    sample_moving_image, registration_affine_only
+    sample_moving_image, load_transform_parameters
 ):
-    transform_parameters = registration_affine_only
+    transform_parameters = load_transform_parameters
 
     deformation_field = calculate_deformation_field(
         sample_moving_image, transform_parameters
