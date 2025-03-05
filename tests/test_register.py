@@ -109,7 +109,10 @@ def test_run_registration(registration_affine_only):
 def test_transform_annotation_image(
     atlas_annotation, registration_affine_only
 ):
-    transform_parameters = registration_affine_only
+    transform_parameters = itk.ParameterObject.New()
+    transform_parameters.AddParameterFile(
+        str(Path(__file__).parent / "test_images/TransformParameters.0.txt")
+    )
 
     transformed_annotation = transform_annotation_image(
         atlas_annotation, transform_parameters
