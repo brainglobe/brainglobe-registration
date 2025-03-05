@@ -99,9 +99,13 @@ def transform_annotation_image(
     """
     adjusted_annotation_image, mapping = convert_atlas_labels(annotation_image)
 
-    annotation_image = itk.GetImageFromArray(adjusted_annotation_image).astype(
-        itk.F
-    )
+    if adjusted_annotation_image.ndim == 2:
+        adjusted_annotation_image = adjusted_annotation_image.astype(
+            np.float32
+        )
+
+    annotation_image = itk.GetImageViewFromArray(adjusted_annotation_image)
+
     temp_interp_order = transform_parameters.GetParameter(
         0, "FinalBSplineInterpolationOrder"
     )
@@ -116,8 +120,10 @@ def transform_annotation_image(
     transform_parameters.SetParameter(
         "FinalBSplineInterpolationOrder", temp_interp_order
     )
+    del annotation_image
+
     transformed_annotation_array = np.asarray(transformed_annotation).astype(
-        np.uint32
+        np.uint16
     )
 
     transformed_annotation_array = restore_atlas_labels(
