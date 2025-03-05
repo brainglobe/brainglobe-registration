@@ -39,8 +39,13 @@ jobs:
     strategy:
       matrix:
         # Run all supported Python versions on linux
-        python-version: ["3.11"]
+        python-version: ["3.11", "3.12", "3.13"]
         os: [ubuntu-latest]
+        include:
+        - os: macos-latest # ARM Mac
+          python-version: "3.13"
+        - os: windows-latest
+          python-version: "3.13"
 
     steps:
       - name: Set up Python ${{ matrix.python-version }}
