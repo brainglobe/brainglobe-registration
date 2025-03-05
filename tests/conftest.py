@@ -50,7 +50,7 @@ def parameter_lists_affine_only():
         Path(__file__).parent.parent.resolve()
         / "brainglobe_registration"
         / "parameters"
-        / "brainglobe_registration"
+        / "ara_tools"
         / "affine.txt"
     )
 
