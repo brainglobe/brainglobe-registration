@@ -67,7 +67,9 @@ def atlas_hemisphere(atlas, slice_number=SLICE_NUMBER):
 
 @pytest.fixture(scope="module")
 def sample_moving_image():
-    return imread(Path(__file__).parent / "test_images/sample_hipp.tif")
+    return imread(
+        Path(__file__).parent / "test_images/sample_hipp.tif"
+    ).astype(np.float32)
 
 
 @pytest.fixture(scope="module")
