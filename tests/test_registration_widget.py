@@ -274,31 +274,34 @@ def test_on_run_button_clicked_no_atlas(registration_widget, mocker):
     )
 
 
-def test_on_run_button_clicked_no_sample_image(registration_widget, mocker):
-    mocked_display_info = mocker.patch(
-        "brainglobe_registration.registration_widget.display_info"
-    )
-    registration_widget.run_button.setEnabled(True)
-    registration_widget._moving_image = None
-    registration_widget.run_button.click()
-    mocked_display_info.assert_called_once_with(
-        widget=registration_widget,
-        title="Warning",
-        message="Please select a sample image before clicking 'Run'.",
-    )
-
-
-def test_on_run_button_clicked_no_output_directory(
-    registration_widget, mocker
+def test_on_run_button_clicked_no_sample_image(
+    registration_widget_with_example_atlas, mocker
 ):
     mocked_display_info = mocker.patch(
         "brainglobe_registration.registration_widget.display_info"
     )
-    registration_widget.run_button.setEnabled(True)
-    registration_widget.output_directory = None
-    registration_widget.run_button.click()
+    registration_widget_with_example_atlas.run_button.setEnabled(True)
+    registration_widget_with_example_atlas._moving_image = None
+    registration_widget_with_example_atlas.run_button.click()
     mocked_display_info.assert_called_once_with(
-        widget=registration_widget,
+        widget=registration_widget_with_example_atlas,
+        title="Warning",
+        message="Please select a moving image before clicking 'Run'.",
+    )
+
+
+def test_on_run_button_clicked_no_output_directory(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget_with_example_atlas.run_button.setEnabled(True)
+    registration_widget_with_example_atlas._moving_image = True
+    registration_widget_with_example_atlas.output_directory = None
+    registration_widget_with_example_atlas.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget_with_example_atlas,
         title="Warning",
         message="Please select an output directory before clicking 'Run'.",
     )

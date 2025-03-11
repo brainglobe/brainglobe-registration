@@ -367,6 +367,14 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        if not self._moving_image:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select a moving image before clicking 'Run'.",
+            )
+            return
+
         if self._moving_image == self._atlas_data_layer:
             display_info(
                 widget=self,
@@ -375,20 +383,12 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        if self.output_directory is None:
+        if not self.output_directory:
             display_info(
                 widget=self,
                 title="Warning",
                 message="Please select an output directory "
                 "before clicking 'Run'.",
-            )
-            return
-
-        if self._moving_image is None:
-            display_info(
-                widget=self,
-                title="Warning",
-                message="Please select a moving image before clicking 'Run'.",
             )
             return
 
