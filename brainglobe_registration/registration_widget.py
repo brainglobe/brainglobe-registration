@@ -359,7 +359,7 @@ class RegistrationWidget(QScrollArea):
         self.output_directory_text_field.setText(str(self.output_directory))
 
     def _on_run_button_click(self):
-        if self._atlas_data_layer is None:
+        if not (self._atlas and self._atlas_data_layer):
             display_info(
                 widget=self,
                 title="Warning",

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from brainglobe_registration.registration_widget import RegistrationWidget
@@ -220,4 +222,101 @@ def test_on_atlas_reset_no_atlas(registration_widget, mocker):
     registration_widget._on_atlas_reset()
     mocked_show_error.assert_called_once_with(
         "No atlas selected. Please select an atlas before resetting"
+    )
+
+
+def test_on_output_directory_text_edited(registration_widget):
+    registration_widget.output_directory_text_field.setText(str(Path.home()))
+
+    registration_widget._on_output_directory_text_edited()
+
+    assert registration_widget.output_directory == Path.home()
+
+
+def test_on_open_file_dialog_clicked(registration_widget, mocker):
+    mocked_open_dialog = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getExistingDirectory"
+    )
+    mocked_open_dialog.return_value = str(Path.home())
+
+    registration_widget.open_file_dialog.click()
+
+    assert registration_widget.output_directory == Path.home()
+    mocked_open_dialog.assert_called_once()
+
+
+def test_on_open_file_dialog_cancelled(registration_widget, mocker):
+    expected_dir = Path.home() / "mock_directory"
+    registration_widget.output_directory = expected_dir
+    mocked_open_dialog = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getExistingDirectory"
+    )
+    mocked_open_dialog.return_value = ""
+
+    registration_widget.open_file_dialog.click()
+
+    assert registration_widget.output_directory == expected_dir
+    mocked_open_dialog.assert_called_once()
+
+
+def test_on_run_button_clicked_no_atlas(registration_widget, mocker):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget.run_button.setEnabled(True)
+    registration_widget._atlas = None
+    registration_widget._atlas_data_layer = None
+    registration_widget.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget,
+        title="Warning",
+        message="Please select an atlas before clicking 'Run'.",
+    )
+
+
+def test_on_run_button_clicked_no_sample_image(registration_widget, mocker):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget.run_button.setEnabled(True)
+    registration_widget._moving_image = None
+    registration_widget.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget,
+        title="Warning",
+        message="Please select a sample image before clicking 'Run'.",
+    )
+
+
+def test_on_run_button_clicked_no_output_directory(
+    registration_widget, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget.run_button.setEnabled(True)
+    registration_widget.output_directory = None
+    registration_widget.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget,
+        title="Warning",
+        message="Please select an output directory before clicking 'Run'.",
+    )
+
+
+def test_on_run_button_clicked_moving_equal_atlas(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget_with_example_atlas.run_button.setEnabled(True)
+    registration_widget_with_example_atlas._moving_image = (
+        registration_widget_with_example_atlas._atlas_data_layer
+    )
+    registration_widget_with_example_atlas.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget_with_example_atlas,
+        title="Warning",
+        message="Your moving image cannot be an atlas.",
     )
