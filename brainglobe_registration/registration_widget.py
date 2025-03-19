@@ -48,6 +48,7 @@ from brainglobe_registration.utils.utils import (
     calculate_rotated_bounding_box,
     check_atlas_installed,
     find_layer_index,
+    get_data_from_napari_layer,
     get_image_layer_names,
     open_parameter_file,
     serialize_registration_widget,
@@ -404,29 +405,26 @@ class RegistrationWidget(QScrollArea):
 
         if self._moving_image.data.ndim == 2:
             current_atlas_slice = self._viewer.dims.current_step[0]
-            try:
-                atlas_image = (
-                    self._atlas_data_layer.data[current_atlas_slice, :, :]
-                    .compute()
-                    .astype(np.float32)
-                )
-            except AttributeError:
-                atlas_image = self._atlas_data_layer.data[
-                    current_atlas_slice, :, :
-                ].astype(np.float32)
+            atlas_selection = (
+                slice(current_atlas_slice, current_atlas_slice + 1),
+            )
+            atlas_image = get_data_from_napari_layer(
+                self._atlas_data_layer, atlas_selection
+            ).astype(np.float32)
+            annotation_image = get_data_from_napari_layer(
+                self._atlas_annotations_layer, atlas_selection
+            )
 
             moving_image = moving_image.astype(np.float32)
-            annotation_image = self._atlas_annotations_layer.data[
-                current_atlas_slice, :, :
-            ]
-            # Can't use a short for internal pixels on 2D images
+
             for transform_selection in self.transform_selections:
-                fixed_pixel_type = transform_selection[1][
-                    "FixedInternalImagePixelType"
-                ]
-                moving_pixel_type = transform_selection[1][
-                    "MovingInternalImagePixelType"
-                ]
+                # Can't use a short for internal pixels on 2D images
+                fixed_pixel_type = transform_selection[1].get(
+                    "FixedInternalImagePixelType", []
+                )
+                moving_pixel_type = transform_selection[1].get(
+                    "MovingInternalImagePixelType", []
+                )
                 if "float" not in fixed_pixel_type:
                     print(
                         f"Can not use {fixed_pixel_type} "

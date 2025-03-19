@@ -1,6 +1,6 @@
 from collections import Counter
 from pathlib import Path, PurePath
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask.array as da
 import napari
@@ -52,6 +52,38 @@ def adjust_napari_image_layer(
         translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
     )
     image_layer.affine = transform_matrix
+
+
+def get_data_from_napari_layer(
+    layer: napari.layers.Layer, selection: Optional[Tuple[slice, ...]] = None
+) -> npt.NDArray:
+    """
+    Returns the data from the napari layer.
+
+    This function returns the data from the napari layer. If the layer is a
+    dask array, the data is computed before returning.
+
+    Parameters
+    ------------
+    layer : napari.layers.Layer
+        The napari layer from which to extract the data.
+    selection : Tuple[slice, ...], optional
+        The selection to apply to the data prior to computing.
+
+    Returns
+    --------
+    npt.NDArray
+        The selected data from the napari layer.
+    """
+    if selection is not None:
+        data = layer.data[selection]
+    else:
+        data = layer.data
+
+    if isinstance(layer.data, da.Array):
+        return data.compute()
+
+    return data
 
 
 def open_parameter_file(file_path: Path) -> Dict:
