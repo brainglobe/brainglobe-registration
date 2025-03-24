@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import Mock
 
+import dask.array as da
 import numpy as np
 import pytest
 from brainglobe_atlasapi import BrainGlobeAtlas
@@ -12,6 +13,7 @@ from brainglobe_registration.utils.utils import (
     calculate_rotated_bounding_box,
     convert_atlas_labels,
     find_layer_index,
+    get_data_from_napari_layer,
     get_image_layer_names,
     open_parameter_file,
     restore_atlas_labels,
@@ -195,3 +197,44 @@ def test_calculate_areas(tmp_path):
     assert out_df.loc[961, "left_area_mm2"] == 1.27
     assert out_df.loc[961, "right_area_mm2"] == 1.28
     assert out_df.loc[961, "total_area_mm2"] == 2.55
+
+
+@pytest.mark.parametrize(
+    "layer_data, selection",
+    [
+        (np.arange(1000).reshape((10, 10, 10)), None),
+        (np.arange(1000).reshape((10, 10, 10)), (slice(0, 5),)),
+        (da.arange(1000).reshape((10, 10, 10)), None),
+        (da.arange(1000).reshape((10, 10, 10)), (slice(0, 5),)),
+    ],
+)
+def test_get_data_from_napari_layer(layer_data, selection):
+    layer = Mock()
+    layer.data = layer_data
+
+    result = get_data_from_napari_layer(layer, selection)
+
+    assert isinstance(result, np.ndarray)
+
+    if selection is None:
+        assert np.array_equal(result, layer_data)
+    else:
+        assert np.array_equal(result, layer_data[selection])
+
+
+@pytest.mark.parametrize(
+    "layer_data, selection",
+    [
+        (np.arange(1000).reshape((10, 10, 10)), (slice(0, 1),)),
+        (da.arange(1000).reshape((10, 10, 10)), (slice(0, 1),)),
+    ],
+)
+def test_get_data_from_napari_layer_squeeze(layer_data, selection):
+    layer = Mock()
+    layer.data = layer_data
+
+    result = get_data_from_napari_layer(layer, selection)
+
+    assert isinstance(result, np.ndarray)
+    assert result.ndim == layer_data.ndim - 1
+    assert np.array_equal(result, layer_data[selection].squeeze())
