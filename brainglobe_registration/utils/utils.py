@@ -81,9 +81,9 @@ def get_data_from_napari_layer(
         data = layer.data
 
     if isinstance(layer.data, da.Array):
-        return data.compute()
+        return data.compute().squeeze()
 
-    return data
+    return data.squeeze()
 
 
 def open_parameter_file(file_path: Path) -> Dict:
@@ -323,8 +323,8 @@ def convert_atlas_labels(
     annotation_image: npt.NDArray[np.uint32],
 ) -> Tuple[npt.NDArray[np.uint16], Dict[int, int]]:
     """
-    Adjust the atlas labels such that they can be represented accurately
-    by a single precision float (np.float32) or an unsigned short (np.uint16).
+    Adjust the atlas labels such that they can be represented by an unsigned
+     short (np.uint16).
 
     This is done by mapping the labels greater than 2**15 to new
     consecutive values starting from 2**15. Assumes no more than 2**15

@@ -183,7 +183,7 @@ def test_calculate_deformation_field(
 
     deformation_field = calculate_deformation_field(
         sample_moving_image, transform_parameters
-    )[..., ::-1]
+    )
 
     deformation_field_0 = imread(
         Path(__file__).parent / "test_images/deformation_field_0.tiff"

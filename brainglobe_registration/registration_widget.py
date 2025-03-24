@@ -10,7 +10,7 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import dask.array as da
 import napari.layers
@@ -402,9 +402,9 @@ class RegistrationWidget(QScrollArea):
         )
 
         moving_image = self._moving_image.data.astype(np.int16)
+        current_atlas_slice = self._viewer.dims.current_step[0]
 
         if self._moving_image.data.ndim == 2:
-            current_atlas_slice = self._viewer.dims.current_step[0]
             atlas_selection = (
                 slice(current_atlas_slice, current_atlas_slice + 1),
             )
@@ -442,8 +442,10 @@ class RegistrationWidget(QScrollArea):
                         "float"
                     ]
         else:
-            atlas_image = self._atlas_data_layer.data
-            annotation_image = self._atlas_annotations_layer.data
+            atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
+            annotation_image = get_data_from_napari_layer(
+                self._atlas_annotations_layer
+            )
 
         for transform_selection in self.transform_selections:
             if "FixedImageDimension" not in transform_selection[1]:
@@ -464,7 +466,9 @@ class RegistrationWidget(QScrollArea):
             filter_images=self.filter_checkbox.isChecked(),
         )
 
-        atlas_in_data_space = transform_image(atlas_image, parameters)
+        atlas_in_data_space = da.from_array(
+            transform_image(atlas_image, parameters)
+        )
 
         self._viewer.add_image(
             atlas_in_data_space, name="Registered Image", visible=False
@@ -479,7 +483,9 @@ class RegistrationWidget(QScrollArea):
             filter_images=self.filter_checkbox.isChecked(),
         )
 
-        data_in_atlas_space = transform_image(moving_image, inverse_parameters)
+        data_in_atlas_space = da.from_array(
+            transform_image(moving_image, inverse_parameters)
+        )
         data_in_atlas_space_path = (
             self.output_directory
             / f"downsampled_standard_{self._moving_image.name}.tiff"
@@ -497,9 +503,6 @@ class RegistrationWidget(QScrollArea):
         )
 
         print("Transforming annotation image")
-        if isinstance(annotation_image, da.Array):
-            annotation_image = annotation_image.compute()
-
         registered_annotation_image = transform_annotation_image(
             annotation_image,
             parameters,
@@ -520,7 +523,6 @@ class RegistrationWidget(QScrollArea):
             )
 
         if self._moving_image.ndim == 2:
-            current_atlas_slice = self._viewer.dims.current_step[0]
             hemisphere_image = hemisphere_image[current_atlas_slice, :, :]
         else:
             hemisphere_image = hemisphere_image
@@ -549,6 +551,7 @@ class RegistrationWidget(QScrollArea):
             region_stat_path,
         )
 
+        # Free up memory
         del registered_hemisphere
         del hemisphere_image
 
@@ -559,6 +562,7 @@ class RegistrationWidget(QScrollArea):
         imwrite(self.output_directory / "boundaries.tiff", boundaries)
 
         if self._moving_image.data.ndim != 2:
+            # Free up memory
             del registered_annotation_image
 
             registered_annotation_image = dask_imread(
@@ -582,7 +586,7 @@ class RegistrationWidget(QScrollArea):
         print("Calculating deformation field")
         deformation_field = calculate_deformation_field(
             moving_image, parameters
-        )[..., ::-1]
+        )
 
         for i in range(deformation_field.shape[-1]):
             imwrite(
@@ -704,25 +708,19 @@ class RegistrationWidget(QScrollArea):
 
         x_factor = x / self._atlas.resolution[0]
         y_factor = y / self._atlas.resolution[1]
+        scale: Tuple[float, ...] = (y_factor, x_factor)
 
         if self._moving_image.data.ndim == 3:
             z_factor = z / self._atlas.resolution[2]
+            scale = (z_factor, *scale)
 
-            self._moving_image.data = rescale(
-                self._moving_image_data_backup,
-                (z_factor, y_factor, x_factor),
-                mode="constant",
-                preserve_range=True,
-                anti_aliasing=True,
-            ).astype(self._moving_image_data_backup.dtype)
-        else:
-            self._moving_image.data = rescale(
-                self._moving_image_data_backup,
-                (y_factor, x_factor),
-                mode="constant",
-                preserve_range=True,
-                anti_aliasing=True,
-            ).astype(self._moving_image_data_backup.dtype)
+        self._moving_image.data = rescale(
+            self._moving_image_data_backup,
+            scale,
+            mode="constant",
+            preserve_range=True,
+            anti_aliasing=True,
+        ).astype(self._moving_image_data_backup.dtype)
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
