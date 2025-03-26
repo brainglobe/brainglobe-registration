@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
 
@@ -323,3 +324,35 @@ def test_on_run_button_clicked_moving_equal_atlas(
         title="Warning",
         message="Your moving image cannot be an atlas.",
     )
+
+
+def test_on_run_button_click_2d(registration_widget, mocker, tmp_path):
+    registration_widget._on_atlas_dropdown_index_changed(4)
+
+    registration_widget._viewer.dims.set_current_step(0, 293)
+    moving_image = imread(
+        Path(__file__).parent / "test_images/sample_hipp.tif"
+    )
+    moving_image_name = "sample_hipp"
+    registration_widget._moving_image = registration_widget._viewer.add_image(
+        moving_image, name=moving_image_name
+    )
+    registration_widget.output_directory = tmp_path
+
+    registration_widget.run_button.click()
+
+    assert (tmp_path / "TransformParameters.0.txt").exists()
+    assert (tmp_path / "TransformParameters.1.txt").exists()
+    assert (tmp_path / "InverseTransformParameters.0.txt").exists()
+    assert (tmp_path / "InverseTransformParameters.1.txt").exists()
+    assert (
+        tmp_path / f"downsampled_standard_{moving_image_name}.tiff"
+    ).exists()
+    assert (tmp_path / "registered_atlas.tiff").exists()
+    assert (tmp_path / "registered_hemisphere.tiff").exists()
+    assert (tmp_path / "areas.csv").exists()
+    assert (tmp_path / "boundaries.tiff").exists()
+    assert (tmp_path / "deformation_field_0.tiff").exists()
+    assert (tmp_path / "deformation_field_1.tiff").exists()
+    assert (tmp_path / "downsampled.tiff").exists()
+    assert (tmp_path / "brainglobe-registration.json").exists()

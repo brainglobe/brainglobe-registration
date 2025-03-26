@@ -401,7 +401,9 @@ class RegistrationWidget(QScrollArea):
             transform_image,
         )
 
-        moving_image = self._moving_image.data.astype(np.int16)
+        moving_image = get_data_from_napari_layer(self._moving_image).astype(
+            np.int16
+        )
         current_atlas_slice = self._viewer.dims.current_step[0]
 
         if self._moving_image.data.ndim == 2:
@@ -594,10 +596,7 @@ class RegistrationWidget(QScrollArea):
                 deformation_field[..., i],
             )
 
-        atlas_layer_index = find_layer_index(
-            self._viewer, self._atlas.atlas_name
-        )
-        self._viewer.layers[atlas_layer_index].visible = False
+        self._atlas_data_layer.visible = False
         self._viewer.grid.enabled = False
 
         print("Saving outputs")
