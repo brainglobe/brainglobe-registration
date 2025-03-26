@@ -327,8 +327,11 @@ def test_on_run_button_clicked_moving_equal_atlas(
     )
 
 
-def test_on_run_button_click_2d(registration_widget, mocker, tmp_path):
-    registration_widget._on_atlas_dropdown_index_changed(4)
+def test_on_run_button_click_2d(registration_widget, tmp_path):
+    allen_25_index = registration_widget._available_atlases.index(
+        "allen_mouse_25um"
+    )
+    registration_widget._on_atlas_dropdown_index_changed(allen_25_index)
 
     registration_widget._viewer.dims.set_current_step(0, 293)
     moving_image = imread(
