@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 from tifffile import imread
 
@@ -332,7 +333,7 @@ def test_on_run_button_click_2d(registration_widget, mocker, tmp_path):
     registration_widget._viewer.dims.set_current_step(0, 293)
     moving_image = imread(
         Path(__file__).parent / "test_images/sample_hipp.tif"
-    )
+    ).astype(np.float32)
     moving_image_name = "sample_hipp"
     registration_widget._moving_image = registration_widget._viewer.add_image(
         moving_image, name=moving_image_name
