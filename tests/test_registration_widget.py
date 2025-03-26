@@ -1,4 +1,8 @@
+from pathlib import Path
+
+import numpy as np
 import pytest
+from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
 
@@ -103,7 +107,7 @@ def test_scale_moving_image_no_atlas(
     )
     registration_widget._atlas = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10
+        10, 10, 10
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
@@ -119,7 +123,7 @@ def test_scale_moving_image_no_sample_image(
     )
     registration_widget._moving_image = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10
+        10, 10, 10
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
@@ -137,7 +141,7 @@ def test_scale_moving_image_no_sample_image(
         (1.0, 0.5),
     ],
 )
-def test_scale_moving_image(
+def test_scale_moving_image_2d(
     make_napari_viewer_with_images,
     registration_widget,
     mocker,
@@ -154,6 +158,7 @@ def test_scale_moving_image(
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
         mock_atlas.resolution[1] * x_scale_factor,
         mock_atlas.resolution[2] * y_scale_factor,
+        0.001,
     )
 
     assert registration_widget._moving_image.data.shape == (
@@ -220,3 +225,138 @@ def test_on_atlas_reset_no_atlas(registration_widget, mocker):
     mocked_show_error.assert_called_once_with(
         "No atlas selected. Please select an atlas before resetting"
     )
+
+
+def test_on_output_directory_text_edited(registration_widget):
+    registration_widget.output_directory_text_field.setText(str(Path.home()))
+
+    registration_widget._on_output_directory_text_edited()
+
+    assert registration_widget.output_directory == Path.home()
+
+
+def test_on_open_file_dialog_clicked(registration_widget, mocker):
+    mocked_open_dialog = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getExistingDirectory"
+    )
+    mocked_open_dialog.return_value = str(Path.home())
+
+    registration_widget.open_file_dialog.click()
+
+    assert registration_widget.output_directory == Path.home()
+    mocked_open_dialog.assert_called_once()
+
+
+def test_on_open_file_dialog_cancelled(registration_widget, mocker):
+    expected_dir = Path.home() / "mock_directory"
+    registration_widget.output_directory = expected_dir
+    mocked_open_dialog = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getExistingDirectory"
+    )
+    mocked_open_dialog.return_value = ""
+
+    registration_widget.open_file_dialog.click()
+
+    assert registration_widget.output_directory == expected_dir
+    mocked_open_dialog.assert_called_once()
+
+
+def test_on_run_button_clicked_no_atlas(registration_widget, mocker):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget.run_button.setEnabled(True)
+    registration_widget._atlas = None
+    registration_widget._atlas_data_layer = None
+    registration_widget.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget,
+        title="Warning",
+        message="Please select an atlas before clicking 'Run'.",
+    )
+
+
+def test_on_run_button_clicked_no_sample_image(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget_with_example_atlas.run_button.setEnabled(True)
+    registration_widget_with_example_atlas._moving_image = None
+    registration_widget_with_example_atlas.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget_with_example_atlas,
+        title="Warning",
+        message="Please select a moving image before clicking 'Run'.",
+    )
+
+
+def test_on_run_button_clicked_no_output_directory(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget_with_example_atlas.run_button.setEnabled(True)
+    registration_widget_with_example_atlas._moving_image = True
+    registration_widget_with_example_atlas.output_directory = None
+    registration_widget_with_example_atlas.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget_with_example_atlas,
+        title="Warning",
+        message="Please select an output directory before clicking 'Run'.",
+    )
+
+
+def test_on_run_button_clicked_moving_equal_atlas(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget_with_example_atlas.run_button.setEnabled(True)
+    registration_widget_with_example_atlas._moving_image = (
+        registration_widget_with_example_atlas._atlas_data_layer
+    )
+    registration_widget_with_example_atlas.run_button.click()
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget_with_example_atlas,
+        title="Warning",
+        message="Your moving image cannot be an atlas.",
+    )
+
+
+def test_on_run_button_click_2d(registration_widget, tmp_path):
+    allen_25_index = registration_widget._available_atlases.index(
+        "allen_mouse_25um"
+    )
+    registration_widget._on_atlas_dropdown_index_changed(allen_25_index)
+
+    registration_widget._viewer.dims.set_current_step(0, 293)
+    moving_image = imread(
+        Path(__file__).parent / "test_images/sample_hipp.tif"
+    ).astype(np.float32)
+    moving_image_name = "sample_hipp"
+    registration_widget._moving_image = registration_widget._viewer.add_image(
+        moving_image, name=moving_image_name
+    )
+    registration_widget.output_directory = tmp_path
+
+    registration_widget.run_button.click()
+
+    assert (tmp_path / "TransformParameters.0.txt").exists()
+    assert (tmp_path / "TransformParameters.1.txt").exists()
+    assert (tmp_path / "InverseTransformParameters.0.txt").exists()
+    assert (tmp_path / "InverseTransformParameters.1.txt").exists()
+    assert (
+        tmp_path / f"downsampled_standard_{moving_image_name}.tiff"
+    ).exists()
+    assert (tmp_path / "registered_atlas.tiff").exists()
+    assert (tmp_path / "registered_hemisphere.tiff").exists()
+    assert (tmp_path / "areas.csv").exists()
+    assert (tmp_path / "boundaries.tiff").exists()
+    assert (tmp_path / "deformation_field_0.tiff").exists()
+    assert (tmp_path / "deformation_field_1.tiff").exists()
+    assert (tmp_path / "downsampled.tiff").exists()
+    assert (tmp_path / "brainglobe-registration.json").exists()

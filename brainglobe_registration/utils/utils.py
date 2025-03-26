@@ -1,6 +1,6 @@
 from collections import Counter
 from pathlib import Path, PurePath
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask.array as da
 import napari
@@ -12,8 +12,6 @@ from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from pytransform3d.rotations import active_matrix_from_angle
 from qt_niu.dialog import display_info
 from qtpy.QtWidgets import QWidget
-from scipy.ndimage import gaussian_filter
-from skimage import morphology
 
 
 def adjust_napari_image_layer(
@@ -54,6 +52,38 @@ def adjust_napari_image_layer(
         translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
     )
     image_layer.affine = transform_matrix
+
+
+def get_data_from_napari_layer(
+    layer: napari.layers.Layer, selection: Optional[Tuple[slice, ...]] = None
+) -> npt.NDArray:
+    """
+    Returns the data from the napari layer.
+
+    This function returns the data from the napari layer. If the layer is a
+    dask array, the data is computed before returning.
+
+    Parameters
+    ------------
+    layer : napari.layers.Layer
+        The napari layer from which to extract the data.
+    selection : Tuple[slice, ...], optional
+        The selection to apply to the data prior to computing.
+
+    Returns
+    --------
+    npt.NDArray
+        The selected data from the napari layer.
+    """
+    if selection is not None:
+        data = layer.data[selection]
+    else:
+        data = layer.data
+
+    if isinstance(layer.data, da.Array):
+        return data.compute().squeeze()
+
+    return data.squeeze()
 
 
 def open_parameter_file(file_path: Path) -> Dict:
@@ -183,84 +213,7 @@ def check_atlas_installed(parent_widget: QWidget):
         )
 
 
-def filter_plane(img_plane):
-    """
-    Apply a set of filter to the plane (typically to avoid overfitting details
-    in the image during registration)
-    The filter is composed of a despeckle filter using opening and a pseudo
-    flatfield filter
-
-    Originally from: [https://github.com/brainglobe/brainreg/blob/main
-    /brainreg/core/utils/preprocess.py]
-
-    Parameters
-    ----------
-    img_plane : np.array
-        A 2D array to filter
-
-    Returns
-    -------
-    np.array
-        Filtered image
-    """
-
-    img_plane = despeckle_by_opening(img_plane)
-    img_plane = pseudo_flatfield(img_plane)
-    return img_plane
-
-
-def despeckle_by_opening(img_plane, radius=2):
-    """
-    Despeckle the image plane using a grayscale opening operation
-
-    Originally from: [https://github.com/brainglobe/brainreg/blob/main
-    /brainreg/core/utils/preprocess.py]
-
-    Parameters
-    ----------
-    img_plane : np.array
-        The image to filter
-
-    radius: int
-        The radius of the opening kernel
-
-    Returns
-    -------
-    np.array
-        The despeckled image
-    """
-    kernel = morphology.disk(radius)
-    morphology.opening(img_plane, out=img_plane, footprint=kernel)
-    return img_plane
-
-
-def pseudo_flatfield(img_plane, sigma=5):
-    """
-    Pseudo flat field filter implementation using a de-trending by a
-    heavily gaussian filtered copy of the image.
-
-    Originally from: [https://github.com/brainglobe/brainreg/blob/main
-    /brainreg/core/utils/preprocess.py]
-
-    Parameters
-    ----------
-    img_plane : np.array
-        The image to filter
-
-    sigma : int
-        The sigma of the gaussian filter applied to the
-        image used for de-trending
-
-    Returns
-    -------
-    np.array
-        The pseudo flat field filtered image
-    """
-    filtered_img = gaussian_filter(img_plane, sigma)
-    return img_plane / (filtered_img + 1)
-
-
-def calculate_areas(
+def calculate_region_size(
     atlas: BrainGlobeAtlas,
     annotation_image: npt.NDArray[np.uint32],
     hemispheres: npt.NDArray,
@@ -299,21 +252,42 @@ def calculate_areas(
     )
 
     # Remove the background label
-    count_left.pop(0)
-    count_right.pop(0)
+    try:
+        count_left.pop(0)
+        count_right.pop(0)
+    except KeyError:
+        pass
 
     structures_reference_df = atlas.lookup_df
 
-    df = pd.DataFrame(
-        index=structures_reference_df.id,
-        columns=[
+    if annotation_image.ndim == 3:
+        columns = [
+            "structure_name",
+            "left_volume_mm3",
+            "right_volume_mm3",
+            "total_volume_mm3",
+        ]
+        pixel_conversion_factor = (
+            atlas.resolution[0]
+            * atlas.resolution[1]
+            * atlas.resolution[2]
+            / (1000**3)
+        )
+    else:
+        columns = [
             "structure_name",
             "left_area_mm2",
             "right_area_mm2",
             "total_area_mm2",
-        ],
+        ]
+        pixel_conversion_factor = (
+            atlas.resolution[1] * atlas.resolution[2] / (1000**2)
+        )
+
+    df = pd.DataFrame(
+        index=structures_reference_df.id,
+        columns=columns,
     )
-    pixel_area_in_mm2 = atlas.resolution[1] * atlas.resolution[2] / (1000**2)
 
     for structure_id in count_left.keys():
         structure_line = structures_reference_df[
@@ -327,15 +301,15 @@ def calculate_areas(
             )
             continue
 
-        left_area = count_left[structure_id] * pixel_area_in_mm2
-        right_area = count_right[structure_id] * pixel_area_in_mm2
-        total_area = left_area + right_area
+        left_size = count_left[structure_id] * pixel_conversion_factor
+        right_size = count_right[structure_id] * pixel_conversion_factor
+        total_size = left_size + right_size
 
         df.loc[structure_id] = {
-            "structure_name": structure_line["name"].values[0],
-            "left_area_mm2": left_area,
-            "right_area_mm2": right_area,
-            "total_area_mm2": total_area,
+            columns[0]: structure_line["name"].values[0],
+            columns[1]: left_size,
+            columns[2]: right_size,
+            columns[3]: total_size,
         }
 
     df.dropna(how="all", inplace=True)
@@ -347,33 +321,36 @@ def calculate_areas(
 
 def convert_atlas_labels(
     annotation_image: npt.NDArray[np.uint32],
-) -> Tuple[npt.NDArray[np.uint32], Dict[int, int]]:
+) -> Tuple[npt.NDArray[np.uint16], Dict[int, int]]:
     """
-    Adjust the atlas labels such that they can be represented accurately
-    by a single precision float (np.float32).
+    Adjust the atlas labels such that they can be represented by an unsigned
+     short (np.uint16).
 
-    This is done by mapping the labels greater than 2**16 to new
-    consecutive values starting from 2**16.
+    This is done by mapping the labels greater than 2**15 to new
+    consecutive values starting from 2**15. Assumes no more than 2**15
+    unique values greater than 2**15.
 
-    Slow to run if a large number of unique values are greater than 2**16.
+    Slow to run if a large number of unique values are greater than 2**15.
     Based on current BrainGlobe atlases, this should not be the case.
 
     Parameters
     ----------
-    annotation_image: npt.NDArray[np.uint32]
+    annotation_image: npt.NDArray[np.uint16]
         The annotation image.
 
     Returns
     -------
-    npt.NDArray[np.uint32]
+    npt.NDArray[np.uint16]
         The adjusted annotation image.
     Dict[int, int]
         A dictionary mapping the original values to the new values.
             key: original annotation ID
             value: new annotation ID
     """
+    # Copy array to avoid modifying the original
+    output_array = np.array(annotation_image, copy=True)
     # Returns a sorted array of unique values in the annotation image
-    values = np.unique(annotation_image)
+    values = np.unique(output_array)
 
     if isinstance(values, da.Array):
         values = values.compute()
@@ -381,20 +358,20 @@ def convert_atlas_labels(
     # Create a mapping of the original values to the new values
     # and adjust the annotation image
     mapping = {}
-    new_value = 2**16
+    new_value = 2**15
     for value in values:
         if value > new_value:
             mapping[value] = new_value
-            annotation_image[annotation_image == value] = new_value
+            output_array[output_array == value] = new_value
             new_value += 1
         elif value == new_value:
             new_value += 1
 
-    return annotation_image, mapping
+    return output_array.astype(np.uint16), mapping
 
 
 def restore_atlas_labels(
-    annotation_image: npt.NDArray[np.uint32], mapping: Dict[int, int]
+    annotation_image: npt.NDArray[np.uint16], mapping: Dict[int, int]
 ) -> npt.NDArray[np.uint32]:
     """
     Restore the original atlas labels from the adjusted labels based on the
@@ -402,7 +379,7 @@ def restore_atlas_labels(
 
     Parameters
     ----------
-    annotation_image: npt.NDArray[np.uint32]
+    annotation_image: npt.NDArray[np.uint16]
         The adjusted annotation image.
     mapping: Dict[int, int]
         A dictionary mapping the original values to the new values.
@@ -414,6 +391,7 @@ def restore_atlas_labels(
     npt.NDArray[np.uint32]
         The restored annotation image.
     """
+    annotation_image = annotation_image.astype(np.uint32, copy=False)
     for old_value, new_value in mapping.items():
         annotation_image[annotation_image == new_value] = old_value
 
