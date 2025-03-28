@@ -75,15 +75,6 @@ class TestSimilarityMetrics:
             try:
                 atlas_image = io.imread(str(atlas_hipp_path))
 
-                # Handle 3D or RGB atlas
-                if len(atlas_image.shape) > 2:
-                    if len(atlas_image.shape) == 3 and atlas_image.shape[
-                        2
-                    ] in [3, 4]:
-                        atlas_image = np.mean(atlas_image[:, :, :3], axis=2)
-                    else:
-                        atlas_image = atlas_image[0]
-
                 # Create mini atlas from the 2D image
                 self.atlas_volume = np.stack([atlas_image for _ in range(5)])
             except Exception as e:
