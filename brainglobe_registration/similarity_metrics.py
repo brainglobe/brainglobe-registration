@@ -2,112 +2,196 @@ from typing import Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
-from skimage.metrics import (
-    normalized_mutual_information,
-    structural_similarity,
-)
+import skimage.metrics
 
 
-def normalized_cross_correlation(
-    image1: npt.NDArray, image2: npt.NDArray
-) -> float:
+def _match_image_sizes(
+    img1: npt.NDArray, img2: npt.NDArray
+) -> Tuple[npt.NDArray, npt.NDArray]:
     """
-    Calculate normalized cross-correlation between two images.
+    Match the sizes of two images by cropping to the smaller dimensions.
 
     Parameters
     ----------
-    image1 : npt.NDArray
-        First input image
-    image2 : npt.NDArray
-        Second input image
+    img1 : npt.NDArray
+        First image
+    img2 : npt.NDArray
+        Second image
+
+    Returns
+    -------
+    Tuple[npt.NDArray, npt.NDArray]
+        Tuple of cropped images with matching dimensions
+    """
+    min_shape = np.minimum(img1.shape, img2.shape)
+    img1_crop = img1[: min_shape[0], : min_shape[1]]
+    img2_crop = img2[: min_shape[0], : min_shape[1]]
+    return img1_crop, img2_crop
+
+
+def normalized_cross_correlation(
+    img1: npt.NDArray, img2: npt.NDArray
+) -> float:
+    """
+    Calculate the normalized cross-correlation between two images.
+
+    Parameters
+    ----------
+    img1 : numpy.ndarray
+        First image
+    img2 : numpy.ndarray
+        Second image
 
     Returns
     -------
     float
-        Normalized cross-correlation value
-        Higher values indicate better similarity
+        Normalized cross-correlation value between -1 and 1
     """
-    # Ensure the images have the same shape
-    min_shape = np.minimum(image1.shape, image2.shape)
-    img1 = image1[: min_shape[0], : min_shape[1]].astype(np.float32)
-    img2 = image2[: min_shape[0], : min_shape[1]].astype(np.float32)
+    # Ensure both images are the same size
+    img1_crop, img2_crop = _match_image_sizes(img1, img2)
 
-    # Handle empty or constant images
-    if np.std(img1) < 1e-10 or np.std(img2) < 1e-10:
+    # Handle NaN values by replacing them with zeros
+    img1_crop = np.nan_to_num(img1_crop)
+    img2_crop = np.nan_to_num(img2_crop)
+
+    # Calculate means
+    img1_mean = np.mean(img1_crop)
+    img2_mean = np.mean(img2_crop)
+
+    # Calculate normalized cross-correlation
+    numerator = np.sum((img1_crop - img1_mean) * (img2_crop - img2_mean))
+    denominator = np.sqrt(
+        np.sum((img1_crop - img1_mean) ** 2)
+        * np.sum((img2_crop - img2_mean) ** 2)
+    )
+
+    # Check for zero denominator (happens when one or both images are
+    # constant I guess)
+    if denominator == 0:
         return 0.0
 
-    # Normalize the images
-    img1_norm = (img1 - np.mean(img1)) / np.std(img1)
-    img2_norm = (img2 - np.mean(img2)) / np.std(img2)
-
-    # Calculate cross-correlation
-    correlation = np.sum(img1_norm * img2_norm) / (img1_norm.size)
-
-    return correlation
+    return numerator / denominator
 
 
 def mutual_information(
-    image1: npt.NDArray, image2: npt.NDArray, bins: int = 32
+    img1: npt.NDArray, img2: npt.NDArray, bins: int = 256
 ) -> float:
     """
-    Calculate mutual information between two images.
+    Calculate the mutual information between two images.
 
     Parameters
     ----------
-    image1 : npt.NDArray
-        First input image
-    image2 : npt.NDArray
-        Second input image
+    img1 : numpy.ndarray
+        First image
+    img2 : numpy.ndarray
+        Second image
     bins : int, optional
-        Number of bins for histogram calculation, by default 32
+        Number of bins for histogram, by default 256
 
     Returns
     -------
     float
         Mutual information value
-        Higher values indicate better similarity
     """
-    # Normalize images to have same intensity range for histogram calculation
-    img1_norm = image1.astype(np.float32) / np.max(image1)
-    img2_norm = image2.astype(np.float32) / np.max(image2)
+    # Ensure both images are the same size
+    img1_crop, img2_crop = _match_image_sizes(img1, img2)
 
-    # Need to ensure that the images have the same shape
-    min_shape = np.minimum(img1_norm.shape, img2_norm.shape)
-    img1_norm = img1_norm[: min_shape[0], : min_shape[1]]
-    img2_norm = img2_norm[: min_shape[0], : min_shape[1]]
+    # Handle NaN values by replacing them with zeros
+    img1_crop = np.nan_to_num(img1_crop)
+    img2_crop = np.nan_to_num(img2_crop)
 
-    return normalized_mutual_information(img1_norm, img2_norm, bins=bins)
+    # Check for constant images
+    img1_is_constant = np.all(img1_crop == img1_crop.flat[0])
+    img2_is_constant = np.all(img2_crop == img2_crop.flat[0])
+
+    # Special case: both images are constant
+    if img1_is_constant and img2_is_constant:
+        # If both constant images have the same value, they have perfect mutual
+        # information
+        if img1_crop.flat[0] == img2_crop.flat[0]:
+            return 1.0  # Return positive value for identical constant images
+        else:
+            return 0.0  # Different constant values have no mutual information
+
+    # If only one image is constant, there's no mutual information
+    if img1_is_constant or img2_is_constant:
+        return 0.0
+
+    try:
+        # Normalize images to [0,1] for histogram calculation
+        if np.max(img1_crop) != 0:
+            img1_norm = img1_crop.astype(np.float32) / np.max(img1_crop)
+        else:
+            img1_norm = img1_crop.astype(np.float32)
+
+        if np.max(img2_crop) != 0:
+            img2_norm = img2_crop.astype(np.float32) / np.max(img2_crop)
+        else:
+            img2_norm = img2_crop.astype(np.float32)
+
+        # Calculate mutual information using scikit-image
+        mi_value = skimage.metrics.mutual_information_2d(
+            img1_norm, img2_norm, bins=bins
+        )
+
+        # Handle potential NaN results
+        if np.isnan(mi_value):
+            return 0.0
+
+        return mi_value
+    except Exception:
+        # If any error occurs during calculation, return 0
+        return 0.0
 
 
-def structural_similarity_index(
-    image1: npt.NDArray, image2: npt.NDArray
-) -> float:
+def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
     """
-    Calculate structural similarity index (SSIM) between two images.
+    Calculate the structural similarity index between two images.
 
     Parameters
     ----------
-    image1 : npt.NDArray
-        First input image
-    image2 : npt.NDArray
-        Second input image
+    img1 : numpy.ndarray
+        First image
+    img2 : numpy.ndarray
+        Second image
 
     Returns
     -------
     float
-        SSIM value between -1 and 1
-        Higher values indicate better similarity
+        Structural similarity index value between -1 and 1
     """
-    # Need to ensure that the images have the same shape
-    min_shape = np.minimum(image1.shape, image2.shape)
-    img1_crop = image1[: min_shape[0], : min_shape[1]]
-    img2_crop = image2[: min_shape[0], : min_shape[1]]
+    # Ensure both images are the same size
+    img1_crop, img2_crop = _match_image_sizes(img1, img2)
 
-    # Normalize images to 0-1 range
-    img1_norm = img1_crop.astype(np.float32) / np.max(img1_crop)
-    img2_norm = img2_crop.astype(np.float32) / np.max(img2_crop)
+    # Handle NaN values by replacing them with zeros
+    img1_crop = np.nan_to_num(img1_crop)
+    img2_crop = np.nan_to_num(img2_crop)
 
-    return structural_similarity(img1_norm, img2_norm, data_range=1.0)
+    # Normalize images to [0,1]
+    if np.max(img1_crop) != 0:
+        img1_norm = img1_crop.astype(np.float32) / np.max(img1_crop)
+    else:
+        img1_norm = img1_crop.astype(np.float32)
+
+    if np.max(img2_crop) != 0:
+        img2_norm = img2_crop.astype(np.float32) / np.max(img2_crop)
+    else:
+        img2_norm = img2_crop.astype(np.float32)
+
+    try:
+        # Use scikit-image SSIM function
+        ssim_value = skimage.metrics.structural_similarity(
+            img1_norm, img2_norm, data_range=1.0
+        )
+
+        # Handle potential NaN results
+        if np.isnan(ssim_value):
+            return 0.0
+
+        return ssim_value
+    except Exception:
+        # If any error occurs during calculation, return 0
+        return 0.0
 
 
 def compare_all_metrics(image1: npt.NDArray, image2: npt.NDArray) -> dict:
@@ -130,7 +214,6 @@ def compare_all_metrics(image1: npt.NDArray, image2: npt.NDArray) -> dict:
         "ncc": normalized_cross_correlation(image1, image2),
         "mi": mutual_information(image1, image2),
         "ssim": structural_similarity_index(image1, image2),
-        # "elastix": elastix_metric(image1, image2)
     }
 
 
@@ -171,8 +254,6 @@ def compare_image_to_atlas_slices(
         metric_func = mutual_information
     elif metric == "ssim":
         metric_func = structural_similarity_index
-    # elif metric == "elastix":
-    #    metric_func = elastix_metric
     else:
         raise ValueError(f"Unknown metric: {metric}")
 
@@ -221,7 +302,7 @@ def find_best_atlas_slice(
         3D atlas volume
     metric : str, optional
         Metric to use for comparison, by default "mi"
-        Options: "ncc", "mi", "ssim", "elastix"
+        Options: "ncc", "mi", "ssim"
     search_range : tuple, optional
         Range of slices to search (start, end), by default None
         If None, searches all slices
