@@ -1,13 +1,11 @@
 import numpy as np
 import numpy.typing as npt
-from skimage.registration import optical_flow_tvl1, optical_flow_ilk
 from skimage.color import rgb2gray
+from skimage.registration import optical_flow_ilk, optical_flow_tvl1
 
 
 def compute_optical_flow_skimage(
-    image1: npt.NDArray,
-    image2: npt.NDArray,
-    method: str = "tvl1"
+    image1: npt.NDArray, image2: npt.NDArray, method: str = "tvl1"
 ) -> npt.NDArray:
     """
     Compute dense optical flow using skimage.
@@ -46,8 +44,7 @@ def compute_optical_flow_skimage(
 
 
 def compare_deformation_fields(
-    elastix_field: npt.NDArray,
-    optical_flow: npt.NDArray
+    elastix_field: npt.NDArray, optical_flow: npt.NDArray
 ) -> float:
     """
     Compare the elastix deformation field with optical flow field.
@@ -69,7 +66,9 @@ def compare_deformation_fields(
 
     # Resize if shapes don't match
     if elastix_field.shape != optical_flow.shape:
-        raise ValueError("Shape mismatch between elastix and optical flow fields")
+        raise ValueError(
+            "Shape mismatch between elastix and optical flow fields"
+        )
 
     diff = elastix_field - optical_flow
     mse = np.mean(np.square(diff))

@@ -1,7 +1,8 @@
 import numpy as np
+
 from brainglobe_registration.optical_flow import (
+    compare_deformation_fields,
     compute_optical_flow_skimage,
-    compare_deformation_fields
 )
 
 
