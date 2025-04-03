@@ -71,7 +71,7 @@ We are always happy to help users of our tools, and welcome any contributions. I
 
 ## Citation
 If you find this package useful, and use it in your research, please cite the following:
-> Igor Tatarnikov, Adam Tyson, Alessandro Felder, & Kimberly Meechan. (2025). brainglobe/brainglobe-registration: v0.0.2 (v0.0.2). Zenodo. https://doi.org/10.5281/zenodo.14750325
+> Igor Tatarnikov, Adam Tyson, Alessandro Felder, & Kimberly Meechan. (2025). brainglobe/brainglobe-registration. Zenodo. https://doi.org/10.5281/zenodo.14750325
 
 ## Acknowledgements
 
