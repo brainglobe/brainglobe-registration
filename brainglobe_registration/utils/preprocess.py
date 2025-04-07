@@ -3,6 +3,7 @@ import numpy.typing as npt
 from brainglobe_utils.image.scale import scale_and_convert_to_16_bits
 from scipy.ndimage import gaussian_filter
 from skimage import morphology
+from skimage.restoration import denoise_bilateral
 from tqdm import trange
 
 
@@ -57,6 +58,7 @@ def filter_plane(img_plane: npt.NDArray) -> npt.NDArray:
     """
     img_plane = despeckle_by_opening(img_plane)
     img_plane = pseudo_flatfield(img_plane)
+    img_plane = bilateral_filter(img_plane)
 
     return img_plane
 
@@ -112,3 +114,36 @@ def pseudo_flatfield(img_plane: npt.NDArray, sigma: int = 5):
     filtered_img = gaussian_filter(img_plane, sigma)
 
     return img_plane / (filtered_img + 1)
+
+
+def bilateral_filter(
+        img_plane: npt.NDArray, win_size: int = 5, sd_intensity: float = 0.1, sigma_spatial: float = 15.0
+) -> npt.NDArray:
+    """
+    Implementation of a non-linear and noise-reducing smoothing filter for the image plane 
+    that preserves its edges. The filter smoothes the image by taking weighted averages for 
+    each pixel, by taking into account spatial closeness and intensity of nearby pixels.
+    This weight can be based on a Gaussian distribution.
+
+    Parameters
+    ----------
+    img_plane : npt.NDArray
+        The image to filter.
+    win_size : int
+        Size of each region around pixel to be considered for filtering.
+    sigma_intensity : float
+        Gaussian function of the Euclidean distance between two color values 
+        and a certain standard deviation
+    sigma_spatial : float
+        Radiometric similarity is measured by the Gaussian function of the 
+        Euclidean distance between two color values and a certain standard deviation
+    multichannel : boolean
+        False - Grayscale images 
+        True - Colour Images
+
+    Returns
+    -------
+    npt.NDArray
+        The filtered image
+    """
+    return denoise_bilateral(img_plane, win_size=win_size, sigma_color=sd_intensity, sigma_spatial=sigma_spatial, multichannel=False)
