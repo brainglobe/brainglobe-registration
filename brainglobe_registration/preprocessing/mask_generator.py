@@ -1,79 +1,33 @@
 import numpy as np
-import tifffile as tiff
-import os
-from skimage.transform import resize  
+from bg_atlasapi import BrainGlobeAtlas
 
 
-def load_image(image_path):
-    """Load a TIFF image as numpy array."""
-    return tiff.imread(image_path)
-
-
-def save_image(image, output_path):
-    """Save numpy array as TIFF image."""
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    tiff.imwrite(output_path, image.astype(np.uint16))  # uint16 for compatibility
-
-
-def generate_mask(annotation_image):
+def generate_mask_from_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
     """
-    Generate a binary mask from annotation image.
-    Pixels with value != 1 are included in the mask.
+    Generate a binary mask from the atlas annotation array.
+
+    Parameters:
+        atlas (BrainGlobeAtlas): Atlas object containing annotation data.
+
+    Returns:
+        np.ndarray: Binary mask of the same shape as the annotation,
+                    where pixels are 1 if the annotation is not zero, else 0.
     """
-    mask = annotation_image != 1
-    return mask.astype(np.uint8)  # 0 or 1 mask
+    annotation = atlas.annotation
+    mask = annotation != 0
+    return mask.astype(np.uint8)
 
 
-def apply_mask(image, mask):
+def mask_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
     """
-    Apply binary mask to image. Pixels outside mask are set to 0.
-    Resizes the mask to match the image dimensions if necessary.
+    Apply the annotation-based mask to the reference image of the atlas.
+
+    Parameters:
+        atlas (BrainGlobeAtlas): Atlas object containing reference and annotation data.
+
+    Returns:
+        np.ndarray: Reference image with mask applied (pixels outside mask set to zero).
     """
-    if image.shape != mask.shape:
-        print("Resizing mask to match image dimensions...")
-        mask = resize(mask, image.shape, order=0, preserve_range=True, anti_aliasing=False).astype(np.uint8)
-    masked_image = image * mask
-    return masked_image
-
-
-def mask_atlas_with_annotation(atlas_path, annotation_path, output_path):
-    """
-    Full pipeline:
-    1. Load atlas and annotation images.
-    2. Generate mask.
-    3. Apply mask.
-    4. Save the masked atlas image.
-    """
-    print(f"Loading atlas image: {atlas_path}")
-    atlas_image = load_image(atlas_path)
-
-    print(f"Loading annotation image: {annotation_path}")
-    annotation_image = load_image(annotation_path)
-
-    print("Generating binary mask...")
-    mask = generate_mask(annotation_image)
-
-    print("Applying mask to atlas image...")
-    masked_atlas = apply_mask(atlas_image, mask)
-
-    print(f"Saving masked atlas image to: {output_path}")
-    save_image(masked_atlas, output_path)
-
-    print("Masking completed successfully.")
-
-    return masked_atlas
-
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Mask atlas image using annotation image.")
-    parser.add_argument("--atlas", required=True, help="Path to the atlas image (TIFF).")
-    parser.add_argument("--annotation", required=True, help="Path to the annotation image (TIFF).")
-    parser.add_argument("--output", required=True, help="Path to save the masked atlas image.")
-
-    args = parser.parse_args()
-
-    mask_atlas_with_annotation(args.atlas, args.annotation, args.output)
-
+    mask = generate_mask_from_atlas(atlas)
+    masked_reference = atlas.reference * mask
+    return masked_reference
