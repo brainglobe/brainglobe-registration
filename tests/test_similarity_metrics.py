@@ -367,7 +367,7 @@ class TestSimilarityMetrics:
         # Test when the underlying metric function raises an exception
         mocker.patch(
             "brainglobe_registration.similarity_metrics.normalized_cross_correlation",
-            side_effect=Exception("Deliberate test exception"),
+            side_effect=ValueError("Deliberate test exception"),
         )
 
         # This should catch the exception from the mocked NCC and return -inf
