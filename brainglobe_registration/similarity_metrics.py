@@ -198,7 +198,7 @@ def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
             return 0.0
 
         return ssim_value
-    except Exception as e:
+    except (ValueError, RuntimeError, TypeError) as e:
         # If any error occurs during calculation, print warning and return -inf
         print(f"Warning: Error calculating structural similarity index: {e}")
         return float("-inf")
