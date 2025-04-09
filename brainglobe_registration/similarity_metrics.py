@@ -152,7 +152,7 @@ def mutual_information(
             return 0.0
 
         return mi_value
-    except Exception as e:
+    except (ValueError, RuntimeError, TypeError) as e:
         # If any error occurs during calculation, print warning and return -inf
         print(f"Warning: Error calculating mutual information: {e}")
         return float("-inf")
@@ -296,7 +296,7 @@ def compare_image_to_atlas_slices(
         # Returns -inf if appropriate.
         try:
             results[slice_idx] = metric_func(moving_image, atlas_slice)
-        except Exception as e:
+        except (ValueError, RuntimeError, TypeError) as e:
             # Handle any errors that might occur during metric calculation
             print(f"Error processing slice {slice_idx}: {e}")
             results[slice_idx] = float("-inf")
