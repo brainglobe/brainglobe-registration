@@ -154,7 +154,7 @@ def mutual_information(
         return mi_value
     except (ValueError, RuntimeError, TypeError) as e:
         # If any error occurs during calculation, print warning and return -inf
-        print(f"Warning: Error calculating mutual information: {e}")
+        warnings.warn(f"Warning: Error calculating mutual information: {e}")
         return float("-inf")
 
 
@@ -200,7 +200,9 @@ def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
         return ssim_value
     except (ValueError, RuntimeError, TypeError) as e:
         # If any error occurs during calculation, print warning and return -inf
-        print(f"Warning: Error calculating structural similarity index: {e}")
+        warnings.warn(
+            f"Warning: Error calculating structural similarity index: {e}"
+        )
         return float("-inf")
 
 
@@ -298,7 +300,7 @@ def compare_image_to_atlas_slices(
             results[slice_idx] = metric_func(moving_image, atlas_slice)
         except (ValueError, RuntimeError, TypeError) as e:
             # Handle any errors that might occur during metric calculation
-            print(f"Error processing slice {slice_idx}: {e}")
+            warnings.warn(f"Error processing slice {slice_idx}: {e}")
             results[slice_idx] = float("-inf")
 
     return results
