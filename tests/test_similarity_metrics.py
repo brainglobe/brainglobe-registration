@@ -161,41 +161,7 @@ class TestSimilarityMetrics:
                 expected = {
                     0: 0.0, 1: 1.0, 2: 0.0, 3: 0.0, 4: 0.0
                 }  # fmt: skip
-                print("\nDEBUG: mi results before assertions:")
-                for s_idx, sim in results.items():
-                    print(
-                        f"Slice {s_idx}: MI={sim} "
-                        f"(expected={expected[s_idx]})"
-                    )
-                print("\nDEBUG: Data inspection:")
-                print(
-                    f"self.img_ones: shape={self.img_ones.shape}, "
-                    f"min={np.min(self.img_ones):.1f}, "
-                    f"max={np.max(self.img_ones):.1f}, "
-                    f"const={np.all(self.img_ones == self.img_ones.flat[0])}"
-                )
-                for s_idx in range(5):
-                    atlas_slice = self.test_atlas_volume[s_idx, :, :]
-                    print(
-                        f"atlas slice {s_idx}: shape={atlas_slice.shape}, "
-                        f"min={np.min(atlas_slice):.1f}, "
-                        f"max={np.max(atlas_slice):.1f}, "
-                        f"const={np.all(atlas_slice == atlas_slice.flat[0])}"
-                    )
-                    if s_idx == 1:  # Specifically check the problematic slice
-                        print(
-                            f"Detailed check - img_ones[0,0]="
-                            f"{self.img_ones[0,0]}, "
-                            f"atlas_slice_1[0,0]={atlas_slice[0,0]}"
-                        )
-                        # Directly test mutual_information with these arrays
-                        direct_mi = mutual_information(
-                            self.img_ones, atlas_slice
-                        )
-                        print(
-                            f"Direct mutual_information call result: "
-                            f"{direct_mi}"
-                        )
+                # Check MI values match expected values
                 for slice_idx, similarity in results.items():
                     assert np.isclose(
                         similarity, expected[slice_idx]
