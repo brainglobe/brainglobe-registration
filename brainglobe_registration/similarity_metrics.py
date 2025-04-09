@@ -8,9 +8,10 @@ import skimage.metrics
 
 def _match_image_sizes(
     img1: npt.NDArray, img2: npt.NDArray
-) -> Tuple[npt.NDArray, npt.NDArray]:
+) -> Tuple[Optional[npt.NDArray], Optional[npt.NDArray], bool]:
     """
     Match the sizes of two images by cropping to the smaller dimensions.
+    Also checks for NaNs in the cropped regions and handles them.
 
     Parameters
     ----------
@@ -21,13 +22,37 @@ def _match_image_sizes(
 
     Returns
     -------
-    Tuple[npt.NDArray, npt.NDArray]
-        Tuple of cropped images with matching dimensions
+    Tuple[Optional[npt.NDArray], Optional[npt.NDArray], bool]
+        Tuple of (cropped_img1, cropped_img2, contains_nan).
+        Images are None if contains_nan is True.
+        If contains_nan is False, images are guaranteed to be NaN-free.
     """
     min_shape = np.minimum(img1.shape, img2.shape)
     img1_crop = img1[: min_shape[0], : min_shape[1]]
     img2_crop = img2[: min_shape[0], : min_shape[1]]
-    return img1_crop, img2_crop
+
+    # Check for NaNs BEFORE converting them
+    contains_nan = np.isnan(img1_crop).any() or np.isnan(img2_crop).any()
+
+    if contains_nan:
+        return None, None, True
+    else:
+        # Handle potential NaNs by replacing them if necessary (though
+        # the check above should prevent this)
+        # This also ensures a copy is made if nan_to_num does replacements.
+        img1_processed = np.nan_to_num(img1_crop)
+        img2_processed = np.nan_to_num(img2_crop)
+        return img1_processed, img2_processed, False
+
+
+def _normalize_image(img: npt.NDArray) -> npt.NDArray:
+    """Normalize image array to the range [0, 1]."""
+    img_float = img.astype(np.float32)
+    max_val = np.max(img_float)
+    if max_val != 0:
+        return img_float / max_val
+    else:
+        return img_float  # Return the zero array if max is 0
 
 
 def normalized_cross_correlation(
@@ -48,30 +73,25 @@ def normalized_cross_correlation(
     float
         Normalized cross-correlation value between -1 and 1
     """
-    # Ensure both images are the same size
-    img1_crop, img2_crop = _match_image_sizes(img1, img2)
+    # Ensure both images are the same size and handle NaNs
+    img1_proc, img2_proc, contains_nan = _match_image_sizes(img1, img2)
 
-    # Explicitly create copies to avoid modifying original arrays/views
-    img1_crop = img1_crop.copy()
-    img2_crop = img2_crop.copy()
-
-    # Check for NaNs BEFORE converting them to numbers
-    if np.isnan(img1_crop).any() or np.isnan(img2_crop).any():
+    if contains_nan:
         return float("-inf")
 
-    # Handle NaN values by replacing them with zeros
-    img1_crop = np.nan_to_num(img1_crop)
-    img2_crop = np.nan_to_num(img2_crop)
+    # At this point we know img1_proc and img2_proc are not None
+    assert img1_proc is not None and img2_proc is not None
 
+    # These checks are safe because NaNs have been handled
     # Calculate means
-    img1_mean = np.mean(img1_crop)
-    img2_mean = np.mean(img2_crop)
+    img1_mean = np.mean(img1_proc)
+    img2_mean = np.mean(img2_proc)
 
     # Calculate normalized cross-correlation
-    numerator = np.sum((img1_crop - img1_mean) * (img2_crop - img2_mean))
+    numerator = np.sum((img1_proc - img1_mean) * (img2_proc - img2_mean))
     denominator = np.sqrt(
-        np.sum((img1_crop - img1_mean) ** 2)
-        * np.sum((img2_crop - img2_mean) ** 2)
+        np.sum((img1_proc - img1_mean) ** 2)
+        * np.sum((img2_proc - img2_mean) ** 2)
     )
 
     # Check for zero denominator (happens when one or both images are
@@ -102,38 +122,28 @@ def mutual_information(
     float
         Mutual information value
     """
-    # Ensure both images are the same size
-    img1_crop, img2_crop = _match_image_sizes(img1, img2)
+    # Ensure both images are the same size and handle NaNs
+    img1_proc, img2_proc, contains_nan = _match_image_sizes(img1, img2)
 
-    # Check for NaNs BEFORE converting them to numbers
-    if np.isnan(img1_crop).any() or np.isnan(img2_crop).any():
+    if contains_nan:
         return float("-inf")
 
     # Check for constant images BEFORE normalization
-    is_img1_constant = np.all(img1_crop == img1_crop.flat[0])
-    is_img2_constant = np.all(img2_crop == img2_crop.flat[0])
+    # At this point we know img1_proc and img2_proc are not None
+    assert img1_proc is not None and img2_proc is not None
+    is_img1_constant = np.all(img1_proc == img1_proc.flat[0])
+    is_img2_constant = np.all(img2_proc == img2_proc.flat[0])
 
     if is_img1_constant and is_img2_constant:
         # Both are constant images
-        return 1.0 if img1_crop.flat[0] == img2_crop.flat[0] else 0.0
+        return 1.0 if img1_proc.flat[0] == img2_proc.flat[0] else 0.0
     elif is_img1_constant or is_img2_constant:
         # If only one image is constant, MI is 0
         return 0.0
 
-    # Handle NaN values by replacing them with zeros
-    img1_crop = np.nan_to_num(img1_crop)
-    img2_crop = np.nan_to_num(img2_crop)
-
     # Normalize images to [0, 1] range
-    if np.max(img1_crop) != 0:
-        img1_norm = img1_crop.astype(np.float32) / np.max(img1_crop)
-    else:
-        img1_norm = img1_crop.astype(np.float32)
-
-    if np.max(img2_crop) != 0:
-        img2_norm = img2_crop.astype(np.float32) / np.max(img2_crop)
-    else:
-        img2_norm = img2_crop.astype(np.float32)
+    img1_norm = _normalize_image(img1_proc)
+    img2_norm = _normalize_image(img2_proc)
 
     try:
         # Calculate normalized mutual information using scikit-image
@@ -168,31 +178,18 @@ def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
     float
         Structural similarity index value between -1 and 1
     """
-    # Ensure both images are the same size
-    img1_crop, img2_crop = _match_image_sizes(img1, img2)
+    # Ensure both images are the same size and handle NaNs
+    img1_proc, img2_proc, contains_nan = _match_image_sizes(img1, img2)
 
-    # Explicitly create copies to avoid modifying original arrays/views
-    img1_crop = img1_crop.copy()
-    img2_crop = img2_crop.copy()
-
-    # Check for NaNs BEFORE converting them to numbers
-    if np.isnan(img1_crop).any() or np.isnan(img2_crop).any():
+    if contains_nan:
         return float("-inf")
 
-    # Handle NaN values by replacing them with zeros
-    img1_crop = np.nan_to_num(img1_crop)
-    img2_crop = np.nan_to_num(img2_crop)
+    # At this point we know img1_proc and img2_proc are not None
+    assert img1_proc is not None and img2_proc is not None
 
     # Normalize images to [0,1]
-    if np.max(img1_crop) != 0:
-        img1_norm = img1_crop.astype(np.float32) / np.max(img1_crop)
-    else:
-        img1_norm = img1_crop.astype(np.float32)
-
-    if np.max(img2_crop) != 0:
-        img2_norm = img2_crop.astype(np.float32) / np.max(img2_crop)
-    else:
-        img2_norm = img2_crop.astype(np.float32)
+    img1_norm = _normalize_image(img1_proc)
+    img2_norm = _normalize_image(img2_proc)
 
     try:
         # Use scikit-image SSIM function
@@ -234,6 +231,14 @@ def compare_all_metrics(image1: npt.NDArray, image2: npt.NDArray) -> dict:
     }
 
 
+# Dictionary mapping metric names to functions
+METRIC_FUNCTIONS = {
+    "ncc": lambda img1, img2: normalized_cross_correlation(img1, img2),
+    "mi": lambda img1, img2: mutual_information(img1, img2),
+    "ssim": lambda img1, img2: structural_similarity_index(img1, img2),
+}
+
+
 def compare_image_to_atlas_slices(
     moving_image: npt.NDArray,
     atlas_volume: npt.NDArray,
@@ -273,15 +278,13 @@ def compare_image_to_atlas_slices(
             "indices"
         )
 
-    # Select the appropriate metric function
-    if metric == "ncc":
-        metric_func = normalized_cross_correlation
-    elif metric == "mi":
-        metric_func = mutual_information
-    elif metric == "ssim":
-        metric_func = structural_similarity_index
-    else:
-        raise ValueError(f"Unknown metric: {metric}")
+    if metric not in METRIC_FUNCTIONS:
+        raise ValueError(
+            f"Invalid metric: {metric}. "
+            f"Choose from {list(METRIC_FUNCTIONS.keys())}"
+        )
+
+    metric_func = METRIC_FUNCTIONS[metric]
 
     results = {}
     for slice_idx in indices_to_process:
@@ -294,12 +297,8 @@ def compare_image_to_atlas_slices(
 
         # Let metric functions handle specific cases like constant images or
         # NaNs.
-        # The decorator/metric should return -inf if appropriate.
-        pass
-
+        # Returns -inf if appropriate.
         try:
-            # Pass images directly; metric functions handle size matching
-            # internally
             results[slice_idx] = metric_func(moving_image, atlas_slice)
         except Exception as e:
             # Handle any errors that might occur during metric calculation
@@ -340,46 +339,36 @@ def find_best_atlas_slice(
         Index of the best matching slice
     """
     if search_range is None:
-        search_range = (0, atlas_volume.shape[0])
+        slice_indices = range(0, atlas_volume.shape[0], search_step)
+    else:
+        start_slice, end_slice = search_range
+        # Ensure start/end are within bounds
+        start_slice = max(0, start_slice)
+        end_slice = min(atlas_volume.shape[0], end_slice)
+        slice_indices = range(start_slice, end_slice, search_step)
 
-    # Create a range with the specified step size
-    slice_indices = range(search_range[0], search_range[1], search_step)
-
-    # Compare the image with the specified slices using the generated indices
-    similarities = compare_image_to_atlas_slices(
-        moving_image,
-        atlas_volume,
-        slice_range=slice_indices,  # Pass the iterable directly
-        metric=metric,
+    # Use compare_image_to_atlas_slices to get similarities
+    similarity_results = compare_image_to_atlas_slices(
+        moving_image, atlas_volume, slice_indices, metric=metric
     )
 
-    # Check if similarities dictionary is empty
-    if not similarities:
-        raise ValueError(
-            "No slices were compared, possibly due to invalid range or step."
-        )
+    # Check if similarity_results is empty (e.g., invalid range)
+    if not similarity_results:
+        warnings.warn("No valid slices found in the specified search range.")
+        # Return first index of the search range as fallback
+        return slice_indices[0] if len(slice_indices) > 0 else 0
 
-    # Find the slice index with the highest similarity
-    # Filter out -inf values before finding the max
-    valid_similarities = {
-        k: v for k, v in similarities.items() if v != float("-inf")
-    }
-    if not valid_similarities:
-        # Handle case where all compared slices resulted in -inf
-        # Optionally, could return the first index of slice_indices
-        # or raise error
-        warnings.warn(
-            "All compared slices yielded invalid similarity values.",
-            UserWarning,
-        )
-        # Optionally, could return the first index of slice_indices
-        # or raise error
-        return slice_indices[0] if len(slice_indices) > 0 else -1
-
-    # Find the key corresponding to the maximum value
-    # Mypy struggles with dict.get, use explicit lambda
-    best_slice_idx = max(
-        valid_similarities, key=lambda k: valid_similarities[k]
+    # Find the slice index with the maximum similarity value
+    best_slice_index = max(
+        similarity_results,
+        key=lambda k: similarity_results.get(k, float("-inf")),
     )
 
-    return best_slice_idx
+    # Check if the best score is -inf (meaning all calculations failed or
+    # had NaNs)
+    if similarity_results[best_slice_index] == float("-inf"):
+        warnings.warn("All compared slices yielded invalid similarity values.")
+        # Return first index of the search range as fallback
+        return slice_indices[0] if len(slice_indices) > 0 else 0
+
+    return best_slice_index
