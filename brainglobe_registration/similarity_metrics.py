@@ -37,9 +37,6 @@ def _match_image_sizes(
     if contains_nan:
         return None, None, True
     else:
-        # Handle potential NaNs by replacing them if necessary (though
-        # the check above should prevent this)
-        # This also ensures a copy is made if nan_to_num does replacements.
         img1_processed = np.nan_to_num(img1_crop)
         img2_processed = np.nan_to_num(img2_crop)
         return img1_processed, img2_processed, False
@@ -52,7 +49,7 @@ def _normalize_image(img: npt.NDArray) -> npt.NDArray:
     if max_val != 0:
         return img_float / max_val
     else:
-        return img_float  # Return the zero array if max is 0
+        return img_float
 
 
 def normalized_cross_correlation(
@@ -82,7 +79,6 @@ def normalized_cross_correlation(
     # At this point we know img1_proc and img2_proc are not None
     assert img1_proc is not None and img2_proc is not None
 
-    # These checks are safe because NaNs have been handled
     # Calculate means
     img1_mean = np.mean(img1_proc)
     img2_mean = np.mean(img2_proc)
