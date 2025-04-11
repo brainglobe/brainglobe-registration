@@ -23,10 +23,12 @@ def mask_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
     Apply the annotation-based mask to the reference image of the atlas.
 
     Parameters:
-        atlas (BrainGlobeAtlas): Atlas object containing reference and annotation data.
+        atlas (BrainGlobeAtlas): Atlas object containing reference and
+        annotation data.
 
     Returns:
-        np.ndarray: Reference image with mask applied (pixels outside mask set to zero).
+        np.ndarray: Reference image with mask applied (pixels outside
+        mask set to zero).
     """
     mask = generate_mask_from_atlas(atlas)
     masked_reference = atlas.reference * mask
