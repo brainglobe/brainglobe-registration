@@ -425,7 +425,7 @@ def generate_mask_from_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Binary mask of the same shape as the annotation. 
+        Binary mask of the same shape as the annotation.
         Pixels are 1 if the annotation is not zero, else 0.
     """
     annotation = atlas.annotation
@@ -445,7 +445,7 @@ def mask_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Reference image with the mask applied. 
+        Reference image with the mask applied.
         Pixels outside the mask are set to zero.
     """
     mask = generate_mask_from_atlas(atlas)
