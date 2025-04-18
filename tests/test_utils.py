@@ -13,12 +13,12 @@ from brainglobe_registration.utils.utils import (
     calculate_rotated_bounding_box,
     convert_atlas_labels,
     find_layer_index,
+    generate_mask_from_atlas,
     get_data_from_napari_layer,
     get_image_layer_names,
+    mask_atlas,
     open_parameter_file,
     restore_atlas_labels,
-    generate_mask_from_atlas, 
-    mask_atlas
 )
 
 
@@ -251,39 +251,26 @@ class DummyAtlas:
 
 @pytest.fixture
 def dummy_atlas():
-    reference = np.array([
-        [100, 150, 200],
-        [50, 0, 75],
-        [25, 25, 25]
-    ], dtype=np.uint16)
+    reference = np.array(
+        [[100, 150, 200], [50, 0, 75], [25, 25, 25]], dtype=np.uint16
+    )
 
-    annotation = np.array([
-        [1, 0, 2],
-        [0, 0, 3],
-        [4, 0, 0]
-    ], dtype=np.uint16)
+    annotation = np.array([[1, 0, 2], [0, 0, 3], [4, 0, 0]], dtype=np.uint16)
 
     return DummyAtlas(reference, annotation)
 
 
 def test_generate_mask_from_atlas(dummy_atlas):
     mask = generate_mask_from_atlas(dummy_atlas)
-    expected_mask = np.array([
-        [1, 0, 1],
-        [0, 0, 1],
-        [1, 0, 0]
-    ], dtype=np.uint8)
+    expected_mask = np.array([[1, 0, 1], [0, 0, 1], [1, 0, 0]], dtype=np.uint8)
 
     assert np.array_equal(mask, expected_mask)
 
 
 def test_mask_atlas(dummy_atlas):
     masked_image = mask_atlas(dummy_atlas)
-    expected_masked_image = np.array([
-        [100, 0, 200],
-        [0, 0, 75],
-        [25, 0, 0]
-    ], dtype=np.uint16)
+    expected_masked_image = np.array(
+        [[100, 0, 200], [0, 0, 75], [25, 0, 0]], dtype=np.uint16
+    )
 
     assert np.array_equal(masked_image, expected_masked_image)
-
