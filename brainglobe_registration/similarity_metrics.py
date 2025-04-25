@@ -1,5 +1,4 @@
-import warnings
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Callable, Dict, Iterable, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -8,7 +7,7 @@ import skimage.metrics
 
 def _match_image_sizes(
     img1: npt.NDArray, img2: npt.NDArray
-) -> Tuple[Optional[npt.NDArray], Optional[npt.NDArray], bool]:
+) -> Tuple[Optional[npt.NDArray], Optional[npt.NDArray]]:
     """
     Match the sizes of two images by cropping to the smaller dimensions.
     Also checks for NaNs in the cropped regions and handles them.
@@ -22,24 +21,19 @@ def _match_image_sizes(
 
     Returns
     -------
-    Tuple[Optional[npt.NDArray], Optional[npt.NDArray], bool]
-        Tuple of (cropped_img1, cropped_img2, contains_nan).
-        Images are None if contains_nan is True.
-        If contains_nan is False, images are guaranteed to be NaN-free.
+    Tuple[Optional[npt.NDArray], Optional[npt.NDArray]]
+        Tuple of (cropped_img1, cropped_img2).
+        If img1 or img2 has NaNs, first or second element is None.
+        If both are valid, both are returned as cropped arrays.
     """
     min_shape = np.minimum(img1.shape, img2.shape)
     img1_crop = img1[: min_shape[0], : min_shape[1]]
     img2_crop = img2[: min_shape[0], : min_shape[1]]
 
-    # Check for NaNs BEFORE converting them
-    contains_nan = np.isnan(img1_crop).any() or np.isnan(img2_crop).any()
+    img1_proc = None if np.isnan(img1_crop).any() else img1_crop
+    img2_proc = None if np.isnan(img2_crop).any() else img2_crop
 
-    if contains_nan:
-        return None, None, True
-    else:
-        img1_processed = np.nan_to_num(img1_crop)
-        img2_processed = np.nan_to_num(img2_crop)
-        return img1_processed, img2_processed, False
+    return img1_proc, img2_proc
 
 
 def _normalize_image(img: npt.NDArray) -> npt.NDArray:
@@ -71,14 +65,9 @@ def normalized_cross_correlation(
         Normalized cross-correlation value between -1 and 1
     """
     # Ensure both images are the same size and handle NaNs
-    img1_proc, img2_proc, contains_nan = _match_image_sizes(img1, img2)
-
-    if contains_nan:
-        return float("-inf")
-
-    # At this point we know img1_proc and img2_proc are not None
-    assert img1_proc is not None and img2_proc is not None
-
+    img1_proc, img2_proc = _match_image_sizes(img1, img2)
+    if img1_proc is None or img2_proc is None:
+        raise ValueError("Input images contain NaN values.")
     # Calculate means
     img1_mean = np.mean(img1_proc)
     img2_mean = np.mean(img2_proc)
@@ -119,23 +108,19 @@ def mutual_information(
         Mutual information value
     """
     # Ensure both images are the same size and handle NaNs
-    img1_proc, img2_proc, contains_nan = _match_image_sizes(img1, img2)
-
-    if contains_nan:
-        return float("-inf")
-
+    img1_proc, img2_proc = _match_image_sizes(img1, img2)
+    if img1_proc is None or img2_proc is None:
+        raise ValueError("Input images contain NaN values.")
     # Check for constant images BEFORE normalization
-    # At this point we know img1_proc and img2_proc are not None
-    assert img1_proc is not None and img2_proc is not None
     is_img1_constant = np.all(img1_proc == img1_proc.flat[0])
     is_img2_constant = np.all(img2_proc == img2_proc.flat[0])
 
     if is_img1_constant and is_img2_constant:
         # Both are constant images
-        return 1.0 if img1_proc.flat[0] == img2_proc.flat[0] else 0.0
+        return 2.0 if img1_proc.flat[0] == img2_proc.flat[0] else 1.0
     elif is_img1_constant or is_img2_constant:
         # If only one image is constant, MI is 0
-        return 0.0
+        return 1.0
 
     # Normalize images to [0, 1] range
     img1_norm = _normalize_image(img1_proc)
@@ -149,13 +134,12 @@ def mutual_information(
 
         # Handle potential NaN results - Although NMI should be robust
         if np.isnan(mi_value):
-            return 0.0
+            raise ValueError("Mutual information calculation resulted in NaN.")
 
         return mi_value
     except (ValueError, RuntimeError, TypeError) as e:
         # If any error occurs during calculation, print warning and return -inf
-        warnings.warn(f"Warning: Error calculating mutual information: {e}")
-        return float("-inf")
+        raise RuntimeError(f"Error calculating mutual information: {e}")
 
 
 def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
@@ -175,14 +159,9 @@ def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
         Structural similarity index value between -1 and 1
     """
     # Ensure both images are the same size and handle NaNs
-    img1_proc, img2_proc, contains_nan = _match_image_sizes(img1, img2)
-
-    if contains_nan:
-        return float("-inf")
-
-    # At this point we know img1_proc and img2_proc are not None
-    assert img1_proc is not None and img2_proc is not None
-
+    img1_proc, img2_proc = _match_image_sizes(img1, img2)
+    if img1_proc is None or img2_proc is None:
+        raise ValueError("Input images contain NaN values.")
     # Normalize images to [0,1]
     img1_norm = _normalize_image(img1_proc)
     img2_norm = _normalize_image(img2_proc)
@@ -195,52 +174,24 @@ def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
 
         # Handle potential NaN results
         if np.isnan(ssim_value):
-            return 0.0
+            raise ValueError("SSIM calculation resulted in NaN.")
 
         return ssim_value
     except (ValueError, RuntimeError, TypeError) as e:
         # If any error occurs during calculation, print warning and return -inf
-        warnings.warn(
-            f"Warning: Error calculating structural similarity index: {e}"
+        raise RuntimeError(
+            f"Error calculating structural similarity index: {e}"
         )
-        return float("-inf")
-
-
-def compare_all_metrics(image1: npt.NDArray, image2: npt.NDArray) -> dict:
-    """
-    Calculate all similarity metrics between two images.
-
-    Parameters
-    ----------
-    image1 : npt.NDArray
-        First input image
-    image2 : npt.NDArray
-        Second input image
-
-    Returns
-    -------
-    dict
-        Dictionary with all similarity values
-    """
-    return {
-        "ncc": normalized_cross_correlation(image1, image2),
-        "mi": mutual_information(image1, image2),
-        "ssim": structural_similarity_index(image1, image2),
-    }
-
-
-# Dictionary mapping metric names to functions
-METRIC_FUNCTIONS = {
-    "ncc": lambda img1, img2: normalized_cross_correlation(img1, img2),
-    "mi": lambda img1, img2: mutual_information(img1, img2),
-    "ssim": lambda img1, img2: structural_similarity_index(img1, img2),
-}
 
 
 def compare_image_to_atlas_slices(
     moving_image: npt.NDArray,
     atlas_volume: npt.NDArray,
-    slice_range: Union[Tuple[int, int], Iterable[int]],
+    slice_range: Optional[
+        Tuple[int, int]
+    ] = None,  # (start,end), exclusive of end
+    slice_indices: Optional[Iterable[int]] = None,  # if not None, use this
+    search_step: int = 1,
     metric: str = "mi",
 ) -> Dict[int, float]:
     """
@@ -252,10 +203,15 @@ def compare_image_to_atlas_slices(
         Input image to compare
     atlas_volume : npt.NDArray
         3D atlas volume
-    slice_range : Union[Tuple[int, int], Iterable[int]],
-        Either a tuple (start_slice, end_slice) defining a contiguous range
+    slice_range : Optional[Tuple[int, int]], optional
+        Tuple (start_slice, end_slice) defining a contiguous range
         (exclusive of end_slice), or an iterable of specific slice indices
         to compare.
+    slice_indices : Optional[Iterable[int]], optional
+        Iterable of specific slice indices to compare. If None, use
+        slice_range.
+    search_step: int, optional
+        Step size for searching slices, by default 1
     metric : str, optional
         Similarity metric ("ncc", "mi", "ssim"), by default "mi"
 
@@ -264,44 +220,45 @@ def compare_image_to_atlas_slices(
     Dict[int, float]
         Dictionary with slice indices as keys and similarity values as values
     """
-    # Determine the actual indices to iterate over
-    indices_to_process: Iterable[int]
-    if isinstance(slice_range, tuple) and len(slice_range) == 2:
-        indices_to_process = range(slice_range[0], slice_range[1])
-    elif hasattr(slice_range, "__iter__"):
-        indices_to_process = slice_range
+    # Dictionary mapping metric names to functions
+    MetricFunction = Callable[[npt.NDArray, npt.NDArray], float]
+    metric_functions: dict[str, MetricFunction] = {
+        "ncc": normalized_cross_correlation,
+        "mi": mutual_information,
+        "ssim": structural_similarity_index,
+    }
+    if slice_indices is not None:
+        indices_to_process = slice_indices
+    elif slice_range is not None:
+        start_slice, end_slice = slice_range
+        start_slice = max(0, start_slice)
+        end_slice = min(atlas_volume.shape[0], end_slice)
+        indices_to_process = range(start_slice, end_slice, search_step)
     else:
-        raise TypeError(
-            "slice_range must be a tuple (start, end) or an iterable of "
-            "indices"
-        )
+        indices_to_process = range(0, atlas_volume.shape[0], search_step)
 
-    if metric not in METRIC_FUNCTIONS:
+    if metric not in metric_functions:
         raise ValueError(
             f"Invalid metric: {metric}. "
-            f"Choose from {list(METRIC_FUNCTIONS.keys())}"
+            f"Choose from {list(metric_functions.keys())}"
         )
-
-    metric_func = METRIC_FUNCTIONS[metric]
+    metric_func = metric_functions[metric]
 
     results = {}
     for slice_idx in indices_to_process:
         # Ensure index is within bounds
         if not (0 <= slice_idx < atlas_volume.shape[0]):
-            results[slice_idx] = float("-inf")  # Or skip/warn
-            continue
+            raise IndexError(f"{slice_idx} is out of bounds for atlas volume")
 
         atlas_slice = atlas_volume[slice_idx, :, :]
 
         # Let metric functions handle specific cases like constant images or
         # NaNs.
-        # Returns -inf if appropriate.
         try:
             results[slice_idx] = metric_func(moving_image, atlas_slice)
         except (ValueError, RuntimeError, TypeError) as e:
             # Handle any errors that might occur during metric calculation
-            warnings.warn(f"Error processing slice {slice_idx}: {e}")
-            results[slice_idx] = float("-inf")
+            raise RuntimeError(f"Error processing slice {slice_idx}: {e}")
 
     return results
 
@@ -336,37 +293,30 @@ def find_best_atlas_slice(
     int
         Index of the best matching slice
     """
-    if search_range is None:
-        slice_indices = range(0, atlas_volume.shape[0], search_step)
-    else:
-        start_slice, end_slice = search_range
-        # Ensure start/end are within bounds
-        start_slice = max(0, start_slice)
-        end_slice = min(atlas_volume.shape[0], end_slice)
-        slice_indices = range(start_slice, end_slice, search_step)
-
     # Use compare_image_to_atlas_slices to get similarities
     similarity_results = compare_image_to_atlas_slices(
-        moving_image, atlas_volume, slice_indices, metric=metric
+        moving_image,
+        atlas_volume,
+        slice_range=search_range,
+        search_step=search_step,
+        metric=metric,
     )
 
     # Check if similarity_results is empty (e.g., invalid range)
     if not similarity_results:
-        warnings.warn("No valid slices found in the specified search range.")
-        # Return first index of the search range as fallback
-        return slice_indices[0] if len(slice_indices) > 0 else 0
+        raise ValueError(
+            "No slices were compared; check your search_range and search_step."
+        )
 
     # Find the slice index with the maximum similarity value
     best_slice_index = max(
         similarity_results,
-        key=lambda k: similarity_results.get(k, float("-inf")),
+        key=lambda k: similarity_results[k],
     )
 
-    # Check if the best score is -inf (meaning all calculations failed or
-    # had NaNs)
     if similarity_results[best_slice_index] == float("-inf"):
-        warnings.warn("All compared slices yielded invalid similarity values.")
-        # Return first index of the search range as fallback
-        return slice_indices[0] if len(slice_indices) > 0 else 0
+        raise ValueError(
+            "All compared slices yielded invalid similarity values."
+        )
 
     return best_slice_index
