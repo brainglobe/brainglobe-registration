@@ -64,7 +64,7 @@ class TestSimilarityMetrics:
     def test_mutual_information_identical(self):
         """Test MI with identical constant images."""
         result = mutual_information(self.img_ones, self.img_ones)
-        assert result == 1.0  # Max NMI for identical constant images
+        assert result == 2.0  # Correct MI for identical constant images
 
     def test_mutual_information_different(self):
         """Test MI with different images."""
@@ -78,38 +78,40 @@ class TestSimilarityMetrics:
         """Test MI with different sized, but identical constant images."""
         result = mutual_information(self.img_ones, self.img_larger)
         # Both are constant '1', should return max NMI
-        assert result == 1.0
+        assert result == 2.0
 
     def test_mutual_information_constant_different(self):
         """Test MI with different constant images."""
         result = mutual_information(self.img_ones, self.img_zeros)
         # Different constant images should return min NMI
-        assert result == 0.0
+        assert result == 1.0
 
     def test_mutual_information_one_constant(self):
         """Test MI with one constant image and one varying image."""
         result = mutual_information(self.img_ones, self.img_gradient)
         # One constant image should return min NMI
-        assert result == 0.0
+        assert result == 1.0
 
     def test_ncc_handling_nan(self):
         """Test NCC handling of NaN values."""
-        result_ncc = normalized_cross_correlation(
-            self.img_with_nan, self.img_ones
-        )
-        assert not np.isnan(result_ncc)
+        with pytest.raises(
+            ValueError, match="Input images contain NaN values."
+        ):
+            normalized_cross_correlation(self.img_with_nan, self.img_ones)
 
     def test_mi_handling_nan(self):
         """Test MI handling of NaN values."""
-        result_mi = mutual_information(self.img_with_nan, self.img_ones)
-        assert not np.isnan(result_mi)
+        with pytest.raises(
+            ValueError, match="Input images contain NaN values."
+        ):
+            mutual_information(self.img_with_nan, self.img_ones)
 
     def test_ssim_handling_nan(self):
         """Test SSIM handling of NaN values."""
-        result_ssim = structural_similarity_index(
-            self.img_with_nan, self.img_ones
-        )
-        assert not np.isnan(result_ssim)
+        with pytest.raises(
+            ValueError, match="Input images contain NaN values."
+        ):
+            structural_similarity_index(self.img_with_nan, self.img_ones)
 
     def test_structural_similarity_identical(self):
         """Test SSIM with identical images."""
@@ -129,46 +131,23 @@ class TestSimilarityMetrics:
 
     def test_compare_image_to_atlas_slices(self):
         """Test the compare_image_to_atlas_slices function."""
-        # Test with different metrics
         for metric in ["ncc", "mi", "ssim"]:
             results = compare_image_to_atlas_slices(
-                self.img_ones,  # Constant image (value 1)
-                self.test_atlas_volume,  # Controlled atlas (values 0-4)
-                slice_range=(0, 5),
-                metric=metric,
-            )
-
-            # Should return a dictionary
-            assert isinstance(results, dict)
-
-            # Should have entries for each slice
-            assert len(results) == 5
-
-            # Test passing an iterable range
-            iterable_indices = [0, 2, 4]
-            iterable_results = compare_image_to_atlas_slices(
                 self.img_ones,
                 self.test_atlas_volume,
-                slice_range=iterable_indices,
+                slice_indices=[0, 2, 4],
                 metric=metric,
             )
-            assert len(iterable_results) == len(iterable_indices)
-            assert all(idx in iterable_results for idx in iterable_indices)
+            assert isinstance(results, dict)
+            assert set(results.keys()) == {0, 2, 4}
 
-            # Check specific values for MI with constant images
             if metric == "mi":
-                # For MI: 1.0 if identical constant, 0.0 if different constant
-                expected = {
-                    0: 0.0, 1: 1.0, 2: 0.0, 3: 0.0, 4: 0.0
-                }  # fmt: skip
-                # Check MI values match expected values
+                expected = {0: 1.0, 2: 1.0, 4: 1.0}
                 for slice_idx, similarity in results.items():
                     assert np.isclose(
                         similarity, expected[slice_idx]
                     ), f"MI mismatch for slice {slice_idx}"
             else:
-                # Each result should be a float (or -inf for
-                # NCC/SSIM edge cases)
                 for slice_idx, similarity in results.items():
                     assert isinstance(
                         similarity, float
@@ -190,15 +169,15 @@ class TestSimilarityMetrics:
         atlas_with_nan = self.test_atlas_volume.copy().astype(np.float32)
         atlas_with_nan[2, 5, 5] = np.nan
 
-        results = compare_image_to_atlas_slices(
-            self.img_gradient, atlas_with_nan, slice_range=(0, 5), metric="ncc"
-        )
-
-        # Should still return results for all slices
-        assert len(results) == 5
-
-        # The slice with NaN should have a very low value or -inf
-        assert results[2] == float("-inf")
+        with pytest.raises(
+            RuntimeError, match="Input images contain NaN values."
+        ):
+            compare_image_to_atlas_slices(
+                self.img_ones,
+                atlas_with_nan,
+                slice_range=(0, 5),
+                metric="ncc",
+            )
 
     def test_mutual_information_constant_images(self):
         """Test MI with constant images.
@@ -210,18 +189,18 @@ class TestSimilarityMetrics:
         constant_img2 = np.ones((10, 10)) * 5
         result = mutual_information(constant_img1, constant_img2)
         # Perfect mutual information for identical constant images
-        assert result == 1.0
+        assert result == 2.0
 
         # Both images are constant with different values
         constant_img3 = np.ones((10, 10)) * 10
         result = mutual_information(constant_img1, constant_img3)
         # No mutual information for different constant images
-        assert result == 0.0
+        assert result == 1.0
 
         # One image is constant, the other varies
         result = mutual_information(constant_img1, self.img_gradient)
         # No mutual information when one image is constant
-        assert result == 0.0
+        assert result == 1.0
 
     def test_mutual_information_error_handling(self):
         """Test MI error handling."""
@@ -231,7 +210,7 @@ class TestSimilarityMetrics:
         # For two identical constant images (even zeros), NMI returns 1.0
         result = mutual_information(img_zeros, img_zeros)
         # Two identical constant images have perfect MI
-        assert result == 1.0
+        assert result == 2.0
 
     def test_structural_similarity_error_handling(self):
         """Test SSIM error handling."""
@@ -240,7 +219,7 @@ class TestSimilarityMetrics:
 
         # This should handle potential errors and return a valid result
         result = structural_similarity_index(img_zeros, img_zeros)
-        assert not np.isnan(result)
+        assert result == 1.0
 
     # --- Tests for find_best_atlas_slice ---
 
@@ -306,24 +285,15 @@ class TestSimilarityMetrics:
         atlas_all_nan = np.full_like(self.test_atlas_volume, np.nan)
         search_range = (1, 4)  # Search slices 1, 2, 3
 
-        # Should now capture the UserWarning correctly
-        with pytest.warns(
-            UserWarning,
-            match="All compared slices yielded invalid similarity values.",
+        with pytest.raises(
+            RuntimeError, match="Input images contain NaN values."
         ):
-            best_slice_all_bad = find_best_atlas_slice(
+            find_best_atlas_slice(
                 self.img_ones,
                 atlas_all_nan,
                 metric="mi",
                 search_range=search_range,
             )
-
-        # Should return the first index of the searched range as fallback
-        expected_fallback = search_range[0]
-        assert best_slice_all_bad == expected_fallback, (
-            f"Expected fallback index {expected_fallback} when all invalid, "
-            f"got {best_slice_all_bad}"
-        )
 
     def test_find_best_slice_step(self):
         """Test finding best slice with a search_step."""
@@ -348,44 +318,27 @@ class TestSimilarityMetrics:
         """Test error handling in compare_image_to_atlas_slices."""
         # Test with out-of-bounds indices in iterable
         invalid_indices = [-1, 0, 5, 10]  # Atlas shape[0] is 5
-        results = compare_image_to_atlas_slices(
-            self.img_ones,
-            self.test_atlas_volume,
-            slice_range=invalid_indices,
-            metric="mi",
-        )
-
-        # Should return results for all requested indices
-        assert len(results) == len(invalid_indices)
-        # Valid index (0) should have a valid score (MI=0.0 for 1 vs 0)
-        assert np.isclose(results[0], 0.0)
-        # Invalid indices should have -inf
-        assert results[-1] == float("-inf")
-        assert results[5] == float("-inf")
-        assert results[10] == float("-inf")
-
+        with pytest.raises(IndexError):
+            compare_image_to_atlas_slices(
+                self.img_ones,
+                self.test_atlas_volume,
+                slice_indices=invalid_indices,
+                metric="mi",
+            )
         # Test when the underlying metric function raises an exception
         mocker.patch(
             "brainglobe_registration.similarity_metrics.normalized_cross_correlation",
             side_effect=ValueError("Deliberate test exception"),
         )
-
-        # This should catch the exception from the mocked NCC and return -inf
-        results_on_error = compare_image_to_atlas_slices(
-            self.img_gradient,
-            self.test_atlas_volume,
-            metric="ncc",
-            slice_range=(0, self.test_atlas_volume.shape[0]),
-        )
-
-        # Should still return results for all slices
-        assert len(results_on_error) == self.test_atlas_volume.shape[0]
-
-        # All results should be -inf because the mocked function always fails
-        for slice_idx, similarity in results_on_error.items():
-            assert similarity == float("-inf"), (
-                f"Expected -inf for slice {slice_idx} on error, "
-                f"got {similarity}"
+        with pytest.raises(
+            RuntimeError,
+            match="Error processing slice 0: Deliberate test exception",
+        ):
+            compare_image_to_atlas_slices(
+                self.img_ones,
+                self.test_atlas_volume,
+                metric="ncc",
+                slice_indices=[0],
             )
 
     def test_compare_image_to_atlas_slices_metric_exception(self, mocker):
@@ -402,20 +355,13 @@ class TestSimilarityMetrics:
         )
 
         # This should catch the exception from the mocked NCC and return -inf
-        results = compare_image_to_atlas_slices(
-            self.img_gradient,
-            self.test_atlas_volume,
-            metric="ncc",
-            slice_range=(0, self.test_atlas_volume.shape[0]),
-        )
-
-        # Should return results for all requested indices, but -inf
-        # for invalid ones
-        assert len(results) == self.test_atlas_volume.shape[0]
-
-        # All results should be -inf because the mocked function always fails
-        for slice_idx, similarity in results.items():
-            assert similarity == float("-inf"), (
-                f"Expected -inf for slice {slice_idx} on error, "
-                f"got {similarity}"
+        with pytest.raises(
+            RuntimeError,
+            match="Error processing slice 0: Deliberate test exception",
+        ):
+            compare_image_to_atlas_slices(
+                self.img_gradient,
+                self.test_atlas_volume,
+                metric="ncc",
+                slice_indices=[0],
             )
