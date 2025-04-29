@@ -17,7 +17,7 @@ from brainglobe_registration.utils.utils import (
     get_data_from_napari_layer,
     get_image_layer_names,
     mask_atlas,
-    mask_atlas_with_annotations，
+    mask_atlas_with_annotations,
     open_parameter_file,
     restore_atlas_labels,
 )
