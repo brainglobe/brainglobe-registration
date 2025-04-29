@@ -254,56 +254,40 @@ def dummy_atlas(mocker):
     mock_instance = mock_atlas_class.return_value
 
     # Assign test data
-    mock_instance.reference = np.array([
-        [100, 150, 200],
-        [50, 0, 75],
-        [25, 25, 25]
-    ], dtype=np.uint16)
+    mock_instance.reference = np.array(
+        [[100, 150, 200], [50, 0, 75], [25, 25, 25]], dtype=np.uint16
+    )
 
-    mock_instance.annotation = np.array([
-        [1, 0, 2],
-        [0, 0, 3],
-        [4, 0, 0]
-    ], dtype=np.uint16)
+    mock_instance.annotation = np.array(
+        [[1, 0, 2], [0, 0, 3], [4, 0, 0]], dtype=np.uint16
+    )
 
     return mock_instance
 
 
 def test_generate_mask_from_atlas_annotations(dummy_atlas):
     mask = generate_mask_from_atlas_annotations(dummy_atlas)
-    expected_mask = np.array([
-        [1, 0, 1],
-        [0, 0, 1],
-        [1, 0, 0]
-    ], dtype=np.uint8)
+    expected_mask = np.array([[1, 0, 1], [0, 0, 1], [1, 0, 0]], dtype=np.uint8)
 
     assert np.array_equal(mask, expected_mask)
 
 
 def test_mask_atlas(dummy_atlas):
     # Create a mask to apply manually
-    mask = np.array([
-        [1, 0, 1],
-        [0, 0, 1],
-        [1, 0, 0]
-    ], dtype=np.uint8)
+    mask = np.array([[1, 0, 1], [0, 0, 1], [1, 0, 0]], dtype=np.uint8)
 
     masked_image = mask_atlas(dummy_atlas, mask)
-    expected = np.array([
-        [100, 0, 200],
-        [0, 0, 75],
-        [25, 0, 0]
-    ], dtype=np.uint16)
+    expected = np.array(
+        [[100, 0, 200], [0, 0, 75], [25, 0, 0]], dtype=np.uint16
+    )
 
     assert np.array_equal(masked_image, expected)
 
 
 def test_mask_atlas_with_annotations(dummy_atlas):
     masked_image = mask_atlas_with_annotations(dummy_atlas)
-    expected = np.array([
-        [100, 0, 200],
-        [0, 0, 75],
-        [25, 0, 0]
-    ], dtype=np.uint16)
+    expected = np.array(
+        [[100, 0, 200], [0, 0, 75], [25, 0, 0]], dtype=np.uint16
+    )
 
     assert np.array_equal(masked_image, expected)
