@@ -413,7 +413,7 @@ def serialize_registration_widget(obj):
         return obj.__dict__()
 
 
-def generate_mask_from_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
+def generate_mask_from_atlas_annotations(atlas: BrainGlobeAtlas) -> np.ndarray:
     """
     Generate a binary mask from the atlas annotation array.
 
@@ -433,7 +433,28 @@ def generate_mask_from_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
     return mask.astype(np.uint8)
 
 
-def mask_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
+def mask_atlas(atlas: BrainGlobeAtlas, mask: np.ndarray) -> np.ndarray:
+    """
+    Apply a mask to the reference image of the atlas.
+
+    Parameters
+    ----------
+    atlas : BrainGlobeAtlas
+        Atlas object containing reference data.
+    mask : np.ndarray
+        Binary mask to apply.
+
+    Returns
+    -------
+    np.ndarray
+        Reference image with the mask applied.
+        Pixels outside the mask are set to zero.
+    """
+    masked_reference = atlas.reference * mask
+    return masked_reference
+
+
+def mask_atlas_with_annotations(atlas: BrainGlobeAtlas) -> np.ndarray:
     """
     Apply the annotation-based mask to the reference image of the atlas.
 
@@ -445,9 +466,7 @@ def mask_atlas(atlas: BrainGlobeAtlas) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Reference image with the mask applied.
-        Pixels outside the mask are set to zero.
+        Reference image with the annotation-based mask applied.
     """
-    mask = generate_mask_from_atlas(atlas)
-    masked_reference = atlas.reference * mask
-    return masked_reference
+    mask = generate_mask_from_atlas_annotations(atlas)
+    return mask_atlas(atlas, mask)
