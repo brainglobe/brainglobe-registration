@@ -17,7 +17,7 @@ from brainglobe_registration.utils.utils import (
     get_data_from_napari_layer,
     get_image_layer_names,
     mask_atlas,
-    mask_atlas_with_annotations
+    mask_atlas_with_annotations，
     open_parameter_file,
     restore_atlas_labels,
 )
@@ -246,7 +246,9 @@ def test_get_data_from_napari_layer_squeeze(layer_data, selection):
 @pytest.fixture
 def dummy_atlas(mocker):
     # Patch the BrainGlobeAtlas class
-    mock_atlas_class = mocker.patch("brainglobe_registration.utils.utils.BrainGlobeAtlas")
+    mock_atlas_class = mocker.patch(
+        "brainglobe_registration.utils.utils.BrainGlobeAtlas"
+    )
 
     # Create a mock instance
     mock_instance = mock_atlas_class.return_value
