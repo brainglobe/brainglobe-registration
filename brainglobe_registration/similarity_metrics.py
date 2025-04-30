@@ -119,7 +119,7 @@ def mutual_information(
         # Both are constant images
         return 2.0 if img1_proc.flat[0] == img2_proc.flat[0] else 1.0
     elif is_img1_constant or is_img2_constant:
-        # If only one image is constant, MI is 0
+        # If only one image is constant, MI is 1
         return 1.0
 
     # Normalize images to [0, 1] range
@@ -138,7 +138,7 @@ def mutual_information(
 
         return mi_value
     except (ValueError, RuntimeError, TypeError) as e:
-        # If any error occurs during calculation, print warning and return -inf
+        # If any error occurs during calculation inform user and exit
         raise RuntimeError(f"Error calculating mutual information: {e}")
 
 
@@ -178,7 +178,7 @@ def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
 
         return ssim_value
     except (ValueError, RuntimeError, TypeError) as e:
-        # If any error occurs during calculation, print warning and return -inf
+        # If any error occurs during calculation inform user and exit
         raise RuntimeError(
             f"Error calculating structural similarity index: {e}"
         )
@@ -313,10 +313,4 @@ def find_best_atlas_slice(
         similarity_results,
         key=lambda k: similarity_results[k],
     )
-
-    if similarity_results[best_slice_index] == float("-inf"):
-        raise ValueError(
-            "All compared slices yielded invalid similarity values."
-        )
-
     return best_slice_index

@@ -281,7 +281,7 @@ class TestSimilarityMetrics:
         ), f"Expected slice 1 within range {search_range}, got {best_slice}"
 
     def test_find_best_slice_all_invalid(self):
-        """Test finding best slice when all comparisons are invalid (-inf)."""
+        """Test find_best_atlas_slice when all atlas slices are invalid."""
         atlas_all_nan = np.full_like(self.test_atlas_volume, np.nan)
         search_range = (1, 4)  # Search slices 1, 2, 3
 
@@ -354,7 +354,7 @@ class TestSimilarityMetrics:
             side_effect=ValueError("Deliberate test exception"),
         )
 
-        # This should catch the exception from the mocked NCC and return -inf
+        # This should catch and propagate the exception from the mocked NCC
         with pytest.raises(
             RuntimeError,
             match="Error processing slice 0: Deliberate test exception",
