@@ -69,6 +69,9 @@ Distributed under the terms of the [BSD-3] license,
 ## Seeking help or contributing
 We are always happy to help users of our tools, and welcome any contributions. If you would like to get in contact with us for any reason, please see the [contact page of our website](https://brainglobe.info/contact.html).
 
+## Citation
+If you find this package useful, and use it in your research, please cite the following:
+> Igor Tatarnikov, Alessandro Felder, Kimberly Meechan, & Adam Tyson. (2025). brainglobe/brainglobe-registration. Zenodo. https://doi.org/10.5281/zenodo.14750325
 
 ## Acknowledgements
 

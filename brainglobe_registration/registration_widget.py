@@ -10,7 +10,7 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import dask.array as da
 import napari.layers
@@ -19,6 +19,7 @@ import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.logo import header_widget
+from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.events import Event
@@ -43,12 +44,11 @@ from skimage.transform import rescale
 from tifffile import imwrite
 
 from brainglobe_registration.utils.utils import (
-    adjust_napari_image_layer,
-    calculate_areas,
+    calculate_region_size,
     calculate_rotated_bounding_box,
     check_atlas_installed,
-    filter_plane,
     find_layer_index,
+    get_data_from_napari_layer,
     get_image_layer_names,
     open_parameter_file,
     serialize_registration_widget,
@@ -75,6 +75,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas: Optional[BrainGlobeAtlas] = None
         self._atlas_data_layer: Optional[napari.layers.Image] = None
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
+        self._atlas_transform_matrix: Optional[npt.NDArray] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
         # Flag to differentiate between manual and automatic atlas deletion
@@ -90,7 +91,7 @@ class RegistrationWidget(QScrollArea):
             file_path = (
                 Path(__file__).parent.resolve()
                 / "parameters"
-                / "ara_tools"
+                / "brainglobe_registration"
                 / f"{transform_type}.txt"
             )
 
@@ -129,12 +130,6 @@ class RegistrationWidget(QScrollArea):
         )
 
         self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
-        self.adjust_moving_image_widget.adjust_image_signal.connect(
-            self._on_adjust_moving_image
-        )
-        self.adjust_moving_image_widget.reset_image_signal.connect(
-            self._on_adjust_moving_image_reset_button_click
-        )
         self.adjust_moving_image_widget.scale_image_signal.connect(
             self._on_scale_moving_image
         )
@@ -268,6 +263,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
+        self._atlas_transform_matrix = None
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
 
@@ -304,7 +300,7 @@ class RegistrationWidget(QScrollArea):
                 self._atlas.reference.shape[1],
                 self._atlas.reference.shape[2],
             ),
-        )
+        ).astype(np.int16)
         dask_annotations = da.from_array(
             self._atlas.annotation,
             chunks=(
@@ -312,7 +308,7 @@ class RegistrationWidget(QScrollArea):
                 self._atlas.annotation.shape[1],
                 self._atlas.annotation.shape[2],
             ),
-        )
+        ).astype(np.uint32)
 
         contrast_max = np.max(
             dask_reference[dask_reference.shape[0] // 2]
@@ -346,24 +342,6 @@ class RegistrationWidget(QScrollArea):
         self._moving_image = self._viewer.layers[viewer_index]
         self._moving_image_data_backup = self._moving_image.data.copy()
 
-    def _on_adjust_moving_image(self, x: int, y: int, rotate: float):
-        if not self._moving_image:
-            show_error(
-                "No moving image selected."
-                "Please select a moving image before adjusting"
-            )
-            return
-        adjust_napari_image_layer(self._moving_image, x, y, rotate)
-
-    def _on_adjust_moving_image_reset_button_click(self):
-        if not self._moving_image:
-            show_error(
-                "No moving image selected. "
-                "Please select a moving image before adjusting"
-            )
-            return
-        adjust_napari_image_layer(self._moving_image, 0, 0, 0)
-
     def _on_output_directory_text_edited(self):
         self.output_directory = Path(self.output_directory_text_field.text())
 
@@ -382,19 +360,19 @@ class RegistrationWidget(QScrollArea):
         self.output_directory_text_field.setText(str(self.output_directory))
 
     def _on_run_button_click(self):
-        from brainglobe_registration.elastix.register import (
-            calculate_deformation_field,
-            invert_transformation,
-            run_registration,
-            transform_annotation_image,
-            transform_image,
-        )
-
-        if self._atlas_data_layer is None:
+        if not (self._atlas and self._atlas_data_layer):
             display_info(
                 widget=self,
                 title="Warning",
                 message="Please select an atlas before clicking 'Run'.",
+            )
+            return
+
+        if not self._moving_image:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select a moving image before clicking 'Run'.",
             )
             return
 
@@ -406,7 +384,7 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        if self.output_directory is None:
+        if not self.output_directory:
             display_info(
                 widget=self,
                 title="Warning",
@@ -415,75 +393,190 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            invert_transformation,
+            run_registration,
+            transform_annotation_image,
+            transform_image,
+        )
+
+        moving_image = get_data_from_napari_layer(self._moving_image).astype(
+            np.int16
+        )
         current_atlas_slice = self._viewer.dims.current_step[0]
 
-        if self.filter_checkbox.isChecked():
-            atlas_layer = filter_plane(
-                self._atlas_data_layer.data[
-                    current_atlas_slice, :, :
-                ].compute()
+        if self._moving_image.data.ndim == 2:
+            atlas_selection = (
+                slice(current_atlas_slice, current_atlas_slice + 1),
             )
-            moving_image = filter_plane(self._moving_image.data)
-        else:
-            atlas_layer = self._atlas_data_layer.data[
-                current_atlas_slice, :, :
-            ]
-            moving_image = self._moving_image.data
+            atlas_image = get_data_from_napari_layer(
+                self._atlas_data_layer, atlas_selection
+            ).astype(np.float32)
+            annotation_image = get_data_from_napari_layer(
+                self._atlas_annotations_layer, atlas_selection
+            )
 
-        result, parameters = run_registration(
-            atlas_layer,
+            moving_image = moving_image.astype(np.float32)
+
+            for transform_selection in self.transform_selections:
+                # Can't use a short for internal pixels on 2D images
+                fixed_pixel_type = transform_selection[1].get(
+                    "FixedInternalImagePixelType", []
+                )
+                moving_pixel_type = transform_selection[1].get(
+                    "MovingInternalImagePixelType", []
+                )
+                if "float" not in fixed_pixel_type:
+                    print(
+                        f"Can not use {fixed_pixel_type} "
+                        f"for internal pixels on 2D images, switching to float"
+                    )
+                    transform_selection[1]["FixedInternalImagePixelType"] = [
+                        "float"
+                    ]
+                if "float" not in moving_pixel_type:
+                    print(
+                        f"Can not use {moving_pixel_type} "
+                        f"for internal pixels on 2D images, switching to float"
+                    )
+                    transform_selection[1]["MovingInternalImagePixelType"] = [
+                        "float"
+                    ]
+        else:
+            atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
+            annotation_image = get_data_from_napari_layer(
+                self._atlas_annotations_layer
+            )
+
+        for transform_selection in self.transform_selections:
+            if "FixedImageDimension" not in transform_selection[1]:
+                transform_selection[1]["FixedImageDimension"] = [
+                    str(self._moving_image.data.ndim)
+                ]
+            if "MovingImageDimension" not in transform_selection[1]:
+                transform_selection[1]["MovingImageDimension"] = [
+                    str(self._moving_image.data.ndim)
+                ]
+
+        print("Running registration")
+        parameters = run_registration(
+            atlas_image,
             moving_image,
             self.transform_selections,
             self.output_directory,
+            filter_images=self.filter_checkbox.isChecked(),
         )
 
-        inverse_result, inverse_parameters = invert_transformation(
-            atlas_layer,
+        atlas_in_data_space = da.from_array(
+            transform_image(atlas_image, parameters)
+        )
+
+        self._viewer.add_image(
+            atlas_in_data_space, name="Registered Image", visible=False
+        )
+
+        print("Inverting transformation")
+        inverse_parameters = invert_transformation(
+            atlas_image,
             self.transform_selections,
             parameters,
             self.output_directory,
+            filter_images=self.filter_checkbox.isChecked(),
         )
 
-        data_in_atlas_space = transform_image(moving_image, inverse_parameters)
-
-        # Creating fresh array is necessary to avoid a crash on Windows
-        # Otherwise self._atlas_annotations_layer.data.dtype.type returns
-        # np.uintc which is not supported by ITK. After creating a new array
-        # annotations.dtype.type returns np.uint32 which is supported by ITK.
-        annotation = np.array(
-            self._atlas_annotations_layer.data[current_atlas_slice, :, :],
-            dtype=np.uint32,
+        data_in_atlas_space = da.from_array(
+            transform_image(moving_image, inverse_parameters)
+        )
+        data_in_atlas_space_path = (
+            self.output_directory
+            / f"downsampled_standard_{self._moving_image.name}.tiff"
         )
 
+        imwrite(
+            data_in_atlas_space_path,
+            data_in_atlas_space,
+        )
+
+        self._viewer.add_image(
+            data_in_atlas_space,
+            name="Inverse Registered Image",
+            visible=False,
+        )
+
+        print("Transforming annotation image")
         registered_annotation_image = transform_annotation_image(
-            annotation,
+            annotation_image,
             parameters,
         )
 
-        registered_hemisphere = transform_annotation_image(
-            self._atlas.hemispheres[current_atlas_slice, :, :], parameters
+        registered_annotation_image_path = (
+            self.output_directory / "registered_atlas.tiff"
         )
+        imwrite(registered_annotation_image_path, registered_annotation_image)
+        hemisphere_image = self._atlas.hemispheres
+
+        if self._atlas_transform_matrix is not None:
+            hemisphere_image = dask_affine_transform(
+                self._atlas.hemispheres,
+                self._atlas_transform_matrix,
+                order=0,
+                output_shape=self._atlas_data_layer.data.shape,
+            )
+
+        if self._moving_image.ndim == 2:
+            hemisphere_image = hemisphere_image[current_atlas_slice, :, :]
+        else:
+            hemisphere_image = hemisphere_image
+
+        if isinstance(hemisphere_image, da.Array):
+            hemisphere_image = hemisphere_image.compute()
+
+        registered_hemisphere = transform_annotation_image(
+            hemisphere_image, parameters
+        )
+
+        registered_hemisphere_path = (
+            self.output_directory / "registered_hemisphere.tiff"
+        )
+        imwrite(registered_hemisphere_path, registered_hemisphere)
+
+        if self._moving_image.data.ndim == 2:
+            region_stat_path = self.output_directory / "areas.csv"
+        else:
+            region_stat_path = self.output_directory / "volumes.csv"
+
+        calculate_region_size(
+            self._atlas,
+            registered_annotation_image,
+            registered_hemisphere,
+            region_stat_path,
+        )
+
+        # Free up memory
+        del registered_hemisphere
+        del hemisphere_image
 
         boundaries = find_boundaries(
             registered_annotation_image, mode="inner"
         ).astype(np.int8, copy=False)
 
-        deformation_field = calculate_deformation_field(
-            moving_image, parameters
-        )
+        imwrite(self.output_directory / "boundaries.tiff", boundaries)
 
-        self._viewer.add_image(result, name="Registered Image", visible=False)
+        if self._moving_image.data.ndim != 2:
+            # Free up memory
+            del registered_annotation_image
 
-        atlas_layer_index = find_layer_index(
-            self._viewer, self._atlas.atlas_name
-        )
-        self._viewer.layers[atlas_layer_index].visible = False
+            registered_annotation_image = dask_imread(
+                registered_annotation_image_path
+            )
 
         self._viewer.add_labels(
             registered_annotation_image,
             name="Registered Annotations",
             visible=False,
         )
+
         self._viewer.add_image(
             boundaries,
             name="Registered Boundaries",
@@ -491,31 +584,23 @@ class RegistrationWidget(QScrollArea):
             blending="additive",
             opacity=0.8,
         )
-        self._viewer.add_image(
-            data_in_atlas_space,
-            name="Inverse Registered Image",
-            visible=False,
+
+        print("Calculating deformation field")
+        deformation_field = calculate_deformation_field(
+            moving_image, parameters
         )
 
+        for i in range(deformation_field.shape[-1]):
+            imwrite(
+                self.output_directory / f"deformation_field_{i}.tiff",
+                deformation_field[..., i],
+            )
+
+        self._atlas_data_layer.visible = False
         self._viewer.grid.enabled = False
 
-        self.save_outputs(
-            boundaries,
-            deformation_field,
-            moving_image,
-            data_in_atlas_space,
-            result,
-            registered_annotation_image,
-            registered_hemisphere,
-        )
-
-        areas_path = self.output_directory / "areas.csv"
-        calculate_areas(
-            self._atlas,
-            registered_annotation_image,
-            registered_hemisphere,
-            areas_path,
-        )
+        print("Saving outputs")
+        imwrite(self.output_directory / "downsampled.tiff", moving_image)
 
         with open(
             self.output_directory / "brainglobe-registration.json", "w"
@@ -590,7 +675,7 @@ class RegistrationWidget(QScrollArea):
         self._sample_images = get_image_layer_names(self._viewer)
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
 
-    def _on_scale_moving_image(self, x: float, y: float):
+    def _on_scale_moving_image(self, x: float, y: float, z: float):
         """
         Scale the moving image to have resolution equal to the atlas.
 
@@ -600,11 +685,13 @@ class RegistrationWidget(QScrollArea):
             Moving image x pixel size (> 0.0).
         y : float
             Moving image y pixel size (> 0.0).
+        z : float
+            Moving image z pixel size (> 0.0).
 
         Will show an error if the pixel sizes are less than or equal to 0.
         Will show an error if the moving image or atlas is not selected.
         """
-        if x <= 0 or y <= 0:
+        if x <= 0 or y <= 0 or z <= 0:
             show_error("Pixel sizes must be greater than 0")
             return
 
@@ -620,14 +707,19 @@ class RegistrationWidget(QScrollArea):
 
         x_factor = x / self._atlas.resolution[0]
         y_factor = y / self._atlas.resolution[1]
+        scale: Tuple[float, ...] = (y_factor, x_factor)
+
+        if self._moving_image.data.ndim == 3:
+            z_factor = z / self._atlas.resolution[2]
+            scale = (z_factor, *scale)
 
         self._moving_image.data = rescale(
             self._moving_image_data_backup,
-            (y_factor, x_factor),
+            scale,
             mode="constant",
             preserve_range=True,
             anti_aliasing=True,
-        )
+        ).astype(self._moving_image_data_backup.dtype)
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
@@ -667,21 +759,21 @@ class RegistrationWidget(QScrollArea):
         # 1. Translate the origin to the center of the image
         # 2. Rotate the image
         # 3. Translate the origin back to the top left corner
-        transform_matrix = (
+        self._atlas_transform_matrix = np.linalg.inv(
             post_rotate_translation @ full_matrix @ translate_matrix
         )
 
         self._atlas_data_layer.data = dask_affine_transform(
             self._atlas.reference,
-            np.linalg.inv(transform_matrix),
+            self._atlas_transform_matrix,
             order=2,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
-        )
+        ).astype(np.int16)
 
         self._atlas_annotations_layer.data = dask_affine_transform(
             self._atlas.annotation,
-            np.linalg.inv(transform_matrix),
+            self._atlas_transform_matrix,
             order=0,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),

@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import Mock
 
+import dask.array as da
 import numpy as np
 import pytest
 from brainglobe_atlasapi import BrainGlobeAtlas
@@ -8,10 +9,11 @@ from pytransform3d.rotations import active_matrix_from_angle
 
 from brainglobe_registration.utils.utils import (
     adjust_napari_image_layer,
-    calculate_areas,
+    calculate_region_size,
     calculate_rotated_bounding_box,
     convert_atlas_labels,
     find_layer_index,
+    get_data_from_napari_layer,
     get_image_layer_names,
     open_parameter_file,
     restore_atlas_labels,
@@ -139,7 +141,7 @@ def test_convert_atlas_labels_no_change():
 
 
 def test_convert_atlas_labels_high_labels():
-    mock_annotations = np.arange(2**16, 2**16 + 1024).reshape((32, 32))
+    mock_annotations = np.arange(2**15, 2**15 + 1024).reshape((32, 32))
 
     result, mapping = convert_atlas_labels(mock_annotations)
 
@@ -153,12 +155,12 @@ def test_convert_atlas_labels():
     rng = np.random.default_rng(42)
 
     mock_annotations = rng.integers(
-        2**32 - 1, size=(256, 256), dtype=np.uint32
+        2**32 - 1, size=(128, 128), dtype=np.uint32
     )
 
     result, mapping = convert_atlas_labels(mock_annotations)
 
-    max_value = 2**16
+    max_value = 2**15
     unique_values = np.unique(mock_annotations)
     expected_mapping_count = unique_values[unique_values >= max_value].size
 
@@ -178,7 +180,9 @@ def test_calculate_areas(tmp_path):
 
     output_path = tmp_path / "areas.csv"
 
-    out_df = calculate_areas(atlas, mock_annotations, hemispheres, output_path)
+    out_df = calculate_region_size(
+        atlas, mock_annotations, hemispheres, output_path
+    )
 
     assert output_path.exists()
     assert out_df.columns.size == 4
@@ -193,3 +197,44 @@ def test_calculate_areas(tmp_path):
     assert out_df.loc[961, "left_area_mm2"] == 1.27
     assert out_df.loc[961, "right_area_mm2"] == 1.28
     assert out_df.loc[961, "total_area_mm2"] == 2.55
+
+
+@pytest.mark.parametrize(
+    "layer_data, selection",
+    [
+        (np.arange(1000).reshape((10, 10, 10)), None),
+        (np.arange(1000).reshape((10, 10, 10)), (slice(0, 5),)),
+        (da.arange(1000).reshape((10, 10, 10)), None),
+        (da.arange(1000).reshape((10, 10, 10)), (slice(0, 5),)),
+    ],
+)
+def test_get_data_from_napari_layer(layer_data, selection):
+    layer = Mock()
+    layer.data = layer_data
+
+    result = get_data_from_napari_layer(layer, selection)
+
+    assert isinstance(result, np.ndarray)
+
+    if selection is None:
+        assert np.array_equal(result, layer_data)
+    else:
+        assert np.array_equal(result, layer_data[selection])
+
+
+@pytest.mark.parametrize(
+    "layer_data, selection",
+    [
+        (np.arange(1000).reshape((10, 10, 10)), (slice(0, 1),)),
+        (da.arange(1000).reshape((10, 10, 10)), (slice(0, 1),)),
+    ],
+)
+def test_get_data_from_napari_layer_squeeze(layer_data, selection):
+    layer = Mock()
+    layer.data = layer_data
+
+    result = get_data_from_napari_layer(layer, selection)
+
+    assert isinstance(result, np.ndarray)
+    assert result.ndim == layer_data.ndim - 1
+    assert np.array_equal(result, layer_data[selection].squeeze())
