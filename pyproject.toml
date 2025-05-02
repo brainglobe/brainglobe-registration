@@ -34,9 +34,9 @@ dependencies = [
     "pandas",
     "pytransform3d",
     "qtpy",
+    "qt-niu",
     "scikit-image",
-    "scipy",
-    "qt-niu"
+    "scipy"
 ]
 
 [project.urls]
