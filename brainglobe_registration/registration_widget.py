@@ -23,12 +23,15 @@ from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from napari.qt.threading import thread_worker
 from napari.utils.events import Event
-from napari.utils.notifications import show_error
+from napari.utils.notifications import show_error, show_info
 from napari.viewer import Viewer
 from pytransform3d.rotations import active_matrix_from_angle
 from qt_niu.collapsible_widget import CollapsibleWidgetContainer
 from qt_niu.dialog import display_info
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QCursor
 from qtpy.QtWidgets import (
+    QApplication,
     QCheckBox,
     QFileDialog,
     QHBoxLayout,
@@ -60,9 +63,14 @@ from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
+from brainglobe_registration.widgets.similarity_metrics_widget import (
+    SimilarityWidget,
+)
 from brainglobe_registration.widgets.transform_select_view import (
     TransformSelectView,
 )
+
+from .similarity_metrics import find_best_atlas_slice
 
 
 class RegistrationWidget(QScrollArea):
@@ -150,6 +158,11 @@ class RegistrationWidget(QScrollArea):
         self.transform_select_view.file_option_changed_signal.connect(
             self._on_default_file_selection_change
         )
+        # Add the similarity metric widget here after the other widgets
+        self.similarity_widget = SimilarityWidget()
+        self.similarity_widget.calculate_metric_requested.connect(
+            self._run_similarity_search
+        )
 
         # Use decorator to connect to layer deletion event
         self._connect_events()
@@ -191,6 +204,9 @@ class RegistrationWidget(QScrollArea):
         )
         self._widget.add_widget(
             self.adjust_moving_image_widget, widget_title="Prepare Images"
+        )
+        self._widget.add_widget(
+            self.similarity_widget, widget_title="Find Best Slice (Similarity)"
         )
         self._widget.add_widget(
             self.transform_select_view, widget_title="Select Transformations"
@@ -328,6 +344,13 @@ class RegistrationWidget(QScrollArea):
         )
 
         self._viewer.grid.enabled = True
+
+        if self._atlas_data_layer and self._atlas_data_layer.ndim == 3:
+            num_slices = self._atlas_data_layer.data.shape[0]
+            self.similarity_widget.set_slice_range_limits(0, num_slices - 1)
+        else:
+            # Reset or disable if atlas invalid or not 3D
+            self.similarity_widget.set_slice_range_limits(0, 0)
 
     def _on_sample_dropdown_index_changed(self, index):
         viewer_index = find_layer_index(
@@ -623,6 +646,7 @@ class RegistrationWidget(QScrollArea):
                 param_dict=self.transform_selections[transform_order][1],
                 transform_type=transform_type,
             )
+
             self.parameters_tab.addTab(new_tab, transform_type)
             self.parameter_setting_tabs_lists.append(new_tab)
 
@@ -887,3 +911,99 @@ class RegistrationWidget(QScrollArea):
             "filter": self.filter_checkbox.isChecked(),
             "output_directory": self.output_directory,
         }
+
+    def _run_similarity_search(self, start_slice, end_slice, metric_name):
+        """Initiates the similarity search in a background thread.
+        Prevents the UI from freezing when the similarity search is running.
+
+        Args:
+            start_slice (int): The starting slice index for the search.
+            end_slice (int): The ending slice index for the search.
+            metric_name (str): The name of the similarity metric to use.
+
+        Returns:
+            None
+        """
+        print(
+            f"Similarity search requested: start={start_slice}, "
+            f"end={end_slice}, metric={metric_name}"
+        )  # log in the terminal
+
+        # Get data
+        if self._moving_image is None or self._atlas_data_layer is None:
+            show_error("Please select both a sample and an atlas layer.")
+            return
+
+        if self._moving_image.ndim != 2:
+            show_error("Sample layer must be 2D.")
+            return
+
+        if self._atlas_data_layer.ndim != 3:
+            show_error("Atlas layer must be 3D.")
+            return
+
+        try:
+            # Ensure data is loaded as ndarrays
+            sample_slice = np.asarray(self._moving_image.data)
+            atlas_volume = np.asarray(self._atlas_data_layer.data)
+            search_range = (start_slice, end_slice)
+        except Exception as e:
+            show_error(f"Error preparing data for calculation: {e}")
+            return
+
+        # Thread worker-- trying similar to the compute_atlas_rotation
+        # function
+        @thread_worker(
+            connect={
+                "returned": self._on_similarity_search_returned,
+                "errored": self._on_similarity_search_error,
+                "finished": self._on_similarity_search_finished,
+                "started": self._on_similarity_search_started,
+            }
+        )
+        def run_search():
+            # This runs in the background thread UI stays responsive logs in
+            # terminal
+            print("Starting background similarity search...")
+            best_slice = find_best_atlas_slice(
+                sample_slice,
+                atlas_volume,
+                metric_name,
+                search_range=search_range,
+            )
+            print(f"Background search finished. Best slice: {best_slice}")
+            return best_slice
+
+        run_search()  # Start the background task
+
+    # Helper functions
+
+    def _on_similarity_search_started(self):
+        """Called when the background calculation starts."""
+        print("Similarity search worker started.")
+        # Disable button to prevent multiple clicks, without this PC crashed
+        self.similarity_widget.find_button.setEnabled(False)
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+
+    def _on_similarity_search_returned(self, best_slice_index):
+        """Called when the background calculation finishes successfully."""
+        print(f"Similarity search returned: {best_slice_index}")
+        if best_slice_index is not None:
+            self._viewer.dims.set_current_step(0, best_slice_index)
+            show_info(f"Viewer Z-slice set to best match: {best_slice_index}")
+        else:
+            show_error("Could not determine the best matching slice.")
+
+    def _on_similarity_search_error(self, error):
+        """Called when the background calculation encounters an error."""
+        print(f"Error during similarity search: {error}")
+        show_error(f"Error during similarity calculation: {error}")
+        # Ensure button is re-enabled and cursor restored even on error
+        self._on_similarity_search_finished()
+
+    def _on_similarity_search_finished(self):
+        """Called when the background calculation finishes."""
+        print("Similarity search worker finished.")
+        # Re-enable button
+        self.similarity_widget.find_button.setEnabled(True)
+        QApplication.restoreOverrideCursor()
