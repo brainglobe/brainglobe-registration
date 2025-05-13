@@ -114,18 +114,20 @@ fix = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311,312,313}
+envlist = py{311,312,313}, napari-dev
 isolated_build = True
 
 [gh-actions]
 python =
     3.11: py311
     3.12: py312
-    3.13: py313
+    3.13: py313, napari-dev
 
 [testenv]
 extras =
     dev
 commands =
     pytest -v --color=yes --cov=brainglobe_registration --cov-report=xml
+deps =
+    napari-dev: git+https://github.com/napari/napari
 """
