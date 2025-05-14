@@ -107,7 +107,7 @@ def test_scale_moving_image_no_atlas(
     )
     registration_widget._atlas = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10, 10
+        10, 10, 10, "prs"
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
@@ -123,7 +123,7 @@ def test_scale_moving_image_no_sample_image(
     )
     registration_widget._moving_image = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10, 10
+        10, 10, 10, "prs"
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
@@ -159,6 +159,8 @@ def test_scale_moving_image_2d(
         mock_atlas.resolution[1] * x_scale_factor,
         mock_atlas.resolution[2] * y_scale_factor,
         0.001,
+        # Empty orientation string
+        "",
     )
 
     assert registration_widget._moving_image.data.shape == (
