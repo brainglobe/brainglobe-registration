@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "napari>=0.4.18",
+    "napari>=0.4.18,<0.6.0",
     "brainglobe-atlasapi",
     "brainglobe-utils>=0.4.3",
     "dask",
@@ -121,7 +121,7 @@ isolated_build = True
 python =
     3.11: py311
     3.12: py312
-    3.13: py313, napari-dev
+    3.13: py313
 
 [testenv]
 passenv =
@@ -136,8 +136,5 @@ extras =
 commands =
     pytest -v --color=yes --cov=brainglobe_registration --cov-report=xml
 deps =
-    py311: napari<0.6.0
-    py312: napari<0.6.0
-    py313: napari<0.6.0
     napari-dev: git+https://github.com/napari/napari
 """
