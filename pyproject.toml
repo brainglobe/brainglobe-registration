@@ -124,6 +124,13 @@ python =
     3.13: py313, napari-dev
 
 [testenv]
+passenv =
+    CI
+    GITHUB_ACTIONS
+    DISPLAY
+    XAUTHORITY
+    NUMPY_EXPERIMENTAL_ARRAY_FUNCTION
+    PYVISTA_OFF_SCREEN
 extras =
     dev
 commands =
