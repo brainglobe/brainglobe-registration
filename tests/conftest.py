@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi import config as bg_config
-from PIL import Image
+from tifffile import imread
 
 from brainglobe_registration.utils.utils import open_parameter_file
 
@@ -15,11 +15,13 @@ def make_napari_viewer_with_images(make_napari_viewer, pytestconfig):
     viewer = make_napari_viewer()
 
     root_path = pytestconfig.rootpath
-    atlas_image = Image.open(root_path / "tests/test_images/Atlas_Hipp.tif")
-    moving_image = Image.open(root_path / "tests/test_images/sample_hipp.tif")
+    moving_image_3d = imread(
+        root_path / "brainglobe_registration/resources/sample_3d.tif"
+    )
+    moving_image_2d = imread(root_path / "tests/test_images/sample_hipp.tif")
 
-    viewer.add_image(np.asarray(moving_image), name="moving_image")
-    viewer.add_image(np.asarray(atlas_image), name="atlas_image")
+    viewer.add_image(np.asarray(moving_image_2d), name="moving_image_2d")
+    viewer.add_image(np.asarray(moving_image_3d), name="moving_image_3d")
 
     return viewer
 
