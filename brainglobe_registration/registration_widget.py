@@ -731,7 +731,7 @@ class RegistrationWidget(QScrollArea):
             )
             self._moving_image.data = (
                 self.moving_anatomical_space.map_stack_to(
-                    self._atlas.space, self._moving_image.data
+                    self._atlas.space, self._moving_image_data_backup
                 )
             )
         else:

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from brainglobe_space import AnatomicalSpace
 from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
@@ -156,8 +157,8 @@ def test_scale_moving_image_2d(
 
     current_size = registration_widget._moving_image.data.shape
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        mock_atlas.resolution[1] * x_scale_factor,
-        mock_atlas.resolution[2] * y_scale_factor,
+        mock_atlas.resolution[2] * x_scale_factor,
+        mock_atlas.resolution[1] * y_scale_factor,
         0.001,
         # Empty orientation string
         "",
@@ -166,6 +167,56 @@ def test_scale_moving_image_2d(
     assert registration_widget._moving_image.data.shape == (
         current_size[0] * y_scale_factor,
         current_size[1] * x_scale_factor,
+    )
+
+
+@pytest.mark.parametrize(
+    "x_scale_factor, y_scale_factor, z_scale_factor",
+    [
+        (0.5, 0.5, 0.5),
+        (1.0, 1.0, 1.0),
+        (2.0, 2.0, 2.0),
+        (0.5, 1.0, 1.0),
+        (1.0, 0.5, 1.0),
+        (1.0, 1.0, 0.5),
+    ],
+)
+def test_scale_moving_image_3d(
+    make_napari_viewer_with_images,
+    registration_widget,
+    mocker,
+    x_scale_factor,
+    y_scale_factor,
+    z_scale_factor,
+):
+    mock_atlas = mocker.patch(
+        "brainglobe_registration.registration_widget.BrainGlobeAtlas"
+    )
+    mock_atlas.resolution = [100, 100, 100]
+    mock_atlas.space = AnatomicalSpace(
+        origin="asr", resolution=mock_atlas.resolution
+    )
+    registration_widget._atlas = mock_atlas
+
+    moving_image_3d_index = registration_widget._sample_images.index(
+        "moving_image_3d"
+    )
+    registration_widget._on_sample_dropdown_index_changed(
+        moving_image_3d_index
+    )
+
+    current_size = registration_widget._moving_image.data.shape
+    registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
+        mock_atlas.resolution[2] * x_scale_factor,
+        mock_atlas.resolution[1] * y_scale_factor,
+        mock_atlas.resolution[0] * z_scale_factor,
+        "asr",
+    )
+
+    assert registration_widget._moving_image.data.shape == (
+        current_size[0] * z_scale_factor,
+        current_size[1] * y_scale_factor,
+        current_size[2] * x_scale_factor,
     )
 
 

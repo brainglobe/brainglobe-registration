@@ -11,8 +11,8 @@ from brainglobe_registration.utils.utils import open_parameter_file
 
 
 @pytest.fixture()
-def make_napari_viewer_with_images(make_napari_viewer, pytestconfig):
-    viewer = make_napari_viewer()
+def make_napari_viewer_with_images(make_napari_viewer_proxy, pytestconfig):
+    viewer = make_napari_viewer_proxy()
 
     root_path = pytestconfig.rootpath
     moving_image_3d = imread(
