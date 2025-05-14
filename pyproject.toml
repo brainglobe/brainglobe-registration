@@ -136,5 +136,8 @@ extras =
 commands =
     pytest -v --color=yes --cov=brainglobe_registration --cov-report=xml
 deps =
+    py311: napari<0.6.0
+    py312: napari<0.6.0
+    py313: napari<0.6.0
     napari-dev: git+https://github.com/napari/napari
 """
