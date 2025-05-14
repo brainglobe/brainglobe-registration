@@ -84,16 +84,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           secret-codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
-      # Run tests on `napari` main only on python 3.13
-      - name: Run tests with napari main branch
-        if: ${{ matrix.python-version == '3.13' }}
-        uses: neuroinformatics-unit/actions/test@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-          secret-codecov-token: ${{ secrets.CODECOV_TOKEN }}
-          tox-args: -e napari-dev
-
-
       - name: Notify slack on scheduled failure
         if: failure() && github.event_name == 'schedule'
         uses: ravsamhq/notify-slack-action@v2
