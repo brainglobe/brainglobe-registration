@@ -114,7 +114,7 @@ fix = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py311, py312, py313, napari-dev
+envlist = py{311,312,313}, napari-dev
 isolated_build = True
 
 [gh-actions]
