@@ -1,3 +1,4 @@
+from qt_niu.dialog import display_warning
 from qtpy.QtCore import (
     Signal,  ## https://www.tutorialspoint.com/pyqt/pyqt_new_signals_with_pyqtsignal.htm
 )
@@ -133,30 +134,27 @@ class SimilarityWidget(QGroupBox):
 
     def _on_find_button_clicked(self):
         """Emit signal with selected metric and slice range."""
-        start = None
-        end = None
         if self.custom_range_checkbox.isChecked():
             start = self.start_slice_spinbox.value()
             end = self.end_slice_spinbox.value()
         else:
-            # If not custom, use the full range defined by spinbox limits
             start = self.start_slice_spinbox.minimum()
             end = self.end_slice_spinbox.maximum()
 
         metric = self.metric_combobox.currentText()
 
-        # Basic validation before emitting
+        # Use display_warning for user-facing error messages
         if start is None or end is None:
-            print(
-                "Error: Could not determine slice range."
-            )  # maybe better with napari.utils.notifications
+            display_warning(
+                self, "Slice Range Error", "Could not determine slice range."
+            )
             return
         if start > end:
-            print("Error: Start slice cannot be greater than end slice.")
+            display_warning(
+                self,
+                "Slice Range Error",
+                "Start slice cannot be greater than end slice.",
+            )
             return
 
-        print(
-            f"Emitting calculate_metric_requested: start={start}, end={end}, "
-            f"metric={metric}"
-        )
         self.calculate_metric_requested.emit(start, end, metric)

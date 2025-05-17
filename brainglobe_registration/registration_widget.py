@@ -46,6 +46,7 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
+from brainglobe_registration.similarity_metrics import find_best_atlas_slice
 from brainglobe_registration.utils.utils import (
     calculate_region_size,
     calculate_rotated_bounding_box,
@@ -69,8 +70,6 @@ from brainglobe_registration.widgets.similarity_metrics_widget import (
 from brainglobe_registration.widgets.transform_select_view import (
     TransformSelectView,
 )
-
-from .similarity_metrics import find_best_atlas_slice
 
 
 class RegistrationWidget(QScrollArea):
@@ -942,14 +941,9 @@ class RegistrationWidget(QScrollArea):
             show_error("Atlas layer must be 3D.")
             return
 
-        try:
-            # Ensure data is loaded as ndarrays
-            sample_slice = np.asarray(self._moving_image.data)
-            atlas_volume = np.asarray(self._atlas_data_layer.data)
-            search_range = (start_slice, end_slice)
-        except Exception as e:
-            show_error(f"Error preparing data for calculation: {e}")
-            return
+        sample_slice = np.asarray(self._moving_image.data)
+        atlas_volume = np.asarray(self._atlas_data_layer.data)
+        search_range = (start_slice, end_slice)
 
         # Thread worker-- trying similar to the compute_atlas_rotation
         # function
@@ -980,7 +974,6 @@ class RegistrationWidget(QScrollArea):
 
     def _on_similarity_search_started(self):
         """Called when the background calculation starts."""
-        print("Similarity search worker started.")
         # Disable button to prevent multiple clicks, without this PC crashed
         self.similarity_widget.find_button.setEnabled(False)
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
@@ -1003,7 +996,6 @@ class RegistrationWidget(QScrollArea):
 
     def _on_similarity_search_finished(self):
         """Called when the background calculation finishes."""
-        print("Similarity search worker finished.")
         # Re-enable button
         self.similarity_widget.find_button.setEnabled(True)
         QApplication.restoreOverrideCursor()

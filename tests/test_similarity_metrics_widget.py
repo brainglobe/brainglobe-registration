@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from qtpy.QtWidgets import QApplication
@@ -44,29 +44,46 @@ def test_custom_range_checkbox(similarity_widget: SimilarityWidget):
     assert not similarity_widget.end_slice_spinbox.isEnabled()
 
 
-def test_set_slice_range_limits(similarity_widget: SimilarityWidget):
-    """Test setting the slice range limits"""
-    min_val, max_val = 10, 200
+@pytest.mark.parametrize(
+    "min_val, max_val, expected_min, expected_max, expected_value",
+    [
+        (10, 200, 10, 200, 10),  # normal case
+        (50, 40, 50, 50, 50),  # max < min case
+    ],
+)
+def test_set_slice_range_limits_start_spinbox(
+    similarity_widget: SimilarityWidget,
+    min_val,
+    max_val,
+    expected_min,
+    expected_max,
+    expected_value,
+):
     similarity_widget.set_slice_range_limits(min_val, max_val)
-    assert similarity_widget.start_slice_spinbox.value() == min_val
-    assert similarity_widget.end_slice_spinbox.value() == max_val
-    assert similarity_widget.start_slice_spinbox.minimum() == min_val
+    assert similarity_widget.start_slice_spinbox.minimum() == expected_min
+    assert similarity_widget.start_slice_spinbox.maximum() == expected_max
+    assert similarity_widget.start_slice_spinbox.value() == expected_value
 
-    assert similarity_widget.end_slice_spinbox.minimum() == min_val
-    assert similarity_widget.start_slice_spinbox.maximum() == max_val
-    assert similarity_widget.end_slice_spinbox.maximum() == max_val
 
-    # if max_slice < min_slice
-    min_val_new, max_val_new = 50, 40
-    similarity_widget.set_slice_range_limits(min_val_new, max_val_new)
-    assert similarity_widget.start_slice_spinbox.minimum() == min_val_new
-    assert similarity_widget.start_slice_spinbox.maximum() == min_val_new
-    assert similarity_widget.start_slice_spinbox.value() == min_val_new
-
-    assert similarity_widget.end_slice_spinbox.minimum() == min_val_new
-    assert similarity_widget.end_slice_spinbox.maximum() == min_val_new
-
-    assert similarity_widget.end_slice_spinbox.value() == min_val_new
+@pytest.mark.parametrize(
+    "min_val, max_val, expected_min, expected_max, expected_value",
+    [
+        (10, 200, 10, 200, 200),  # normal case: value should be max
+        (50, 40, 50, 50, 50),  # max < min case: value should be min
+    ],
+)
+def test_set_slice_range_limits_end_spinbox(
+    similarity_widget: SimilarityWidget,
+    min_val,
+    max_val,
+    expected_min,
+    expected_max,
+    expected_value,
+):
+    similarity_widget.set_slice_range_limits(min_val, max_val)
+    assert similarity_widget.end_slice_spinbox.minimum() == expected_min
+    assert similarity_widget.end_slice_spinbox.maximum() == expected_max
+    assert similarity_widget.end_slice_spinbox.value() == expected_value
 
 
 def test_find_button_default_range(qtbot, similarity_widget: SimilarityWidget):
@@ -102,9 +119,7 @@ def test_find_button_custom_range(qtbot, similarity_widget: SimilarityWidget):
     assert blocker.args == [custom_start, custom_end, selected_metric]
 
 
-def test_find_button_invalid_range(
-    qtbot, similarity_widget: SimilarityWidget, capsys
-):
+def test_find_button_invalid_range(qtbot, similarity_widget: SimilarityWidget):
     """Test the find button with an invalid range"""
     similarity_widget.set_slice_range_limits(0, 100)
     similarity_widget.custom_range_checkbox.setChecked(True)
@@ -119,19 +134,23 @@ def test_find_button_invalid_range(
     # connect the mock slot to the signal
     similarity_widget.calculate_metric_requested.connect(mock_slot)
 
-    # perform click
-    similarity_widget.find_button.click()
-    QApplication.processEvents()  # Process next events if signal is emitted
+    # Patch display_warning to check it is called
+    with patch(
+        "brainglobe_registration.widgets.similarity_metrics_widget.display_warning"
+    ) as mock_warning:
+        similarity_widget.find_button.click()
+        QApplication.processEvents()
+        mock_warning.assert_called_once_with(
+            similarity_widget,
+            "Slice Range Error",
+            "Start slice cannot be greater than end slice.",
+        )
 
     # disconnect the mock slot
     similarity_widget.calculate_metric_requested.disconnect(mock_slot)
 
     # assert the mock slot was not called
     mock_slot.assert_not_called()
-    captured = capsys.readouterr()
-    assert (
-        "Error: Start slice cannot be greater than end slice" in captured.out
-    )
 
 
 @pytest.mark.parametrize("metric_to_test", AVAILABLE_METRICS)
