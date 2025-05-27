@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from brainglobe_atlasapi.descriptors import ANNOTATION_DTYPE, REFERENCE_DTYPE
 from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
@@ -58,6 +59,13 @@ def test_atlas_dropdown_index_changed_with_valid_index(
     assert (
         registration_widget._atlas.atlas_name
         == registration_widget._available_atlases[2]
+    )
+    assert registration_widget._atlas_data_layer is not None
+    assert registration_widget._atlas_annotations_layer is not None
+    assert registration_widget._atlas_data_layer.data.dtype == REFERENCE_DTYPE
+    assert (
+        registration_widget._atlas_annotations_layer.data.dtype
+        == ANNOTATION_DTYPE
     )
     assert registration_widget.run_button.isEnabled()
     assert registration_widget._viewer.grid.enabled
