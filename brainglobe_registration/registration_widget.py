@@ -769,7 +769,7 @@ class RegistrationWidget(QScrollArea):
             order=2,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
-        ).astype(np.int16)
+        ).astype(self._atlas.reference.dtype)
 
         self._atlas_annotations_layer.data = dask_affine_transform(
             self._atlas.annotation,
@@ -777,7 +777,7 @@ class RegistrationWidget(QScrollArea):
             order=0,
             output_shape=bounding_box,
             output_chunks=(2, bounding_box[1], bounding_box[2]),
-        )
+        ).astype(self._atlas.annotation.dtype)
 
         # Resets the viewer grid to update the grid to the new atlas
         # The grid is disabled and re-enabled to force the grid to update
