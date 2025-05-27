@@ -192,6 +192,14 @@ def test_on_adjust_atlas_rotation(
     assert reg_widget._atlas_data_layer.data.shape == expected_shape
     assert reg_widget._atlas_annotations_layer.data.shape == expected_shape
     assert reg_widget._atlas.reference.shape == atlas_shape
+    assert (
+        reg_widget._atlas_data_layer.data.dtype
+        == reg_widget._atlas.reference.dtype
+    )
+    assert (
+        reg_widget._atlas_annotations_layer.data.dtype
+        == reg_widget._atlas.annotation.dtype
+    )
 
 
 def test_on_adjust_atlas_rotation_no_atlas(registration_widget, mocker):
@@ -214,6 +222,14 @@ def test_on_atlas_reset(registration_widget_with_example_atlas):
     assert reg_widget._atlas_data_layer.data.shape == atlas_shape
     assert reg_widget._atlas.reference.shape == atlas_shape
     assert reg_widget._atlas_annotations_layer.data.shape == atlas_shape
+    assert (
+        reg_widget._atlas_data_layer.data.dtype
+        == reg_widget._atlas.reference.dtype
+    )
+    assert (
+        reg_widget._atlas_annotations_layer.data.dtype
+        == reg_widget._atlas.annotation.dtype
+    )
 
 
 def test_on_atlas_reset_no_atlas(registration_widget, mocker):
