@@ -300,7 +300,7 @@ class RegistrationWidget(QScrollArea):
                 self._atlas.reference.shape[1],
                 self._atlas.reference.shape[2],
             ),
-        ).astype(np.int16)
+        )
         dask_annotations = da.from_array(
             self._atlas.annotation,
             chunks=(
