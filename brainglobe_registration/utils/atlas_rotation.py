@@ -1,472 +1,83 @@
-from collections import Counter
-from pathlib import Path, PurePath
-from typing import Dict, List, Optional, Tuple
-
-import dask.array as da
-import napari
 import numpy as np
-import numpy.typing as npt
-import pandas as pd
-from brainglobe_atlasapi import BrainGlobeAtlas
-from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
+
+from dask_image.ndinterp import affine_transform as dask_affine_transform
+from napari.qt.threading import thread_worker
+from napari.utils.notifications import show_error
 from pytransform3d.rotations import active_matrix_from_angle
-from qt_niu.dialog import display_info
-from qtpy.QtWidgets import QWidget
 
+from brainglobe_registration.utils.utils import (
+    calculate_rotated_bounding_box,
+)
 
-def adjust_napari_image_layer(
-    image_layer: napari.layers.Image, x: int, y: int, rotate: float
-):
-    """
-    Adjusts the napari image layer by the given x, y, and rotation values.
+def on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
+    if not (
+        self._atlas
+        and self._atlas_data_layer
+        and self._atlas_annotations_layer
+    ):
+        show_error("No atlas selected. Please select an atlas before rotating")
+        return
 
-    This function takes in a napari image layer and modifies its translate
-    and affine properties based on the provided x, y, and rotation values.
-    The rotation is performed around the center of the image layer.
+    # Create the rotation matrix
+    roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
+    yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
+    pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
 
-    Rotation around origin code adapted from:
-    https://forum.image.sc/t/napari-3d-rotation-center-change-and-scaling/66347/5
+    # Combine rotation matrices
+    rotation_matrix = yaw_matrix @ pitch_matrix @ roll_matrix
 
-    Parameters
-    ------------
-    image_layer : napari.layers.Layer
-        The napari image layer to be adjusted.
-    x : int
-        The x-coordinate for the translation.
-    y : int
-        The y-coordinate for the translation.
-    rotate : float
-        The angle of rotation in degrees.
+    full_matrix = np.eye(4)
+    full_matrix[:3, :3] = rotation_matrix
 
-    Returns
-    --------
-    None
-    """
-    image_layer.translate = (y, x)
+    # Translate the origin to the center of the image
+    origin = np.asarray(self._atlas.reference.shape) / 2
+    translate_matrix = np.eye(4)
+    translate_matrix[:-1, -1] = -origin
 
-    rotation_matrix = active_matrix_from_angle(2, np.deg2rad(rotate))
-    translate_matrix = np.eye(3)
-    origin = np.asarray(image_layer.data.shape) // 2 + np.asarray([y, x])
-    translate_matrix[:2, -1] = origin
-    transform_matrix = (
-        translate_matrix @ rotation_matrix @ np.linalg.inv(translate_matrix)
+    bounding_box = calculate_rotated_bounding_box(
+        self._atlas.reference.shape, full_matrix
     )
-    image_layer.affine = transform_matrix
+    new_translation = np.asarray(bounding_box) / 2
+    post_rotate_translation = np.eye(4)
+    post_rotate_translation[:3, -1] = new_translation
 
-
-def get_data_from_napari_layer(
-    layer: napari.layers.Layer, selection: Optional[Tuple[slice, ...]] = None
-) -> npt.NDArray:
-    """
-    Returns the data from the napari layer.
-
-    This function returns the data from the napari layer. If the layer is a
-    dask array, the data is computed before returning.
-
-    Parameters
-    ------------
-    layer : napari.layers.Layer
-        The napari layer from which to extract the data.
-    selection : Tuple[slice, ...], optional
-        The selection to apply to the data prior to computing.
-
-    Returns
-    --------
-    npt.NDArray
-        The selected data from the napari layer.
-    """
-    if selection is not None:
-        data = layer.data[selection]
-    else:
-        data = layer.data
-
-    if isinstance(layer.data, da.Array):
-        return data.compute().squeeze()
-
-    return data.squeeze()
-
-
-def open_parameter_file(file_path: Path) -> Dict:
-    """
-    Opens the parameter file and returns the parameter dictionary.
-
-    This function reads a parameter file and extracts the parameters into
-    a dictionary. The parameter file is expected to have lines in the format
-    "(key value1 value2 ...)". Any line not starting with "(" is ignored.
-    The values are stripped of any trailing ")" and leading or trailing quotes.
-
-    Parameters
-    ------------
-    file_path : Path
-        The path to the parameter file.
-
-    Returns
-    --------
-    Dict
-        A dictionary containing the parameters from the file.
-    """
-    with open(file_path, "r") as f:
-        param_dict = {}
-        for line in f.readlines():
-            if line[0] == "(":
-                split_line = line[1:-1].split()
-                cleaned_params = []
-                for i, entry in enumerate(split_line[1:]):
-                    if entry == ")" or entry[0] == "/":
-                        break
-
-                    cleaned_params.append(entry.strip('" )'))
-
-                param_dict[split_line[0]] = cleaned_params
-
-    return param_dict
-
-
-def find_layer_index(viewer: napari.Viewer, layer_name: str) -> int:
-    """Finds the index of a layer in the napari viewer."""
-    for idx, layer in enumerate(viewer.layers):
-        if layer.name == layer_name:
-            return idx
-
-    return -1
-
-
-def get_image_layer_names(viewer: napari.Viewer) -> List[str]:
-    """
-    Returns a list of the names of the napari image layers in the viewer.
-
-    Parameters
-    ------------
-    viewer : napari.Viewer
-        The napari viewer containing the image layers.
-
-    Returns
-    --------
-    List[str]
-        A list of the names of the image layers in the viewer.
-    """
-    return [layer.name for layer in viewer.layers]
-
-
-def calculate_rotated_bounding_box(
-    image_shape: Tuple[int, int, int], rotation_matrix: npt.NDArray
-) -> Tuple[int, int, int]:
-    """
-    Calculates the bounding box of the rotated image.
-
-    This function calculates the bounding box of the rotated image given the
-    image shape and rotation matrix. The bounding box is calculated by
-    transforming the corners of the image and finding the minimum and maximum
-    values of the transformed corners.
-
-    Parameters
-    ------------
-    image_shape : Tuple[int, int, int]
-        The shape of the image.
-    rotation_matrix : npt.NDArray
-        The rotation matrix.
-
-    Returns
-    --------
-    Tuple[int, int, int]
-        The bounding box of the rotated image.
-    """
-    corners = np.array(
-        [
-            [0, 0, 0, 1],
-            [image_shape[0], 0, 0, 1],
-            [0, image_shape[1], 0, 1],
-            [0, 0, image_shape[2], 1],
-            [image_shape[0], image_shape[1], 0, 1],
-            [image_shape[0], 0, image_shape[2], 1],
-            [0, image_shape[1], image_shape[2], 1],
-            [image_shape[0], image_shape[1], image_shape[2], 1],
-        ]
+    self._atlas_transform_matrix = np.linalg.inv(
+        post_rotate_translation @ full_matrix @ translate_matrix
     )
 
-    transformed_corners = np.dot(rotation_matrix, corners.T)
-    min_corner = np.min(transformed_corners, axis=1)
-    max_corner = np.max(transformed_corners, axis=1)
+    self._atlas_data_layer.data = dask_affine_transform(
+        self._atlas.reference,
+        self._atlas_transform_matrix,
+        order=2,
+        output_shape=bounding_box,
+        output_chunks=(2, bounding_box[1], bounding_box[2]),
+    ).astype(self._atlas.reference.dtype)
 
-    return (
-        int(np.round(max_corner[0] - min_corner[0])),
-        int(np.round(max_corner[1] - min_corner[1])),
-        int(np.round(max_corner[2] - min_corner[2])),
-    )
+    self._atlas_annotations_layer.data = dask_affine_transform(
+        self._atlas.annotation,
+        self._atlas_transform_matrix,
+        order=0,
+        output_shape=bounding_box,
+        output_chunks=(2, bounding_box[1], bounding_box[2]),
+    ).astype(self._atlas.annotation.dtype)
 
+    self._viewer.reset_view()
+    self._viewer.grid.enabled = False
+    self._viewer.grid.enabled = True
 
-def check_atlas_installed(parent_widget: QWidget):
-    """
-    Function checks if user has any atlases installed. If not, message box
-    appears in napari, directing user to download atlases via attached links.
-    """
-    available_atlases = get_downloaded_atlases()
-    if len(available_atlases) == 0:
-        display_info(
-            widget=parent_widget,
-            title="Information",
-            message="No atlases available. Please download atlas(es) "
-            "using <a href='https://brainglobe.info/documentation/"
-            "brainglobe-atlasapi/usage/command-line-interface.html'>"
-            "brainglobe-atlasapi</a> or <a href='https://brainglobe.info/"
-            "tutorials/manage-atlases-in-GUI.html'>brainrender-napari</a>",
-        )
+    worker = compute_atlas_rotation(self)
+    worker.returned.connect(self.set_atlas_layer_data)
+    worker.start()
 
 
-def calculate_region_size(
-    atlas: BrainGlobeAtlas,
-    annotation_image: npt.NDArray[np.uint32],
-    hemispheres: npt.NDArray,
-    output_path: Path,
-    left_hemisphere_label: int = 2,
-    right_hemisphere_label: int = 1,
-) -> pd.DataFrame:
-    """
-    Calculate the areas of the structures in the annotation image.
+@thread_worker
+def compute_atlas_rotation(self):
+    self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
+    self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(False)
 
-    Parameters
-    ----------
-    atlas: BrainGlobeAtlas
-        The atlas object to which the annotation image belongs.
-    annotation_image: npt.NDArray[np.uint32]
-        The annotation image.
-    hemispheres: npt.NDArray
-        The hemisphere labels for each pixel in the annotation image.
-    output_path: Path
-        The path to save the output csv file.
-    left_hemisphere_label: int, optional
-        The label for the left hemisphere.
-    right_hemisphere_label: int, optional
-        The label for the right hemisphere.
+    computed_array = self._atlas_data_layer.data.compute()
 
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame containing the structure names and areas.
-    """
-    count_left = Counter(
-        annotation_image[hemispheres == left_hemisphere_label].flatten()
-    )
-    count_right = Counter(
-        annotation_image[hemispheres == right_hemisphere_label].flatten()
-    )
+    self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
+    self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(True)
 
-    # Remove the background label
-    try:
-        count_left.pop(0)
-        count_right.pop(0)
-    except KeyError:
-        pass
-
-    structures_reference_df = atlas.lookup_df
-
-    if annotation_image.ndim == 3:
-        columns = [
-            "structure_name",
-            "left_volume_mm3",
-            "right_volume_mm3",
-            "total_volume_mm3",
-        ]
-        pixel_conversion_factor = (
-            atlas.resolution[0]
-            * atlas.resolution[1]
-            * atlas.resolution[2]
-            / (1000**3)
-        )
-    else:
-        columns = [
-            "structure_name",
-            "left_area_mm2",
-            "right_area_mm2",
-            "total_area_mm2",
-        ]
-        pixel_conversion_factor = (
-            atlas.resolution[1] * atlas.resolution[2] / (1000**2)
-        )
-
-    df = pd.DataFrame(
-        index=structures_reference_df.id,
-        columns=columns,
-    )
-
-    for structure_id in count_left.keys():
-        structure_line = structures_reference_df[
-            structures_reference_df["id"] == structure_id
-        ]
-
-        if len(structure_line) == 0:
-            print(
-                f"Value: {structure_id} is not in the atlas structure "
-                f"reference file. Not calculating the area."
-            )
-            continue
-
-        left_size = count_left[structure_id] * pixel_conversion_factor
-        right_size = count_right[structure_id] * pixel_conversion_factor
-        total_size = left_size + right_size
-
-        df.loc[structure_id] = {
-            columns[0]: structure_line["name"].values[0],
-            columns[1]: left_size,
-            columns[2]: right_size,
-            columns[3]: total_size,
-        }
-
-    df.dropna(how="all", inplace=True)
-
-    df.to_csv(output_path, index=False)
-
-    return df
-
-
-def convert_atlas_labels(
-    annotation_image: npt.NDArray[np.uint32],
-) -> Tuple[npt.NDArray[np.uint16], Dict[int, int]]:
-    """
-    Adjust the atlas labels such that they can be represented by an unsigned
-     short (np.uint16).
-
-    This is done by mapping the labels greater than 2**15 to new
-    consecutive values starting from 2**15. Assumes no more than 2**15
-    unique values greater than 2**15.
-
-    Slow to run if a large number of unique values are greater than 2**15.
-    Based on current BrainGlobe atlases, this should not be the case.
-
-    Parameters
-    ----------
-    annotation_image: npt.NDArray[np.uint16]
-        The annotation image.
-
-    Returns
-    -------
-    npt.NDArray[np.uint16]
-        The adjusted annotation image.
-    Dict[int, int]
-        A dictionary mapping the original values to the new values.
-            key: original annotation ID
-            value: new annotation ID
-    """
-    # Copy array to avoid modifying the original
-    output_array = np.array(annotation_image, copy=True)
-    # Returns a sorted array of unique values in the annotation image
-    values = np.unique(output_array)
-
-    if isinstance(values, da.Array):
-        values = values.compute()
-
-    # Create a mapping of the original values to the new values
-    # and adjust the annotation image
-    mapping = {}
-    new_value = 2**15
-    for value in values:
-        if value > new_value:
-            mapping[value] = new_value
-            output_array[output_array == value] = new_value
-            new_value += 1
-        elif value == new_value:
-            new_value += 1
-
-    return output_array.astype(np.uint16), mapping
-
-
-def restore_atlas_labels(
-    annotation_image: npt.NDArray[np.uint16], mapping: Dict[int, int]
-) -> npt.NDArray[np.uint32]:
-    """
-    Restore the original atlas labels from the adjusted labels based on the
-    provided mapping.
-
-    Parameters
-    ----------
-    annotation_image: npt.NDArray[np.uint16]
-        The adjusted annotation image.
-    mapping: Dict[int, int]
-        A dictionary mapping the original values to the new values.
-            key: original annotation ID
-            value: new annotation ID
-
-    Returns
-    -------
-    npt.NDArray[np.uint32]
-        The restored annotation image.
-    """
-    annotation_image = annotation_image.astype(np.uint32, copy=False)
-    for old_value, new_value in mapping.items():
-        annotation_image[annotation_image == new_value] = old_value
-
-    return annotation_image
-
-
-def serialize_registration_widget(obj):
-    if isinstance(obj, napari.layers.Layer):
-        return obj.name
-    elif isinstance(obj, napari.Viewer):
-        return str(obj)
-    elif isinstance(obj, PurePath):
-        return str(obj)
-    elif isinstance(obj, BrainGlobeAtlas):
-        return obj.atlas_name
-    elif isinstance(obj, np.ndarray):
-        return f"<{type(obj)}>, {obj.shape}, {obj.dtype}"
-    else:
-        return obj.__dict__()
-
-
-def generate_mask_from_atlas_annotations(atlas: BrainGlobeAtlas) -> np.ndarray:
-    """
-    Generate a binary mask from the atlas annotation array.
-
-    Parameters
-    ----------
-    atlas : BrainGlobeAtlas
-        Atlas object containing annotation data.
-
-    Returns
-    -------
-    np.ndarray
-        Binary mask of the same shape as the annotation.
-        Pixels are 1 if the annotation is not zero, else 0.
-    """
-    annotation = atlas.annotation
-    mask = annotation != 0
-    return mask.astype(np.uint8)
-
-
-def mask_atlas(atlas: BrainGlobeAtlas, mask: np.ndarray) -> np.ndarray:
-    """
-    Apply a mask to the reference image of the atlas.
-
-    Parameters
-    ----------
-    atlas : BrainGlobeAtlas
-        Atlas object containing reference data.
-    mask : np.ndarray
-        Binary mask to apply.
-
-    Returns
-    -------
-    np.ndarray
-        Reference image with the mask applied.
-        Pixels outside the mask are set to zero.
-    """
-    masked_reference = atlas.reference * mask
-    return masked_reference
-
-
-def mask_atlas_with_annotations(atlas: BrainGlobeAtlas) -> np.ndarray:
-    """
-    Apply the annotation-based mask to the reference image of the atlas.
-
-    Parameters
-    ----------
-    atlas : BrainGlobeAtlas
-        Atlas object containing reference and annotation data.
-
-    Returns
-    -------
-    np.ndarray
-        Reference image with the annotation-based mask applied.
-    """
-    mask = generate_mask_from_atlas_annotations(atlas)
-    return mask_atlas(atlas, mask)
+    return computed_array
