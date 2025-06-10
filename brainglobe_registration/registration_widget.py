@@ -21,11 +21,9 @@ from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
-from napari.qt.threading import thread_worker
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
-from pytransform3d.rotations import active_matrix_from_angle
 from qt_niu.collapsible_widget import CollapsibleWidgetContainer
 from qt_niu.dialog import display_info
 from qtpy.QtWidgets import (
@@ -44,13 +42,11 @@ from skimage.transform import rescale
 from tifffile import imwrite
 
 from brainglobe_registration.utils.atlas_rotation import (
-    on_adjust_atlas_rotation,
     compute_atlas_rotation,
+    on_adjust_atlas_rotation,
 )
-
 from brainglobe_registration.utils.utils import (
     calculate_region_size,
-    calculate_rotated_bounding_box,
     check_atlas_installed,
     find_layer_index,
     get_data_from_napari_layer,
@@ -73,6 +69,7 @@ from brainglobe_registration.widgets.transform_select_view import (
 class RegistrationWidget(QScrollArea):
     on_adjust_atlas_rotation = on_adjust_atlas_rotation
     compute_atlas_rotation = compute_atlas_rotation
+
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
         self._widget = CollapsibleWidgetContainer()
