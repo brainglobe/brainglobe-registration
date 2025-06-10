@@ -7,6 +7,7 @@ from pytransform3d.rotations import active_matrix_from_angle
 
 from brainglobe_registration.utils.utils import (
     calculate_rotated_bounding_box,
+
 )
 
 def on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
