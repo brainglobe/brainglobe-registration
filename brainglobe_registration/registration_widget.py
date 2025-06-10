@@ -42,13 +42,11 @@ from skimage.transform import rescale
 from tifffile import imwrite
 
 from brainglobe_registration.utils.atlas_rotation import (
-    on_adjust_atlas_rotation,
     compute_atlas_rotation,
+    on_adjust_atlas_rotation,
 )
-
 from brainglobe_registration.utils.utils import (
     calculate_region_size,
-    calculate_rotated_bounding_box,
     check_atlas_installed,
     find_layer_index,
     get_data_from_napari_layer,
@@ -71,6 +69,7 @@ from brainglobe_registration.widgets.transform_select_view import (
 class RegistrationWidget(QScrollArea):
     on_adjust_atlas_rotation = on_adjust_atlas_rotation
     compute_atlas_rotation = compute_atlas_rotation
+
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
         self._widget = CollapsibleWidgetContainer()
