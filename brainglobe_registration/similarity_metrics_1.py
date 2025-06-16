@@ -13,6 +13,7 @@ from napari.utils.notifications import show_error
 from pytransform3d.rotations import active_matrix_from_angle
 from skimage.metrics import structural_similarity
 from skimage.transform import rescale
+from sklearn.feature_selection import mutual_info_regression
 
 from brainglobe_registration.utils.utils import (
     calculate_rotated_bounding_box,
@@ -51,6 +52,10 @@ def scale_moving_image(
 
     Parameters
     ------------
+    moving_image : tifffile.TiffImage
+        Image to be scaled.
+    atlas_res : tuple
+        Resolution of the atlas.
     x : float
         Moving image x pixel size (> 0.0).
     y : float
@@ -68,6 +73,8 @@ def scale_moving_image(
     y_factor = y / atlas_res[1]
     scale: Tuple[float, ...] = (y_factor, x_factor)
 
+    ##### NEED TO CHECK ORIENTATION OF TIFF ####
+
     if moving_image.ndim == 3:
         z_factor = z / atlas_res[2]
         scale = (z_factor, *scale)
@@ -84,6 +91,8 @@ def scale_moving_image(
 
 
 def safe_ncc(img1, img2):
+    # Normalised Cross-Section
+    # Patterns between images
     if np.std(img1) == 0 or np.std(img2) == 0:
         return 0.0  # return a very low score if there's no signal
     return np.corrcoef(img1.ravel(), img2.ravel())[0, 1]
@@ -112,12 +121,20 @@ def compute_similarity_metric(moving, fixed, atlas_res=(1, 1, 1)):
 
     # Similarity metrics
     ncc = safe_ncc(moving, fixed)
-    ssim = structural_similarity(moving, fixed, data_range=1.0)
-    # mi = mutual_info_regression(moving.ravel().reshape(-1, 1),
-    #                            fixed.ravel())[0]
 
-    # combined = 0.4 * ssim + 0.3 * ncc + 0.3 * mi
-    combined = 0.6 * ssim + 0.4 * ncc
+    # Structural Similarity Index
+    # Captures luminance, contrast, structure
+    ssim = structural_similarity(moving, fixed, data_range=1.0)
+
+    # Mutual Information
+    # Shared info, robust to intensity + spatial differences
+    mi = mutual_info_regression(moving.ravel().reshape(-1, 1), fixed.ravel())[
+        0
+    ]
+
+    combined = 0.55 * ssim + 0.35 * ncc + 0.1 * mi
+    # combined = 0.6 * ssim + 0.4 * ncc
+    # combined = 0.5 * ssim + 0.5 * mi
     return combined
 
 
@@ -189,11 +206,7 @@ atlas_name = (get_downloaded_atlases())[0]  # e.g. Allen 100um
 atlas = BrainGlobeAtlas(atlas_name)
 atlas_volume = atlas.reference
 
-# FOR TESTING
-# atlas_volume = atlas_volume[68:79, :, :]
-
 atlas_res = atlas.resolution  # (z, y, x)
-
 sample = tiff.imread("resources/sample_hipp.tif")
 
 
@@ -222,7 +235,7 @@ def registration_objective(pitch, yaw, roll, z_slice):
 
     except Exception as e:
         warnings.warn(f"Failed registration attempt: {e}")
-        return -1.0  # Penalize bad transformations
+        return -1.0  # Penalise bad transformations
 
 
 # ----------------------------------------
@@ -237,24 +250,29 @@ pbounds = {
     "z_slice": (1, 130),
 }
 
-optimizer = BayesianOptimization(
-    f=registration_objective,
-    pbounds=pbounds,
-    verbose=2,
-    random_state=42,
-)
+z_slices = range(atlas_volume.shape[0])
+best_result = {"target": -np.inf}
 
-optimizer.maximize(
-    init_points=10,
-    n_iter=30,
-)
+for z in z_slices:
+    print(f"\n[INFO] Bayesian search at z-slice {z}")
 
-# Extract best parameters
-best_params_bayes = optimizer.max["params"]
-print(
-    f"\n[Bayesian] Optimal result:\n" f"Score: {optimizer.max['target']:.4f}"
-)
-for k, v in best_params_bayes.items():
+    optimizer = BayesianOptimization(
+        f=lambda pitch, yaw, roll: registration_objective(pitch, yaw, roll, z),
+        pbounds={k: v for k, v in pbounds.items() if k != "z_slice"},
+        verbose=2,
+        random_state=42,
+    )
+
+    optimizer.maximize(init_points=5, n_iter=15)
+
+    if optimizer.max["target"] > best_result["target"]:
+        best_result = {
+            "target": optimizer.max["target"],
+            "params": dict(optimizer.max["params"], z_slice=z),
+        }
+
+print(f"\n[Bayesian] Optimal result:\nScore: {best_result['target']:.4f}")
+for k, v in best_result["params"].items():
     print(f"{k}: {v:.2f}")
 
 
@@ -280,15 +298,21 @@ def adaptive_grid_search(
                 step,
             )
             for k in param_names
+            if k != "z_slice"
         }
 
         print(f"\n[INFO] Grid search with step size {step}")
-        for values in product(*search_space.values()):
-            params = dict(zip(param_names, values))
-            score = objective_fn(**params)
-            if not np.isnan(score) and score > best_score:
-                best_score = score
-                best_params = params
+
+        z_range = range(atlas_volume.shape[0])
+        for z in z_range:
+            for values in product(*search_space.values()):
+                params = dict(zip(search_space.keys(), values))
+                params["z_slice"] = z  # Add current z
+                score = objective_fn(**params)
+
+                if not np.isnan(score) and score > best_score:
+                    best_score = score
+                    best_params = params
 
         current_center = best_params
         current_range = {k: step for k in param_names}
