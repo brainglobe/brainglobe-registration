@@ -1,5 +1,6 @@
 import warnings
 from itertools import product
+from pathlib import Path
 from typing import Tuple
 
 import dask.array as da
@@ -15,8 +16,13 @@ from skimage.metrics import structural_similarity
 from skimage.transform import rescale
 from sklearn.feature_selection import mutual_info_regression
 
+from brainglobe_registration.elastix.register import (
+    run_registration,
+    transform_image,
+)
 from brainglobe_registration.utils.utils import (
     calculate_rotated_bounding_box,
+    open_parameter_file,
 )
 
 
@@ -90,15 +96,7 @@ def scale_moving_image(
     return scaled
 
 
-def safe_ncc(img1, img2):
-    # Normalised Cross-Section
-    # Patterns between images
-    if np.std(img1) == 0 or np.std(img2) == 0:
-        return 0.0  # return a very low score if there's no signal
-    return np.corrcoef(img1.ravel(), img2.ravel())[0, 1]
-
-
-def compute_similarity_metric(moving, fixed, atlas_res=(1, 1, 1)):
+def prepare_images(moving, fixed):
     # Scale moving image to match atlas resolution
     moving = scale_moving_image(moving, atlas_res, x=23.0, y=23.0, z=23.0)
 
@@ -119,6 +117,23 @@ def compute_similarity_metric(moving, fixed, atlas_res=(1, 1, 1)):
     moving = normalise_image(moving)
     fixed = normalise_image(fixed)
 
+    return moving, fixed
+
+
+def safe_ncc(img1, img2):
+    # Normalised Cross-Section
+    # Patterns between images
+    if np.std(img1) == 0 or np.std(img2) == 0:
+        return 0.0  # return a very low score if there's no signal
+    return np.corrcoef(img1.ravel(), img2.ravel())[0, 1]
+
+
+def compute_similarity_metric(moving, fixed, atlas_res=(1, 1, 1)):
+    # moving = moving.astype(np.float32)
+    # fixed = fixed.astype(np.float32)
+
+    moving, fixed = prepare_images(moving, fixed)
+
     # Similarity metrics
     ncc = safe_ncc(moving, fixed)
 
@@ -133,8 +148,6 @@ def compute_similarity_metric(moving, fixed, atlas_res=(1, 1, 1)):
     ]
 
     combined = 0.55 * ssim + 0.35 * ncc + 0.1 * mi
-    # combined = 0.6 * ssim + 0.4 * ncc
-    # combined = 0.5 * ssim + 0.5 * mi
     return combined
 
 
@@ -225,11 +238,81 @@ def registration_objective(pitch, yaw, roll, z_slice):
 
         # Convert float z to int index and clip to bounds
         z_idx = int(np.clip(z_slice, 0, rotated_volume.shape[0] - 1))
-        atlas_slice = rotated_volume[z_idx].compute()
+        current_atlas_slice = rotated_volume[z_idx].compute()
+
+        # RUN REGISTRATION #
+
+        transform_type = "affine"
+
+        file_path = Path(
+            "parameters/brainglobe_registration/" f"{transform_type}.txt"
+        )
+
+        transform_params = open_parameter_file(file_path)
+
+        ## --------------- START --------------- ##
+
+        # Force internal pixel type to float before wrapping in list
+        transform_params["FixedInternalImagePixelType"] = ["float"]
+        transform_params["MovingInternalImagePixelType"] = ["float"]
+
+        ## ---------------- END ---------------- ##
+
+        transform_param_list = [(transform_type, transform_params)]
+
+        ## --------------- START --------------- ##
+
+        moving, fixed = prepare_images(sample, current_atlas_slice)
+
+        if sample.ndim == 2:
+            atlas_image = fixed.astype(np.float32)
+            moving_image = moving.astype(np.float32)
+
+            for transform_selection in transform_param_list:
+                # Can't use a short for internal pixels on 2D images
+                fixed_pixel_type = transform_selection[1].get(
+                    "FixedInternalImagePixelType", []
+                )
+                moving_pixel_type = transform_selection[1].get(
+                    "MovingInternalImagePixelType", []
+                )
+                if "float" not in fixed_pixel_type:
+                    print(
+                        f"Can not use {fixed_pixel_type} "
+                        f"for internal pixels on 2D images, switching to float"
+                    )
+                    transform_selection[1]["FixedInternalImagePixelType"] = [
+                        "float"
+                    ]
+                if "float" not in moving_pixel_type:
+                    print(
+                        f"Can not use {moving_pixel_type} "
+                        f"for internal pixels on 2D images, switching to float"
+                    )
+                    transform_selection[1]["MovingInternalImagePixelType"] = [
+                        "float"
+                    ]
+        else:
+            return 0
+            # Only dealing with 2D for now
+
+        ## ---------------- END ---------------- ##
+
+        parameters = run_registration(
+            atlas_image=atlas_image,
+            moving_image=moving_image,
+            parameter_lists=transform_param_list,
+            output_directory=None,
+            filter_images=False,
+        )
+
+        atlas_in_data_space = transform_image(atlas_image, parameters)
+
+        # ---------------- #
 
         # Compute similarity with current slice
         score = compute_similarity_metric(
-            moving=sample, fixed=atlas_slice, atlas_res=atlas_res
+            moving=sample, fixed=atlas_in_data_space, atlas_res=atlas_res
         )
         return 0.0 if np.isnan(score) else score
 
@@ -324,7 +407,7 @@ def adaptive_grid_search(
 # Run Grid Search (Toggle with flag)
 # ----------------------------------------
 
-run_grid_search = True
+run_grid_search = False
 
 if run_grid_search:
     best_params_grid, best_score_grid = adaptive_grid_search(
