@@ -734,19 +734,26 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        rotation_matrix = create_rotation_matrix(roll, yaw, pitch)
-
-        rotated_reference, transform_matrix, bounding_box = rotate_volume(
-            self._atlas.reference,
-            rotation_matrix,
+        transform_matrix, bounding_box = create_rotation_matrix(
+            roll,
+            yaw,
+            pitch,
             self._atlas.reference.shape,
+        )
+
+        rotated_reference = rotate_volume(
+            data=self._atlas.reference,
+            reference_shape=self._atlas.reference.shape,
+            final_transform=transform_matrix,
+            bounding_box=bounding_box,
             interpolation_order=2,
         )
 
-        rotated_annotations, _, _ = rotate_volume(
-            self._atlas.annotation,
-            rotation_matrix,
-            self._atlas.reference.shape,
+        rotated_annotations = rotate_volume(
+            data=self._atlas.annotation,
+            reference_shape=self._atlas.reference.shape,
+            final_transform=transform_matrix,
+            bounding_box=bounding_box,
             interpolation_order=0,
         )
 
