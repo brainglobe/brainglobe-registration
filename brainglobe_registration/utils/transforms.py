@@ -10,7 +10,7 @@ from brainglobe_registration.utils.utils import (
 )
 
 
-def create_rotation_matrix(roll: float, yaw: float, pitch: float):
+def create_rotation_matrix(roll: float, yaw: float, pitch: float, img_shape: Tuple[int, int, int]):
     """Create a combined 3D rotation matrix from roll, yaw,
     and pitch (in degrees)."""
     # Create the rotation matrix
