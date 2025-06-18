@@ -215,7 +215,7 @@ def rotate_volume(
 # ----------------------------------------
 # Load data
 # ----------------------------------------
-atlas_name = (get_downloaded_atlases())[0]  # e.g. Allen 100um
+atlas_name ="allen_mouse_100um"
 atlas = BrainGlobeAtlas(atlas_name)
 atlas_volume = atlas.reference
 
