@@ -9,7 +9,6 @@ import numpy as np
 import tifffile as tiff
 from bayes_opt import BayesianOptimization
 from brainglobe_atlasapi import BrainGlobeAtlas
-from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from napari.utils.notifications import show_error
 from pytransform3d.rotations import active_matrix_from_angle
 from skimage.metrics import structural_similarity
@@ -215,7 +214,7 @@ def rotate_volume(
 # ----------------------------------------
 # Load data
 # ----------------------------------------
-atlas_name ="allen_mouse_100um"
+atlas_name = "allen_mouse_100um"
 atlas = BrainGlobeAtlas(atlas_name)
 atlas_volume = atlas.reference
 
