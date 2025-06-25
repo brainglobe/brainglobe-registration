@@ -1,5 +1,4 @@
 import warnings
-from itertools import product
 from pathlib import Path
 from typing import Tuple
 
@@ -125,7 +124,7 @@ def scale_moving_image(moving_image, atlas_res, x: float, y: float, z: float):
     return scaled
 
 
-def prepare_images(moving, fixed, scale=[1.0, 1.0, 1.0]):
+def prepare_images(moving, fixed, atlas_res, scale=[1.0, 1.0, 1.0]):
     """
     Scale, pad, and normalise moving and fixed images for registration.
 
@@ -135,6 +134,8 @@ def prepare_images(moving, fixed, scale=[1.0, 1.0, 1.0]):
         Moving image to be aligned.
     fixed : np.ndarray
         Fixed reference image.
+    atlas_res : list or tuple of float
+        The resolution of the atlas.
     scale : list of float
         Scale (x, y, z) moving image to match atlas.
 
@@ -185,12 +186,18 @@ def safe_ncc(img1, img2):
     float
         NCC score between -1.0 and 1.0.
     """
+    if img1.shape != img2.shape:
+        raise ValueError(
+            f"Input shapes must match. Got {img1.shape} and {img2.shape}"
+        )
     if np.std(img1) == 0 or np.std(img2) == 0:
         return 0.0  # return a very low score if there's no signal
     return np.corrcoef(img1.ravel(), img2.ravel())[0, 1]
 
 
-def compute_similarity_metric(moving, fixed):
+def compute_similarity_metric(
+    moving, fixed, atlas_res, atlas_to_moving_scale=[1.0, 1.0, 1.0]
+):
     """
     Compute similarity between two images using SSIM, NCC, and MI.
 
@@ -200,13 +207,20 @@ def compute_similarity_metric(moving, fixed):
         Moving image.
     fixed : np.ndarray
         Fixed reference image.
+    atlas_res : list or tuple of float
+        The resolution of the atlas.
+    atlas_to_moving_scale : list of float, optional
+        Scaling [x, y, z] applied to moving image to match atlas resolution.
+        Defaults to [1.0, 1.0, 1.0].
 
     Returns
     -------
     float
         Combined similarity score.
     """
-    moving, fixed = prepare_images(moving, fixed, scale=my_scale)
+    moving, fixed = prepare_images(
+        moving, fixed, atlas_res, scale=atlas_to_moving_scale
+    )
 
     # Similarity metrics
     ncc = safe_ncc(moving, fixed)
@@ -322,35 +336,19 @@ def rotate_volume(
     return transformed
 
 
-# ------------ LOAD DATA ------------ #
-atlas_name = "allen_mouse_100um"
-atlas = BrainGlobeAtlas(atlas_name)
-atlas_volume = atlas.reference
-
-atlas_res = atlas.resolution  # (z, y, x)
-
-my_scale = [25.0, 25.0, 25.0]
-# Scale moving image to atlas
-
-# CHOOSE SAMPLE #
-
-sample = tiff.imread("resources/sample_hipp.tif")
-
-# rot_matrix, bounding_box = create_rotation_matrix(
-#    roll=2.10, yaw=-0.30, pitch=1.20, img_shape=atlas_volume.shape
-# )
-# rotated_volume = rotate_volume(
-#    atlas_volume, atlas_volume.shape, rot_matrix, bounding_box
-# )
-# sample = rotated_volume[202].compute()
-
-manual_z_range = (50, 90)  # let this be gui input
-
-
 # ------------ OPTIMISATION OBJECTIVE ------------ #
 
 
-def registration_objective(pitch, yaw, roll, z_slice):
+def registration_objective(
+    pitch,
+    yaw,
+    roll,
+    z_slice,
+    atlas_volume,
+    sample,
+    atlas_to_moving_scale,
+    atlas_res,
+):
     """
     Perform image registration with given rotation and slice parameters
     and return a similarity score.
@@ -361,12 +359,30 @@ def registration_objective(pitch, yaw, roll, z_slice):
         Rotation angles (degrees) to apply to the atlas.
     z_slice : float
         Index of the atlas slice to use after rotation.
+    atlas_volume : np.ndarray
+        3D atlas volume used as the fixed reference.
+    sample : np.ndarray
+        2D moving image to be aligned to the atlas slice.
+    atlas_to_moving_scale : list of float
+        Scaling [x, y, z] applied to moving image to match atlas resolution.
+    atlas_res : list or tuple of float
+        The resolution of the atlas.
 
     Returns
     -------
     float
         Similarity score between registered images, or -1.0 on failure.
+
+    Raises
+    ------
+    IndexError
+        If z_slice is out of bounds for the atlas volume.
     """
+    if z_slice < 0 or z_slice >= atlas_volume.shape[0]:
+        raise IndexError(
+            f"z_slice index {z_slice} is out of bounds for "
+            f"atlas volume with shape {atlas_volume.shape}"
+        )
     try:
         # Create rotation matrix
         rot_matrix, bounding_box = create_rotation_matrix(
@@ -399,7 +415,7 @@ def registration_objective(pitch, yaw, roll, z_slice):
         transform_param_list = [(transform_type, transform_params)]
 
         moving, fixed = prepare_images(
-            sample, current_atlas_slice, scale=my_scale
+            sample, current_atlas_slice, atlas_res, scale=atlas_to_moving_scale
         )
 
         if sample.ndim == 2:
@@ -448,7 +464,10 @@ def registration_objective(pitch, yaw, roll, z_slice):
 
         # Compute similarity with current slice
         score = compute_similarity_metric(
-            moving=sample, fixed=atlas_in_data_space
+            moving=sample,
+            fixed=atlas_in_data_space,
+            atlas_res=atlas_res,
+            atlas_to_moving_scale=atlas_to_moving_scale,
         )
         return 0.0 if np.isnan(score) else score
 
@@ -457,18 +476,39 @@ def registration_objective(pitch, yaw, roll, z_slice):
         return -1.0
 
 
-# ------------ BAYESIAN ------------ #
-run_bayesian = True
+def run_bayesian(
+    atlas_volume, sample, manual_z_range, atlas_to_moving_scale, atlas_res
+):
+    """
+    Run Bayesian optimisation to align an atlas volume to a sample image.
 
-if run_bayesian:
+    Uses the registration objective function to optimise pitch, yaw, roll,
+    and z-slice for best similarity between the atlas and sample.
+
+    Parameters
+    ----------
+    atlas_volume : np.ndarray
+        3D atlas volume used as the reference.
+    sample : np.ndarray
+        2D image to be aligned to the atlas.
+    manual_z_range : tuple of float
+        Lower and upper bounds for z-slice selection.
+    atlas_to_moving_scale : list of float
+        Scaling [x, y, z] applied to moving image to match atlas resolution.
+    atlas_res : list or tuple of float
+        The resolution of the atlas.
+
+    Returns
+    -------
+    None
+        Prints the best registration parameters and similarity score.
+    """
     # Bounds in degrees and slice index
     pbounds = {
         "pitch": (-5, 5),
         "yaw": (-5, 5),
         "roll": (-5, 5),
         "z_slice": manual_z_range,
-        # z_slice here will be overwritten when we iterate over all z
-        # but it is used when we optimise z
     }
 
     z_slices = range(atlas_volume.shape[0])
@@ -484,7 +524,14 @@ if run_bayesian:
 
             optimizer = BayesianOptimization(
                 f=lambda pitch, yaw, roll: registration_objective(
-                    pitch, yaw, roll, z
+                    pitch,
+                    yaw,
+                    roll,
+                    z,
+                    atlas_volume,
+                    sample,
+                    atlas_to_moving_scale,
+                    atlas_res,
                 ),
                 pbounds={k: v for k, v in pbounds.items() if k != "z_slice"},
                 verbose=2,
@@ -502,7 +549,16 @@ if run_bayesian:
                 best_result = result
     else:
         optimizer = BayesianOptimization(
-            f=registration_objective,
+            f=lambda pitch, yaw, roll, z_slice: registration_objective(
+                pitch,
+                yaw,
+                roll,
+                z_slice,
+                atlas_volume,
+                sample,
+                atlas_to_moving_scale,
+                atlas_res,
+            ),
             pbounds=pbounds,
             verbose=2,
             random_state=42,
@@ -520,84 +576,31 @@ if run_bayesian:
         print(f"{k}: {v:.2f}")
 
 
-# ------------ ADAPTIVE GRID SEARCH ------------ #
+def main():
+    atlas_name = "allen_mouse_100um"
+    atlas = BrainGlobeAtlas(atlas_name)
+    atlas_volume = atlas.reference
+    atlas_res = atlas.resolution  # (z, y, x)
 
-run_adaptive_grid_search = False
+    # Scale moving image to atlas (i.e. just like in napari)
+    my_scale = [25.0, 25.0, 25.0]
 
-if run_adaptive_grid_search:
-    print("\n[INFO] Starting adaptive (telescoping) grid search...")
+    # CHOOSE SAMPLE #
 
-    # Initial grid search parameters
-    initial_range = {
-        "pitch": (-5, 5),
-        "yaw": (-5, 5),
-        "roll": (-5, 5),
-        "z_slice": manual_z_range,
-    }
-    step_sizes = {
-        "pitch": 2.0,
-        "yaw": 2.0,
-        "roll": 2.0,
-        "z_slice": 10,
-    }
+    sample = tiff.imread("resources/sample_hipp.tif")
 
-    refinement_levels = 3
-    best_result = {"target": -np.inf, "params": None}
+    # rot_matrix, bounding_box = create_rotation_matrix(
+    #    roll=2.10, yaw=-0.30, pitch=1.20, img_shape=atlas_volume.shape
+    # )
+    # rotated_volume = rotate_volume(
+    #    atlas_volume, atlas_volume.shape, rot_matrix, bounding_box
+    # )
+    # sample = rotated_volume[202].compute()
 
-    def get_range(center, step, min_val, max_val):
-        return np.clip(
-            np.arange(center - step, center + step + 1e-5, step),
-            min_val,
-            max_val,
-        )
+    manual_z_range = (50, 90)  # let this be gui input
 
-    center_params = {k: (v[0] + v[1]) / 2 for k, v in initial_range.items()}
+    run_bayesian(atlas_volume, sample, manual_z_range, my_scale, atlas_res)
 
-    for level in range(refinement_levels):
-        print(f"\n[Grid Search] Refinement level {level + 1}:")
 
-        pitch_vals = get_range(
-            center_params["pitch"],
-            step_sizes["pitch"],
-            *initial_range["pitch"],
-        )
-        yaw_vals = get_range(
-            center_params["yaw"], step_sizes["yaw"], *initial_range["yaw"]
-        )
-        roll_vals = get_range(
-            center_params["roll"], step_sizes["roll"], *initial_range["roll"]
-        )
-        z_vals = get_range(
-            center_params["z_slice"],
-            step_sizes["z_slice"],
-            *initial_range["z_slice"],
-        ).astype(int)
-
-        for pitch, yaw, roll, z_slice in product(
-            pitch_vals, yaw_vals, roll_vals, z_vals
-        ):
-            score = registration_objective(pitch, yaw, roll, z_slice)
-            print(
-                f"  Tested pitch={pitch:.2f}, yaw={yaw:.2f}, "
-                f"roll={roll:.2f}, z={z_slice} → score={score:.4f}"
-            )
-            if score > best_result["target"]:
-                best_result = {
-                    "target": score,
-                    "params": {
-                        "pitch": pitch,
-                        "yaw": yaw,
-                        "roll": roll,
-                        "z_slice": z_slice,
-                    },
-                }
-
-        # Update center and reduce step size
-        center_params = best_result["params"]
-        for k in step_sizes:
-            step_sizes[k] /= 2.0
-
-    print("\n[Grid Search] Optimal result:")
-    print(f"Score: {best_result['target']:.4f}")
-    for k, v in best_result["params"].items():
-        print(f"{k}: {v:.2f}")
+if __name__ == "__main__":
+    main()
