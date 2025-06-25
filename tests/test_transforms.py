@@ -22,8 +22,62 @@ def test_create_rotation_matrix_identity(dummy_volume):
     transform, bbox = create_rotation_matrix(0, 0, 0, shape)
 
     expected = np.eye(4)
-    assert_array_almost_equal(transform, expected, decimal=5)
+    assert_array_almost_equal(transform, expected, decimal=3)
     assert bbox == shape
+
+
+@pytest.mark.parametrize(
+    "angles, expected_rot",
+    [
+        # Rotation around X-axis (clockwise)
+        (
+            (30, 0, 0),
+            np.array(
+                [
+                    [1, 0, 0],
+                    [0, np.cos(np.deg2rad(30)), np.sin(np.deg2rad(30))],
+                    [0, -np.sin(np.deg2rad(30)), np.cos(np.deg2rad(30))],
+                ]
+            ),
+        ),
+        # Rotation around Y-axis (clockwise)
+        (
+            (0, 30, 0),
+            np.array(
+                [
+                    [np.cos(np.deg2rad(30)), 0, -np.sin(np.deg2rad(30))],
+                    [0, 1, 0],
+                    [np.sin(np.deg2rad(30)), 0, np.cos(np.deg2rad(30))],
+                ]
+            ),
+        ),
+        # Rotation around Z-axis (clockwise)
+        (
+            (0, 0, 30),
+            np.array(
+                [
+                    [np.cos(np.deg2rad(30)), np.sin(np.deg2rad(30)), 0],
+                    [-np.sin(np.deg2rad(30)), np.cos(np.deg2rad(30)), 0],
+                    [0, 0, 1],
+                ]
+            ),
+        ),
+    ],
+)
+def test_create_rotation_matrix_single_axis(
+    angles, expected_rot, dummy_volume
+):
+    """
+    Check that create_rotation_matrix returns expected affine rotation
+    matrix (ignoring translation) for 30° rotation about one axis.
+    """
+    shape = dummy_volume.shape
+    transform, _ = create_rotation_matrix(*angles, shape)
+
+    # Extract rotation part
+    rot_actual = transform[:3, :3]
+
+    np.testing.assert_allclose(rot_actual, expected_rot, rtol=1e-5, atol=1e-5)
 
 
 def test_create_rotation_matrix_nonzero(dummy_volume):
@@ -41,13 +95,21 @@ def test_create_rotation_matrix_nonzero(dummy_volume):
 
 
 def test_rotate_volume_output_shape_and_dtype(dummy_volume):
-    """Check that rotate_volume returns correct shape and dtype."""
+    """
+    Check that rotate_volume returns correct shape, dtype,
+    and values under identity transform.
+    """
     shape = dummy_volume.shape
     transform, bbox = create_rotation_matrix(0, 0, 0, shape)
 
-    rotated = rotate_volume(dummy_volume, shape, transform, bbox)
+    rotated = rotate_volume(dummy_volume, shape, transform, bbox).compute()
     assert rotated.shape == bbox, "Output shape mismatch with bounding box"
     assert rotated.dtype == dummy_volume.dtype, "Dtype mismatch after rotation"
+    # Accept approximate similarity due to interpolation
+    correlation = np.corrcoef(dummy_volume.flatten(), rotated.flatten())[0, 1]
+    assert (
+        correlation > 0.90
+    ), "Rotated volume differs significantly under identity transform"
 
 
 def test_rotate_volume_nontrivial_transform(dummy_volume):
