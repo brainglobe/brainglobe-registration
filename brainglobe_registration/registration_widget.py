@@ -25,7 +25,6 @@ from napari.qt.threading import thread_worker
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
-from pytransform3d.rotations import active_matrix_from_angle
 from qt_niu.collapsible_widget import CollapsibleWidgetContainer
 from qt_niu.dialog import display_info
 from qtpy.QtWidgets import (
@@ -43,9 +42,12 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
+from brainglobe_registration.utils.transforms import (
+    create_rotation_matrix,
+    rotate_volume,
+)
 from brainglobe_registration.utils.utils import (
     calculate_region_size,
-    calculate_rotated_bounding_box,
     check_atlas_installed,
     find_layer_index,
     get_data_from_napari_layer,
@@ -732,52 +734,32 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # Create the rotation matrix
-        roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
-        yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
-        pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
-
-        # Combine rotation matrices
-        rotation_matrix = yaw_matrix @ pitch_matrix @ roll_matrix
-
-        full_matrix = np.eye(4)
-        full_matrix[:3, :3] = rotation_matrix
-
-        # Translate the origin to the center of the image
-        origin = np.asarray(self._atlas.reference.shape) / 2
-        translate_matrix = np.eye(4)
-        translate_matrix[:-1, -1] = -origin
-
-        bounding_box = calculate_rotated_bounding_box(
-            self._atlas.reference.shape, full_matrix
-        )
-        new_translation = np.asarray(bounding_box) / 2
-        post_rotate_translation = np.eye(4)
-        post_rotate_translation[:3, -1] = new_translation
-
-        # Combine the matrices. The order of operations is:
-        # 1. Translate the origin to the center of the image
-        # 2. Rotate the image
-        # 3. Translate the origin back to the top left corner
-        self._atlas_transform_matrix = np.linalg.inv(
-            post_rotate_translation @ full_matrix @ translate_matrix
+        transform_matrix, bounding_box = create_rotation_matrix(
+            roll,
+            yaw,
+            pitch,
+            self._atlas.reference.shape,
         )
 
-        self._atlas_data_layer.data = dask_affine_transform(
-            self._atlas.reference,
-            self._atlas_transform_matrix,
-            order=2,
-            output_shape=bounding_box,
-            output_chunks=(2, bounding_box[1], bounding_box[2]),
-        ).astype(self._atlas.reference.dtype)
+        rotated_reference = rotate_volume(
+            data=self._atlas.reference,
+            reference_shape=self._atlas.reference.shape,
+            final_transform=transform_matrix,
+            bounding_box=bounding_box,
+            interpolation_order=2,
+        )
 
-        self._atlas_annotations_layer.data = dask_affine_transform(
-            self._atlas.annotation,
-            self._atlas_transform_matrix,
-            order=0,
-            output_shape=bounding_box,
-            output_chunks=(2, bounding_box[1], bounding_box[2]),
-        ).astype(self._atlas.annotation.dtype)
+        rotated_annotations = rotate_volume(
+            data=self._atlas.annotation,
+            reference_shape=self._atlas.reference.shape,
+            final_transform=transform_matrix,
+            bounding_box=bounding_box,
+            interpolation_order=0,
+        )
+
+        self._atlas_transform_matrix = transform_matrix
+        self._atlas_data_layer.data = rotated_reference
+        self._atlas_annotations_layer.data = rotated_annotations
 
         # Resets the viewer grid to update the grid to the new atlas
         # The grid is disabled and re-enabled to force the grid to update
