@@ -21,6 +21,7 @@ from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
+from napari.qt.threading import thread_worker
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
@@ -41,9 +42,9 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
-from brainglobe_registration.utils.atlas_rotation import (
-    compute_atlas_rotation,
-    on_adjust_atlas_rotation,
+from brainglobe_registration.utils.transforms import (
+    create_rotation_matrix,
+    rotate_volume,
 )
 from brainglobe_registration.utils.utils import (
     calculate_region_size,
@@ -67,9 +68,6 @@ from brainglobe_registration.widgets.transform_select_view import (
 
 
 class RegistrationWidget(QScrollArea):
-    on_adjust_atlas_rotation = on_adjust_atlas_rotation
-    compute_atlas_rotation = compute_atlas_rotation
-
     def __init__(self, napari_viewer: Viewer):
         super().__init__()
         self._widget = CollapsibleWidgetContainer()
@@ -724,6 +722,66 @@ class RegistrationWidget(QScrollArea):
             preserve_range=True,
             anti_aliasing=True,
         ).astype(self._moving_image_data_backup.dtype)
+
+    def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
+        if not (
+            self._atlas
+            and self._atlas_data_layer
+            and self._atlas_annotations_layer
+        ):
+            show_error(
+                "No atlas selected. Please select an atlas before rotating"
+            )
+            return
+
+        transform_matrix, bounding_box = create_rotation_matrix(
+            roll,
+            yaw,
+            pitch,
+            self._atlas.reference.shape,
+        )
+
+        rotated_reference = rotate_volume(
+            data=self._atlas.reference,
+            reference_shape=self._atlas.reference.shape,
+            final_transform=transform_matrix,
+            bounding_box=bounding_box,
+            interpolation_order=2,
+        )
+
+        rotated_annotations = rotate_volume(
+            data=self._atlas.annotation,
+            reference_shape=self._atlas.reference.shape,
+            final_transform=transform_matrix,
+            bounding_box=bounding_box,
+            interpolation_order=0,
+        )
+
+        self._atlas_transform_matrix = transform_matrix
+        self._atlas_data_layer.data = rotated_reference
+        self._atlas_annotations_layer.data = rotated_annotations
+
+        # Resets the viewer grid to update the grid to the new atlas
+        # The grid is disabled and re-enabled to force the grid to update
+        self._viewer.reset_view()
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
+
+        worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
+        worker.returned.connect(self.set_atlas_layer_data)
+        worker.start()
+
+    @thread_worker
+    def compute_atlas_rotation(self, dask_array: da.Array):
+        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
+        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(False)
+
+        computed_array = dask_array.compute()
+
+        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
+        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(True)
+
+        return computed_array
 
     def set_atlas_layer_data(self, new_data):
         self._atlas_data_layer.data = new_data
