@@ -62,6 +62,9 @@ from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
+from brainglobe_registration.widgets.target_selection_widget import (
+    AutoSliceDialog,
+)
 from brainglobe_registration.widgets.transform_select_view import (
     TransformSelectView,
 )
@@ -179,6 +182,10 @@ class RegistrationWidget(QScrollArea):
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
+
+        self.auto_slice_button = QPushButton("Automatic Slice Detection")
+        self.auto_slice_button.clicked.connect(self._open_auto_slice_dialog)
+        self._widget.add_widget(self.auto_slice_button, collapsible=False)
 
         self._widget.add_widget(
             header_widget(
