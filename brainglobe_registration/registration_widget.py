@@ -185,7 +185,6 @@ class RegistrationWidget(QScrollArea):
 
         self.auto_slice_button = QPushButton("Automatic Slice Detection")
         self.auto_slice_button.clicked.connect(self._open_auto_slice_dialog)
-        self._widget.add_widget(self.auto_slice_button, collapsible=False)
 
         self._widget.add_widget(
             header_widget(
@@ -220,6 +219,9 @@ class RegistrationWidget(QScrollArea):
         self._widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
+
+        self._widget.add_widget(self.auto_slice_button, collapsible=False)
+        print("Auto Slice Button Visible:", self.auto_slice_button.isVisible())
 
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
@@ -804,6 +806,43 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer.data = self._atlas.annotation
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+    def _open_auto_slice_dialog(self):
+        atlas_names = self._available_atlases[1:]
+        sample_names = get_image_layer_names(self._viewer)
+
+        current_atlas_name = self._atlas.name if self._atlas else ""
+        current_sample_name = self._moving_image.name if self._moving_image else ""
+
+        if self._moving_image and hasattr(self._moving_image, 'scale'):
+            current_scale = self._moving_image.scale[0]
+        else:
+            current_scale = 1.0
+
+        # Launch dialog
+        dialog = AutoSliceDialog(atlas_names, sample_names, parent=self._widget)
+
+        # Set defaults
+        if current_atlas_name in atlas_names:
+            dialog.atlas_dropdown.setCurrentText(current_atlas_name)
+        if current_sample_name in sample_names:
+            dialog.sample_dropdown.setCurrentText(current_sample_name)
+
+        dialog.scale_box.setValue(current_scale)
+
+        dialog.parameters_confirmed.connect(self._on_auto_slice_parameters_confirmed)
+        dialog.exec_()
+
+    def _on_auto_slice_parameters_confirmed(self, params: dict):
+        print("Automatic Slice Detection Parameters:", params)
+
+        selected_atlas = params["atlas_layer"]
+        selected_sample = params["moving_image"]
+        selected_scale = params["scale"]
+        z_min, z_max = params["z_range"]
+
+        print("PARAMS WORKED")
+        # Call Bayesian
 
     def save_outputs(
         self,
