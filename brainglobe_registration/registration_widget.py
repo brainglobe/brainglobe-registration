@@ -62,9 +62,6 @@ from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
-from brainglobe_registration.widgets.target_selection_widget import (
-    AutoSliceDialog,
-)
 from brainglobe_registration.widgets.transform_select_view import (
     TransformSelectView,
 )

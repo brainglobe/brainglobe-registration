@@ -1,8 +1,15 @@
-from qtpy.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QComboBox, QDoubleSpinBox,
-    QSpinBox, QDialogButtonBox, QHBoxLayout, QLabel
-)
 from qtpy.QtCore import Signal
+from qtpy.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QSpinBox,
+    QVBoxLayout,
+)
 
 
 class AutoSliceDialog(QDialog):
@@ -52,7 +59,9 @@ class AutoSliceDialog(QDialog):
         self.layout().addLayout(form)
 
         # OK/Cancel buttons
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         self.layout().addWidget(buttons)
