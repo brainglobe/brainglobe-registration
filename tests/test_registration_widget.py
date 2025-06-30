@@ -213,10 +213,16 @@ def test_scale_moving_image_3d(
         "asr",
     )
 
-    assert registration_widget._moving_image.data.shape == (
-        current_size[0] * z_scale_factor,
-        current_size[1] * y_scale_factor,
-        current_size[2] * x_scale_factor,
+    expected_size = np.round(
+        (
+            current_size[0] * z_scale_factor,
+            current_size[1] * y_scale_factor,
+            current_size[2] * x_scale_factor,
+        )
+    )
+
+    assert np.all(
+        registration_widget._moving_image.data.shape == expected_size
     )
 
 
