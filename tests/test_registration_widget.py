@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from brainglobe_atlasapi.descriptors import ANNOTATION_DTYPE, REFERENCE_DTYPE
 from brainglobe_space import AnatomicalSpace
 from tifffile import imread
 
@@ -59,6 +60,13 @@ def test_atlas_dropdown_index_changed_with_valid_index(
     assert (
         registration_widget._atlas.atlas_name
         == registration_widget._available_atlases[2]
+    )
+    assert registration_widget._atlas_data_layer is not None
+    assert registration_widget._atlas_annotations_layer is not None
+    assert registration_widget._atlas_data_layer.data.dtype == REFERENCE_DTYPE
+    assert (
+        registration_widget._atlas_annotations_layer.data.dtype
+        == ANNOTATION_DTYPE
     )
     assert registration_widget.run_button.isEnabled()
     assert registration_widget._viewer.grid.enabled
@@ -251,6 +259,14 @@ def test_on_adjust_atlas_rotation(
     assert reg_widget._atlas_data_layer.data.shape == expected_shape
     assert reg_widget._atlas_annotations_layer.data.shape == expected_shape
     assert reg_widget._atlas.reference.shape == atlas_shape
+    assert (
+        reg_widget._atlas_data_layer.data.dtype
+        == reg_widget._atlas.reference.dtype
+    )
+    assert (
+        reg_widget._atlas_annotations_layer.data.dtype
+        == reg_widget._atlas.annotation.dtype
+    )
 
 
 def test_on_adjust_atlas_rotation_no_atlas(registration_widget, mocker):
@@ -273,6 +289,14 @@ def test_on_atlas_reset(registration_widget_with_example_atlas):
     assert reg_widget._atlas_data_layer.data.shape == atlas_shape
     assert reg_widget._atlas.reference.shape == atlas_shape
     assert reg_widget._atlas_annotations_layer.data.shape == atlas_shape
+    assert (
+        reg_widget._atlas_data_layer.data.dtype
+        == reg_widget._atlas.reference.dtype
+    )
+    assert (
+        reg_widget._atlas_annotations_layer.data.dtype
+        == reg_widget._atlas.annotation.dtype
+    )
 
 
 def test_on_atlas_reset_no_atlas(registration_widget, mocker):

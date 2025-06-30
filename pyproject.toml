@@ -23,7 +23,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "napari>=0.4.18,<0.6.0",
+    "napari>=0.4.18, !=0.6.0",
     "brainglobe-atlasapi",
     "brainglobe-utils>=0.4.3",
     "dask",
@@ -115,7 +115,7 @@ fix = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py{311,312,313}
+envlist = py{311,312,313}, napari-dev
 isolated_build = True
 
 [gh-actions]
@@ -125,8 +125,17 @@ python =
     3.13: py313
 
 [testenv]
+passenv =
+    CI
+    GITHUB_ACTIONS
+    DISPLAY
+    XAUTHORITY
+    NUMPY_EXPERIMENTAL_ARRAY_FUNCTION
+    PYVISTA_OFF_SCREEN
 extras =
     dev
 commands =
     pytest -v --color=yes --cov=brainglobe_registration --cov-report=xml
+deps =
+    napari-dev: git+https://github.com/napari/napari
 """
