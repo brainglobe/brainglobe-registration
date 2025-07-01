@@ -271,6 +271,46 @@ def test_scale_moving_image_3d(
     )
 
 
+def test_invalid_sample_orientation(
+    make_napari_viewer_with_images, registration_widget, mocker
+):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mock_atlas = mocker.patch(
+        "brainglobe_registration.registration_widget.BrainGlobeAtlas"
+    )
+    mock_atlas.resolution = [20, 20, 20]
+    registration_widget._atlas = mock_atlas
+
+    moving_image_3d_index = registration_widget._sample_images.index(
+        "moving_image_3d"
+    )
+    registration_widget._on_sample_dropdown_index_changed(
+        moving_image_3d_index
+    )
+
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_x.setValue(
+        mock_atlas.resolution[2] * 0.5
+    )
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_y.setValue(
+        mock_atlas.resolution[1] * 0.5
+    )
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_z.setValue(
+        mock_atlas.resolution[0] * 0.5
+    )
+    registration_widget.adjust_moving_image_widget.data_orientation_field.setText(
+        "abc"
+    )
+
+    registration_widget.adjust_moving_image_widget._on_scale_image_button_click()
+
+    mocked_show_error.assert_called_once_with(
+        "Invalid orientation. "
+        "Please use the BrainGlobe convention (e.g. 'psl')"
+    )
+
+
 @pytest.mark.parametrize(
     "pitch, yaw, roll, expected_shape",
     [
