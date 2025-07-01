@@ -698,6 +698,7 @@ class RegistrationWidget(QScrollArea):
 
         Will show an error if the pixel sizes are less than or equal to 0.
         Will show an error if the moving image or atlas is not selected.
+        Will show an error if the orientation is invalid.
         """
         if not (self._moving_image and self._atlas):
             show_error(
