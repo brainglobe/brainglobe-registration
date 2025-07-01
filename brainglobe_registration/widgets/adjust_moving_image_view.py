@@ -127,32 +127,6 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)
 
-    def get_voxel_size(self):
-        """
-        Get the voxel size of the moving image.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the x, y, and z pixel sizes.
-        """
-        return [
-            self.adjust_moving_image_pixel_size_z.value(),
-            self.adjust_moving_image_pixel_size_y.value(),
-            self.adjust_moving_image_pixel_size_x.value(),
-        ]
-
-    def get_data_orientation(self):
-        """
-        Get the data orientation of the moving image.
-
-        Returns
-        -------
-        str
-            The data orientation as a string.
-        """
-        return self.data_orientation_field.text()
-
     def _on_scale_image_button_click(self):
         """
         Emit the scale_image_signal with the entered pixel sizes.
