@@ -311,8 +311,11 @@ def registration_objective(
 
         transform_type = "affine"
 
-        file_path = Path(
-            "parameters/brainglobe_registration/" f"{transform_type}.txt"
+        file_path = (
+            Path(__file__).parent
+            / "parameters"
+            / "brainglobe_registration"
+            / f"{transform_type}.txt"
         )
 
         transform_params = open_parameter_file(file_path)
@@ -433,14 +436,18 @@ def run_bayesian(atlas_volume, sample, manual_z_range):
 
     optimizer.maximize(init_points=5, n_iter=15)
 
-    best_result = {
-        "target": optimizer.max["target"],
-        "params": optimizer.max["params"],
-    }
+    best_params = optimizer.max["params"]
+    best_score = optimizer.max["target"]
 
-    print(f"\n[Bayesian] Optimal result:\nScore: {best_result['target']:.4f}")
-    for k, v in best_result["params"].items():
-        print(f"{k}: {v:.2f}")
+    pitch = round(best_params["pitch"], 2)
+    yaw = round(best_params["yaw"], 2)
+    roll = round(best_params["roll"], 2)
+    z_slice = round(best_params["z_slice"])
+
+    print(f"\n[Bayesian] Optimal result:\nScore: {best_score:.4f}")
+    print(f"pitch: {pitch}, yaw: {yaw}, roll: {roll}, z_slice: {z_slice}")
+
+    return pitch, yaw, roll, z_slice
 
 
 def main():
