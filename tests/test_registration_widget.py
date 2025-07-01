@@ -114,6 +114,7 @@ def test_scale_moving_image_no_atlas(
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
     )
+    atlas_backup = registration_widget._atlas
     registration_widget._atlas = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
         10, 10, 10, "prs"
@@ -122,6 +123,7 @@ def test_scale_moving_image_no_atlas(
         "Sample image or atlas not selected. "
         "Please select a sample image and atlas before scaling"
     )
+    registration_widget._atlas = atlas_backup
 
 
 def test_scale_moving_image_no_sample_image(
@@ -130,6 +132,7 @@ def test_scale_moving_image_no_sample_image(
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
     )
+    image_backup = registration_widget._moving_image
     registration_widget._moving_image = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
         10, 10, 10, "prs"
@@ -137,6 +140,40 @@ def test_scale_moving_image_no_sample_image(
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
         "Please select a sample image and atlas before scaling"
+    )
+    registration_widget._moving_image = image_backup
+
+
+@pytest.mark.parametrize(
+    "x_res, y_res",
+    [
+        (0, 10),
+        (10, 0),
+    ],
+)
+def test_scale_moving_image_wrong_scale(
+    make_napari_viewer_with_images, registration_widget, mocker, x_res, y_res
+):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mock_atlas = mocker.patch(
+        "brainglobe_registration.registration_widget.BrainGlobeAtlas"
+    )
+    mock_atlas.resolution = [20, 20, 20]
+    registration_widget._atlas = mock_atlas
+
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_x.setValue(
+        x_res
+    )
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_y.setValue(
+        y_res
+    )
+
+    registration_widget.adjust_moving_image_widget._on_scale_image_button_click()
+
+    mocked_show_error.assert_called_once_with(
+        "Pixel sizes must be greater than 0"
     )
 
 

@@ -707,7 +707,7 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        if (x_res <= 0 or y_res) <= 0 or (
+        if (x_res <= 0 or y_res <= 0) or (
             self._moving_image.data.ndim == 3 and z_res <= 0
         ):
             show_error("Pixel sizes must be greater than 0")
