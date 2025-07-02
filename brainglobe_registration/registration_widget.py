@@ -864,8 +864,8 @@ class RegistrationWidget(QScrollArea):
         )
 
         # Define a logging output directory
-        logging_dir = Path(r"C:\Users\saara\Documents\auto_slice_logs")
-        logging_dir.mkdir(exist_ok=True)
+        logging_dir = Path.home() / "auto_slice_logs"
+        logging_dir.mkdir(parents=True, exist_ok=True)
 
         args_namedtuple, args_dict = get_auto_slice_logging_args(params)
 
