@@ -9,9 +9,11 @@ Users can download and add the atlas images/structures as layers to the viewer.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
+import bayes_opt
 import dask.array as da
 import napari.layers
 import numpy as np
@@ -21,6 +23,7 @@ from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
+from fancylog import fancylog
 from napari.qt.threading import thread_worker
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
@@ -44,6 +47,10 @@ from tifffile import imwrite
 
 from brainglobe_registration.automated_target_selection import (
     run_bayesian,
+)
+from brainglobe_registration.utils.logging import (
+    get_auto_slice_logging_args,
+    redirect_stdout_to_fancylog,
 )
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
@@ -810,13 +817,31 @@ class RegistrationWidget(QScrollArea):
         self._viewer.grid.enabled = True
 
     def _open_auto_slice_dialog(self):
-        atlas_names = self._available_atlases[1:]
-        sample_names = get_image_layer_names(self._viewer)
+        if not (self._atlas and self._atlas_data_layer):
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select an atlas before "
+                "clicking 'Automatic Slice Detection'.",
+            )
+            return
 
-        current_atlas_name = self._atlas.atlas_name if self._atlas else ""
-        current_sample_name = (
-            self._moving_image.name if self._moving_image else ""
-        )
+        if not self._moving_image:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select a moving image before "
+                "clicking 'Automatic Slice Detection'.",
+            )
+            return
+
+        if self._moving_image == self._atlas_data_layer:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Your moving image cannot be an atlas.",
+            )
+            return
 
         max_z = 100  # default fallback
         if self._atlas_data_layer is not None:
@@ -825,15 +850,7 @@ class RegistrationWidget(QScrollArea):
                 max_z = atlas_data.shape[0] - 1
 
         # Launch dialog
-        dialog = AutoSliceDialog(
-            atlas_names, sample_names, parent=self._widget, z_max_value=max_z
-        )
-
-        # Set defaults
-        if current_atlas_name in atlas_names:
-            dialog.atlas_dropdown.setCurrentText(current_atlas_name)
-        if current_sample_name in sample_names:
-            dialog.sample_dropdown.setCurrentText(current_sample_name)
+        dialog = AutoSliceDialog(parent=self._widget, z_max_value=max_z)
 
         dialog.parameters_confirmed.connect(
             self._on_auto_slice_parameters_confirmed
@@ -841,16 +858,38 @@ class RegistrationWidget(QScrollArea):
         dialog.exec_()
 
     def _on_auto_slice_parameters_confirmed(self, params: dict):
-        # z_min, z_max = params["z_range"]
-
         atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.int16
         )
 
-        pitch, yaw, roll, z_slice = run_bayesian(
-            atlas_image, moving_image, params["z_range"]
+        # Define a logging output directory
+        logging_dir = Path(r"C:\Users\saara\Documents\auto_slice_logs")
+        logging_dir.mkdir(exist_ok=True)
+
+        args_namedtuple, args_dict = get_auto_slice_logging_args(params)
+
+        fancylog.start_logging(
+            output_dir=str(logging_dir),
+            package=bayes_opt,
+            filename="auto_slice_log",
+            variables=args_namedtuple,
+            log_header="AUTO SLICE DETECTION LOG",
         )
+
+        logging.info("Starting Bayesian slice detection...")
+
+        with redirect_stdout_to_fancylog():
+            pitch, yaw, roll, z_slice = run_bayesian(
+                atlas_image,
+                moving_image,
+                params["z_range"],
+                params["pitch_bounds"],
+                params["yaw_bounds"],
+                params["roll_bounds"],
+                params["init_points"],
+                params["n_iter"],
+            )
 
         # Apply rotation to atlas
         self._on_adjust_atlas_rotation(pitch, yaw, roll)
