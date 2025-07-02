@@ -1,18 +1,21 @@
-from qtpy.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QComboBox,
-    QSpinBox, QDialogButtonBox, QHBoxLayout, QLabel
-)
 from qtpy.QtCore import Signal
+from qtpy.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QSpinBox,
+    QVBoxLayout,
+)
 
 
 class AutoSliceDialog(QDialog):
     parameters_confirmed = Signal(dict)
 
-    def __init__(self,
-                 atlas_names=None,
-                 image_names=None,
-                 parent=None,
-                 z_max_value=100
+    def __init__(
+        self, atlas_names=None, image_names=None, parent=None, z_max_value=100
     ):
         super().__init__(parent)
         self.setWindowTitle("Automatic Slice Detection")
