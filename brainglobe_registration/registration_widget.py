@@ -841,7 +841,7 @@ class RegistrationWidget(QScrollArea):
         dialog.exec_()
 
     def _on_auto_slice_parameters_confirmed(self, params: dict):
-        #z_min, z_max = params["z_range"]
+        # z_min, z_max = params["z_range"]
 
         atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
