@@ -42,6 +42,9 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
+from brainglobe_registration.automated_target_selection import (
+    run_bayesian,
+)
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
     rotate_volume,
@@ -62,6 +65,9 @@ from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
+from brainglobe_registration.widgets.target_selection_widget import (
+    AutoSliceDialog,
+)
 from brainglobe_registration.widgets.transform_select_view import (
     TransformSelectView,
 )
@@ -180,6 +186,9 @@ class RegistrationWidget(QScrollArea):
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
+        self.auto_slice_button = QPushButton("Automatic Slice Detection")
+        self.auto_slice_button.clicked.connect(self._open_auto_slice_dialog)
+
         self._widget.add_widget(
             header_widget(
                 "brainglobe-<br>registration",  # line break at <br>
@@ -213,6 +222,8 @@ class RegistrationWidget(QScrollArea):
         self._widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
+
+        self._widget.add_widget(self.auto_slice_button, collapsible=False)
 
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
@@ -797,6 +808,58 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer.data = self._atlas.annotation
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+    def _open_auto_slice_dialog(self):
+        atlas_names = self._available_atlases[1:]
+        sample_names = get_image_layer_names(self._viewer)
+
+        current_atlas_name = self._atlas.atlas_name if self._atlas else ""
+        current_sample_name = (
+            self._moving_image.name if self._moving_image else ""
+        )
+
+        max_z = 100  # default fallback
+        if self._atlas_data_layer is not None:
+            atlas_data = get_data_from_napari_layer(self._atlas_data_layer)
+            if atlas_data.ndim >= 3:
+                max_z = atlas_data.shape[0] - 1
+
+        # Launch dialog
+        dialog = AutoSliceDialog(
+            atlas_names, sample_names, parent=self._widget, z_max_value=max_z
+        )
+
+        # Set defaults
+        if current_atlas_name in atlas_names:
+            dialog.atlas_dropdown.setCurrentText(current_atlas_name)
+        if current_sample_name in sample_names:
+            dialog.sample_dropdown.setCurrentText(current_sample_name)
+
+        dialog.parameters_confirmed.connect(
+            self._on_auto_slice_parameters_confirmed
+        )
+        dialog.exec_()
+
+    def _on_auto_slice_parameters_confirmed(self, params: dict):
+        #z_min, z_max = params["z_range"]
+
+        atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
+        moving_image = get_data_from_napari_layer(self._moving_image).astype(
+            np.int16
+        )
+
+        pitch, yaw, roll, z_slice = run_bayesian(
+            atlas_image, moving_image, params["z_range"]
+        )
+
+        # Apply rotation to atlas
+        self._on_adjust_atlas_rotation(pitch, yaw, roll)
+        self._viewer.dims.set_point(0, z_slice)
+
+        # Update pitch, yaw, roll on GUI display
+        self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(pitch)
+        self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(yaw)
+        self.adjust_moving_image_widget.adjust_atlas_roll.setValue(roll)
 
     def save_outputs(
         self,
