@@ -33,11 +33,9 @@ class AutoSliceDialog(QDialog):
         self.z_min = QSpinBox()
         self.z_max = QSpinBox()
         self.z_min.setRange(0, 9999)
-        self.z_max.setRange(0, 9999)
+        self.z_max.setRange(0, z_max_value)
         self.z_min.setValue(0)
-        # Set z_max using Napari viewer
-        self.z_max.setMaximum(z_max_value)
-        self.z_max.setValue(min(z_max_value, 100))
+        self.z_max.setValue(z_max_value)
 
         z_layout.addWidget(QLabel("Min:"))
         z_layout.addWidget(self.z_min)

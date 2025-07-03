@@ -10,6 +10,7 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -144,7 +145,11 @@ class RegistrationWidget(QScrollArea):
             self._on_sample_popup_about_to_show
         )
 
-        self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
+        # self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
+        self.adjust_moving_image_widget = AdjustMovingImageView(
+            parent=self,
+            auto_slice_callback=self._open_auto_slice_dialog,
+        )
         self.adjust_moving_image_widget.scale_image_signal.connect(
             self._on_scale_moving_image
         )
@@ -193,8 +198,8 @@ class RegistrationWidget(QScrollArea):
         self.run_button.clicked.connect(self._on_run_button_click)
         self.run_button.setEnabled(False)
 
-        self.auto_slice_button = QPushButton("Automatic Slice Detection")
-        self.auto_slice_button.clicked.connect(self._open_auto_slice_dialog)
+        # self.auto_slice_button = QPushButton("Automatic Slice Detection")
+        # self.auto_slice_button.clicked.connect(self._open_auto_slice_dialog)
 
         self._widget.add_widget(
             header_widget(
@@ -230,7 +235,7 @@ class RegistrationWidget(QScrollArea):
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
 
-        self._widget.add_widget(self.auto_slice_button, collapsible=False)
+        # self._widget.add_widget(self.auto_slice_button, collapsible=False)
 
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
@@ -843,13 +848,8 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        max_z = 100  # default fallback
-        if self._atlas_data_layer is not None:
-            atlas_data = get_data_from_napari_layer(self._atlas_data_layer)
-            if atlas_data.ndim >= 3:
-                max_z = atlas_data.shape[0] - 1
-
         # Launch dialog
+        max_z = self._atlas.reference.shape[0] - 1
         dialog = AutoSliceDialog(parent=self._widget, z_max_value=max_z)
 
         dialog.parameters_confirmed.connect(
@@ -863,6 +863,9 @@ class RegistrationWidget(QScrollArea):
             np.int16
         )
 
+        # Suppress DEBUG statements
+        logging.getLogger().setLevel(logging.INFO)
+
         # Define a logging output directory
         logging_dir = Path.home() / "auto_slice_logs"
         logging_dir.mkdir(parents=True, exist_ok=True)
@@ -875,7 +878,20 @@ class RegistrationWidget(QScrollArea):
             filename="auto_slice_log",
             variables=args_namedtuple,
             log_header="AUTO SLICE DETECTION LOG",
+            verbose=False,
+            write_git=False,
         )
+
+        # Clean up logging
+        ANSI_ESCAPE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+        class StripANSIColorFilter(logging.Filter):
+            def filter(self, record):
+                record.msg = ANSI_ESCAPE.sub("", str(record.msg))
+                return True
+
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(StripANSIColorFilter())
 
         logging.info("Starting Bayesian slice detection...")
 
