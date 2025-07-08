@@ -3,6 +3,7 @@ from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QWidget,
 )
@@ -37,7 +38,7 @@ class AdjustMovingImageView(QWidget):
         Resets the pitch, yaw, and roll to 0 and emits the atlas_reset_signal.
     """
 
-    scale_image_signal = Signal(float, float, float)
+    scale_image_signal = Signal(float, float, float, str)
     atlas_rotation_signal = Signal(float, float, float)
     reset_atlas_signal = Signal()
 
@@ -69,8 +70,13 @@ class AdjustMovingImageView(QWidget):
         self.adjust_moving_image_pixel_size_z.setDecimals(3)
         self.adjust_moving_image_pixel_size_z.setRange(0, 100.00)
         self.adjust_moving_image_pixel_size_z.setSpecialValueText("N/A")
+        self.data_orientation_field = QLineEdit(parent=self)
+        self.data_orientation_field.setToolTip(
+            "Three characters describing the data orientation, "
+            'e.g. "psl". See docs for more details.'
+        )
         self.scale_moving_image_button = QPushButton()
-        self.scale_moving_image_button.setText("Scale Image")
+        self.scale_moving_image_button.setText("Scale Moving Image")
         self.scale_moving_image_button.clicked.connect(
             self._on_scale_image_button_click
         )
@@ -96,7 +102,7 @@ class AdjustMovingImageView(QWidget):
         self.reset_atlas_button.setText("Reset Atlas")
         self.reset_atlas_button.clicked.connect(self._on_atlas_reset)
 
-        self.layout().addRow(QLabel("Adjust the moving image scale:"))
+        self.layout().addRow(QLabel("Prepare the moving image:"))
         self.layout().addRow(
             "Sample image X pixel size (\u03bcm / pixel):",
             self.adjust_moving_image_pixel_size_x,
@@ -108,6 +114,9 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(
             "Sample image Z pixel size (\u03bcm / pixel):",
             self.adjust_moving_image_pixel_size_z,
+        )
+        self.layout().addRow(
+            QLabel("Data orientation:"), self.data_orientation_field
         )
         self.layout().addRow(self.scale_moving_image_button)
 
@@ -126,6 +135,7 @@ class AdjustMovingImageView(QWidget):
             self.adjust_moving_image_pixel_size_x.value(),
             self.adjust_moving_image_pixel_size_y.value(),
             self.adjust_moving_image_pixel_size_z.value(),
+            self.data_orientation_field.text(),
         )
 
     def _on_adjust_atlas_rotation(self):

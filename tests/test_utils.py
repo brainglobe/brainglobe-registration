@@ -86,8 +86,8 @@ def open_parameter_file_with_empty_content():
 @pytest.mark.parametrize(
     "name, index",
     [
-        ("moving_image", 0),
-        ("atlas_image", 1),
+        ("moving_image_2d", 0),
+        ("moving_image_3d", 1),
     ],
 )
 def test_find_layer_index(make_napari_viewer_with_images, name, index):
@@ -102,7 +102,7 @@ def test_get_image_layer_names(make_napari_viewer_with_images):
     layer_names = get_image_layer_names(viewer)
 
     assert len(layer_names) == 2
-    assert layer_names == ["moving_image", "atlas_image"]
+    assert layer_names == ["moving_image_2d", "moving_image_3d"]
 
 
 @pytest.mark.parametrize(

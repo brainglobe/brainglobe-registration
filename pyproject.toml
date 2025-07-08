@@ -36,7 +36,8 @@ dependencies = [
     "qtpy",
     "qt-niu",
     "scikit-image",
-    "scipy"
+    "scipy",
+    "tifffile"
 ]
 
 [project.urls]

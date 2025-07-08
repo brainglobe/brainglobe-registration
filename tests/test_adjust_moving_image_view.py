@@ -17,15 +17,19 @@ def adjust_moving_image_view() -> AdjustMovingImageView:
 def test_init(qtbot, adjust_moving_image_view):
     qtbot.addWidget(adjust_moving_image_view)
 
-    assert adjust_moving_image_view.layout().rowCount() == 11
+    assert adjust_moving_image_view.layout().rowCount() == 12
 
 
 @pytest.mark.parametrize(
-    "x_scale, y_scale, z_scale",
-    [(2.5, 2.5, 5.0), (10, 20, 30), (10.2212, 10.2289, 10.2259)],
+    "x_scale, y_scale, z_scale, orientation",
+    [
+        (2.5, 2.5, 5.0, "prs"),
+        (10, 20, 30, "asr"),
+        (10.2212, 10.2289, 10.2259, "las"),
+    ],
 )
 def test_scale_image_button_xy_click(
-    qtbot, adjust_moving_image_view, x_scale, y_scale, z_scale
+    qtbot, adjust_moving_image_view, x_scale, y_scale, z_scale, orientation
 ):
     qtbot.addWidget(adjust_moving_image_view)
 
@@ -41,12 +45,14 @@ def test_scale_image_button_xy_click(
         adjust_moving_image_view.adjust_moving_image_pixel_size_z.setValue(
             z_scale
         )
+        adjust_moving_image_view.data_orientation_field.setText(orientation)
         adjust_moving_image_view.scale_moving_image_button.click()
 
     assert blocker.args == [
         round(x_scale, 3),
         round(y_scale, 3),
         round(z_scale, 3),
+        orientation,
     ]
 
 
