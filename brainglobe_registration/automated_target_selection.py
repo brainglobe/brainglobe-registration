@@ -2,9 +2,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
-import tifffile as tiff
 from bayes_opt import BayesianOptimization
-from brainglobe_atlasapi import BrainGlobeAtlas
 from skimage.transform import rotate
 
 from brainglobe_registration.elastix.register import (
@@ -14,7 +12,6 @@ from brainglobe_registration.elastix.register import (
 from brainglobe_registration.similarity_metrics import (
     compute_similarity_metric,
     prepare_images,
-    scale_moving_image,
 )
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
@@ -160,7 +157,7 @@ def similarity_only_objective(roll, target_slice, sample):
     return score
 
 
-def run_bayesian(
+def run_bayesian_generator(
     atlas_volume,
     sample,
     manual_z_range,
@@ -221,6 +218,16 @@ def run_bayesian(
     )
 
     optimizer.maximize(init_points=init_points, n_iter=n_iter)
+    for result in optimizer.res:
+        current_params = result["params"]
+        current_score = result["target"]
+        yield {
+            "pitch": round(current_params["pitch"], 2),
+            "yaw": round(current_params["yaw"], 2),
+            "z_slice": round(current_params["z_slice"]),
+            "score": current_score,
+        }
+
     best_params = optimizer.max["params"]
     best_score = optimizer.max["target"]
     pitch = round(best_params["pitch"], 2)
@@ -253,6 +260,14 @@ def run_bayesian(
     )
 
     opt_roll.maximize(init_points=init_points, n_iter=n_iter)
+    for result in opt_roll.res:
+        current_roll = result["params"]
+        current_roll_score = result["target"]
+        yield {
+            "roll": round(current_roll["roll"], 2),
+            "roll_score": current_roll_score,
+        }
+
     best_roll = opt_roll.max["params"]
     best_roll_score = opt_roll.max["target"]
 
@@ -261,30 +276,14 @@ def run_bayesian(
     print(
         f"\n[Bayesian] Optimal result:"
         f"\nScore (without roll): {best_score:.4f}"
-        f"\nScore: {best_roll_score:.4f}"
+        f"\nScore (including roll): {best_roll_score:.4f}"
     )
     print(f"pitch: {pitch}, yaw: {yaw}, roll: {roll}, z_slice: {z_slice}")
 
-    return pitch, yaw, roll, z_slice
-
-
-def main():
-    atlas_name = "allen_mouse_100um"
-    atlas = BrainGlobeAtlas(atlas_name)
-    atlas_volume = atlas.reference
-    atlas_res = atlas.resolution  # (z, y, x)
-
-    sample = tiff.imread("resources/sample_hipp.tif")
-
-    # Scale moving image to match atlas resolution
-    sample_res = [25.0, 25.0, 25.0]  # (z, y, x)
-    scaled_sample = scale_moving_image(
-        moving_image=sample, atlas_res=atlas_res, moving_res=sample_res
-    )
-
-    manual_z_range = (50, 90)
-    run_bayesian(atlas_volume, scaled_sample, manual_z_range)
-
-
-if __name__ == "__main__":
-    main()
+    yield {
+        "best_pitch": pitch,
+        "best_yaw": yaw,
+        "best_roll": roll,
+        "best_z_slice": z_slice,
+        "done": True,
+    }

@@ -25,7 +25,10 @@ from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
 from fancylog import fancylog
-from napari.qt.threading import thread_worker
+from napari.qt.threading import (
+    create_worker,
+    thread_worker,
+)
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
@@ -47,7 +50,7 @@ from skimage.transform import rescale
 from tifffile import imwrite
 
 from brainglobe_registration.automated_target_selection import (
-    run_bayesian,
+    run_bayesian_generator,
 )
 from brainglobe_registration.utils.logging import (
     get_auto_slice_logging_args,
@@ -852,6 +855,23 @@ class RegistrationWidget(QScrollArea):
         dialog.exec_()
 
     def _on_auto_slice_parameters_confirmed(self, params: dict):
+        total = 2 * (params["init_points"] + params["n_iter"]) + 1
+
+        self.adjust_moving_image_widget.progress_bar.setVisible(True)
+        self.adjust_moving_image_widget.progress_bar.setValue(0)
+        self.adjust_moving_image_widget.progress_bar.setRange(0, total)
+
+        worker = create_worker(
+            self.run_auto_slice_thread,
+            params,
+            _progress={"total": total, "desc": "Optimising..."},
+        )
+
+        worker.yielded.connect(self.handle_auto_slice_progress)
+        worker.returned.connect(self.set_optimal_rotation_params)
+        worker.start()
+
+    def run_auto_slice_thread(self, params: dict):
         atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.int16
@@ -889,26 +909,64 @@ class RegistrationWidget(QScrollArea):
 
         logging.info("Starting Bayesian slice detection...")
 
+        last_result = None
         with redirect_stdout_to_fancylog():
-            pitch, yaw, roll, z_slice = run_bayesian(
-                atlas_image,
-                moving_image,
-                params["z_range"],
-                params["pitch_bounds"],
-                params["yaw_bounds"],
-                params["roll_bounds"],
-                params["init_points"],
-                params["n_iter"],
+            for i, result in enumerate(
+                run_bayesian_generator(
+                    atlas_image,
+                    moving_image,
+                    params["z_range"],
+                    params["pitch_bounds"],
+                    params["yaw_bounds"],
+                    params["roll_bounds"],
+                    params["init_points"],
+                    params["n_iter"],
+                )
+            ):
+                last_result = result
+                yield {"progress": i + 1}
+
+        # last_result should no longer be None
+        assert last_result is not None
+
+        # Extract best params from last_result
+        pitch = last_result["best_pitch"]
+        yaw = last_result["best_yaw"]
+        roll = last_result["best_roll"]
+        z_slice = last_result["best_z_slice"]
+
+        return {
+            "done": True,
+            "best_pitch": pitch,
+            "best_yaw": yaw,
+            "best_roll": roll,
+            "best_z_slice": z_slice,
+        }
+
+    def handle_auto_slice_progress(self, update: dict):
+        if isinstance(update, dict) and "progress" in update:
+            self.adjust_moving_image_widget.progress_bar.setValue(
+                update["progress"]
             )
 
-        # Apply rotation to atlas
-        self._on_adjust_atlas_rotation(pitch, yaw, roll)
-        self._viewer.dims.set_point(0, z_slice)
+    def set_optimal_rotation_params(self, result):
+        if result.get("done"):
+            pitch = result["best_pitch"]
+            yaw = result["best_yaw"]
+            roll = result["best_roll"]
+            z_slice = result["best_z_slice"]
 
-        # Update pitch, yaw, roll on GUI display
-        self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(pitch)
-        self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(yaw)
-        self.adjust_moving_image_widget.adjust_atlas_roll.setValue(roll)
+            # Apply rotation to atlas
+            self._on_adjust_atlas_rotation(pitch, yaw, roll)
+            self._viewer.dims.set_point(0, z_slice)
+
+            # Update pitch, yaw, roll on GUI display
+            self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(pitch)
+            self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(yaw)
+            self.adjust_moving_image_widget.adjust_atlas_roll.setValue(roll)
+
+            self.adjust_moving_image_widget.progress_bar.reset()
+            self.adjust_moving_image_widget.progress_bar.setVisible(False)
 
     def save_outputs(
         self,

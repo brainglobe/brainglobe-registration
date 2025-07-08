@@ -1,144 +1,176 @@
 import numpy as np
+import pytest
 from brainglobe_atlasapi import BrainGlobeAtlas
 
 from brainglobe_registration.automated_target_selection import (
-    compute_similarity_metric,
-    normalise_image,
-    pad_to_match_shape,
-    prepare_images,
     registration_objective,
-    safe_ncc,
+    run_bayesian_generator,
+    similarity_only_objective,
+)
+from brainglobe_registration.similarity_metrics import (
     scale_moving_image,
 )
-
-atlas = np.random.rand(512, 512).astype(np.float32)
-moving = np.random.rand(256, 256).astype(np.float32)
-scale = [2.0, 2.0, 2.0]
-atlas_res = (25.0, 25.0, 25.0)
-
-
-def test_pad_to_match_shape():
-    small = np.ones((2, 3))
-    target = (4, 6)
-    padded = pad_to_match_shape(small, target)
-    assert padded.shape == target
-    # Check padding is symmetric
-    top = (target[0] - 2) // 2
-    left = (target[1] - 3) // 2
-    assert np.all(padded[top : top + 2, left : left + 3] == 1)
-    # Check zeros in padding areas
-    assert np.all(padded[:top, :] == 0)
-    assert np.all(padded[:, :left] == 0)
+from brainglobe_registration.utils.transforms import (
+    create_rotation_matrix,
+    rotate_volume,
+)
 
 
-def test_pad_to_match_shape_same_shape():
-    arr = np.ones((4, 6))
-    padded = pad_to_match_shape(arr, (4, 6))
-    assert padded.shape == (4, 6)
-    assert np.all(padded == 1)
+@pytest.fixture(scope="module")
+def atlas_and_sample():
+    atlas = BrainGlobeAtlas("allen_mouse_100um")
+    atlas_volume = atlas.reference
+    atlas_res = atlas.resolution
+
+    rot_matrix, bounding_box = create_rotation_matrix(
+        roll=2.10, yaw=-0.30, pitch=1.20, img_shape=atlas_volume.shape
+    )
+    rotated_volume = rotate_volume(
+        atlas_volume, atlas_volume.shape, rot_matrix, bounding_box
+    )
+    slice_idx = 43
+    sample = rotated_volume[slice_idx].compute()
+
+    sample_res = [25.0, 25.0, 25.0]
+    scaled_sample = scale_moving_image(
+        sample, atlas_res=atlas_res, moving_res=sample_res
+    )
+
+    return atlas_volume, scaled_sample, slice_idx
 
 
-def test_normalise_image():
-    img = np.random.rand(100, 100) * 100
-    normed = normalise_image(img)
-    assert np.isclose(np.min(normed), 0.0, atol=1e-6)
-    assert np.isclose(np.max(normed), 1.0, atol=1e-6)
-
-
-def test_normalise_image_constant_input():
-    img = np.ones((10, 10)) * 42
-    normed = normalise_image(img)
-    assert np.all(normed == 0.0)
-
-
-def test_scale_moving_image():
-    img = np.random.rand(100, 100)
-    scaled = scale_moving_image(img, (25.0, 25.0, 25.0), 2.0, 2.0, 2.0)
-    assert scaled.ndim == 2
-    assert isinstance(scaled, np.ndarray)
-
-
-def test_scale_moving_image_invalid_scale():
-    img = np.random.rand(50, 50)
-    try:
-        _ = scale_moving_image(img, (25.0, 25.0, 25.0), 0, 0, 0)
-        assert False, "Expected failure due to zero scale"
-    except Exception:
-        pass
-
-
-def test_prepare_images():
-    fixed = np.random.rand(512, 512)
-    moving = np.random.rand(256, 256)
-    moving_img, fixed_img = prepare_images(moving, fixed, atlas_res, scale)
-    assert moving_img.shape == fixed_img.shape
-    assert moving_img.dtype == np.float32
-
-
-def test_safe_ncc():
-    img1 = np.random.rand(256, 256)
-    img2 = img1 + np.random.normal(0, 0.1, (256, 256))
-    score = safe_ncc(img1, img2)
-    assert isinstance(score, float)
-    assert -1.0 <= score <= 1.0
-
-
-def test_safe_ncc_mismatched_shapes():
-    img1 = np.ones((10, 10))
-    img2 = np.ones((12, 12))
-    try:
-        _ = safe_ncc(img1, img2)
-        assert False, "Expected an error for mismatched shapes"
-    except ValueError:
-        pass
-
-
-def test_compute_similarity_metric():
-    moving = np.random.rand(256, 256)
-    fixed = moving + np.random.normal(0, 0.05, (256, 256))
-    score = compute_similarity_metric(
-        moving=moving,
-        fixed=fixed,
-        atlas_res=atlas_res,
-        atlas_to_moving_scale=scale,
+def test_registration_objective_valid_input(atlas_and_sample):
+    """
+    Test that registration_objective returns a valid
+    positive score for correct inputs.
+    """
+    atlas_volume, sample, slice_idx = atlas_and_sample
+    score = registration_objective(
+        pitch=1.2,
+        yaw=-0.3,
+        roll=2.1,
+        z_slice=slice_idx,
+        atlas_volume=atlas_volume,
+        sample=sample,
     )
     assert isinstance(score, float)
     assert -1.0 <= score <= 1.0
 
 
-def test_registration_objective_dummy():
-    atlas_obj = BrainGlobeAtlas("allen_mouse_100um")
-    volume = atlas_obj.reference
-    dummy_sample = volume[50]  # A slice
+def test_registration_objective_invalid_slice_index(atlas_and_sample):
+    """
+    Test that registration_objective raises IndexError
+    for invalid z-slice index.
+    """
+    atlas_volume, sample, _ = atlas_and_sample
+    with pytest.raises(IndexError):
+        registration_objective(
+            pitch=0,
+            yaw=0,
+            roll=0,
+            z_slice=-1,
+            atlas_volume=atlas_volume,
+            sample=sample,
+        )
+
+
+def test_similarity_only_objective_returns_valid_score(atlas_and_sample):
+    """
+    Test that similarity_only_objective returns a positive similarity score.
+    """
+    atlas_volume, sample, slice_idx = atlas_and_sample
+    target_slice = atlas_volume[slice_idx]  # Removed `.compute()`
+    score = similarity_only_objective(
+        roll=0.0, target_slice=target_slice, sample=sample
+    )
+    assert isinstance(score, float)
+    assert -1.0 <= score <= 1.0
+
+
+def test_run_bayesian_generator_returns_reasonable_z_slice(atlas_and_sample):
+    """
+    Test that run_bayesian_generator returns a z-slice
+    close to the known true slice.
+    """
+    atlas_volume, sample, true_slice = atlas_and_sample
+    gen = run_bayesian_generator(
+        atlas_volume=atlas_volume,
+        sample=sample,
+        manual_z_range=(20, 60),
+        init_points=5,
+        n_iter=15,
+    )
+
+    results = list(gen)
+    final_result = results[-1]
+    assert final_result["done"] is True
+
+    # Confirm best_z_slice is close to true
+    best_z = final_result["best_z_slice"]
+    assert abs(best_z - true_slice) <= 10
+
+
+def test_registration_objective_nan_score_handling(
+    monkeypatch, atlas_and_sample
+):
+    """
+    Test that registration_objective returns -1 when similarity metric is NaN.
+    """
+    atlas_volume, sample, slice_idx = atlas_and_sample
+
+    import brainglobe_registration.automated_target_selection as reg
+
+    monkeypatch.setattr(
+        reg,
+        "compute_similarity_metric",
+        lambda *args, **kwargs: float("nan"),
+    )
+
+    score = reg.registration_objective(
+        pitch=1,
+        yaw=0,
+        roll=0,
+        z_slice=slice_idx,
+        atlas_volume=atlas_volume,
+        sample=sample,
+    )
+    assert score == -1.0
+
+
+def test_registration_objective_rejects_non_2d_sample(atlas_and_sample):
+    """
+    Test that registration_objective returns -1.0 for invalid 3D sample input.
+    """
+    atlas_volume, sample, slice_idx = atlas_and_sample
+    bad_sample = np.stack([sample, sample])  # Shape (2, H, W)
+
     score = registration_objective(
         pitch=0,
         yaw=0,
         roll=0,
-        z_slice=50,
-        atlas_volume=volume,
-        sample=dummy_sample,
-        atlas_to_moving_scale=[25.0, 25.0, 25.0],
-        atlas_res=atlas_obj.resolution,
+        z_slice=slice_idx,
+        atlas_volume=atlas_volume,
+        sample=bad_sample,
     )
-    assert isinstance(score, float)
-    assert -1.0 <= score <= 1.0 or np.isnan(score)
+    assert score == -1.0
 
 
-def test_registration_objective_out_of_bounds():
-    atlas_obj = BrainGlobeAtlas("allen_mouse_100um")
-    volume = atlas_obj.reference
-    dummy_sample = volume[0]
-    try:
-        _ = registration_objective(
-            pitch=0,
-            yaw=0,
-            roll=0,
-            z_slice=9999,  # clearly too large
-            atlas_volume=volume,
-            sample=dummy_sample,
-            atlas_to_moving_scale=[25.0, 25.0, 25.0],
-            atlas_res=atlas_obj.resolution,
-        )
-        assert False, "Expected failure for out-of-bounds z-slice"
-    except IndexError:
-        pass
+def test_run_bayesian_generator_yield_count(atlas_and_sample):
+    """
+    Test that run_bayesian_generator yields the expected
+    number of intermediate results.
+    """
+    atlas_volume, sample, _ = atlas_and_sample
+    init_points = 3
+    n_iter = 5
+    gen = run_bayesian_generator(
+        atlas_volume=atlas_volume,
+        sample=sample,
+        manual_z_range=(30, 50),
+        init_points=init_points,
+        n_iter=n_iter,
+    )
+
+    results = list(gen)
+    assert len(results) == (2 * (init_points + n_iter)) + 1
+    assert results[-1]["done"] is True

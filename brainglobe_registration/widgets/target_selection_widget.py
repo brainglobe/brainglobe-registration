@@ -48,8 +48,8 @@ class AutoSliceDialog(QDialog):
         pitch_layout = QHBoxLayout()
         self.pitch_min = QSpinBox()
         self.pitch_max = QSpinBox()
-        self.pitch_min.setRange(-360, 360)
-        self.pitch_max.setRange(-360, 360)
+        self.pitch_min.setRange(-180, 180)
+        self.pitch_max.setRange(-180, 180)
         self.pitch_min.setValue(-5)
         self.pitch_max.setValue(5)
 
@@ -64,8 +64,8 @@ class AutoSliceDialog(QDialog):
         yaw_layout = QHBoxLayout()
         self.yaw_min = QSpinBox()
         self.yaw_max = QSpinBox()
-        self.yaw_min.setRange(-360, 360)
-        self.yaw_max.setRange(-360, 360)
+        self.yaw_min.setRange(-180, 180)
+        self.yaw_max.setRange(-180, 180)
         self.yaw_min.setValue(-5)
         self.yaw_max.setValue(5)
 
@@ -80,8 +80,8 @@ class AutoSliceDialog(QDialog):
         roll_layout = QHBoxLayout()
         self.roll_min = QSpinBox()
         self.roll_max = QSpinBox()
-        self.roll_min.setRange(-360, 360)
-        self.roll_max.setRange(-360, 360)
+        self.roll_min.setRange(-180, 180)
+        self.roll_max.setRange(-180, 180)
         self.roll_min.setValue(-5)
         self.roll_max.setValue(5)
 

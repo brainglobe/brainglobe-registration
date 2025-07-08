@@ -2,7 +2,9 @@ from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QWidget,
 )
@@ -122,6 +124,19 @@ class AdjustMovingImageView(QWidget):
             self.auto_slice_button = QPushButton("Automatic Slice Detection")
             self.auto_slice_button.clicked.connect(auto_slice_callback)
             self.layout().addRow(self.auto_slice_button)
+
+        # Progress bar wrapper to reserve height
+        self.progress_bar_container = QWidget(self)
+        self.progress_bar_layout = QHBoxLayout(self.progress_bar_container)
+        self.progress_bar_layout.setContentsMargins(0, 0, 0, 0)
+        self.progress_bar_layout.setSpacing(0)
+
+        self.progress_bar = QProgressBar(self.progress_bar_container)
+        self.progress_bar.setFixedHeight(20)
+        self.progress_bar_layout.addWidget(self.progress_bar)
+
+        self.layout().addRow(self.progress_bar_container)
+        self.progress_bar.setVisible(False)
 
         self.layout().addRow(
             QLabel("Manually refine the atlas pitch and yaw: ")
