@@ -705,13 +705,24 @@ class RegistrationWidget(QScrollArea):
         if self._moving_image_data_backup is None:
             self._moving_image_data_backup = self._moving_image.data.copy()
 
-        x_factor = x / self._atlas.resolution[0]
+        # Debug: Print resolution information
+        print(f"Atlas resolution (z,y,x): {self._atlas.resolution}")
+        print(f"Input pixel sizes - x: {x}, y: {y}, z: {z}")
+        
+        # Atlas resolution is stored as z,y,x
+        x_factor = x / self._atlas.resolution[2]
         y_factor = y / self._atlas.resolution[1]
         scale: Tuple[float, ...] = (y_factor, x_factor)
+        
+        print(f"2D scale factors (y,x): {scale}")
 
         if self._moving_image.data.ndim == 3:
-            z_factor = z / self._atlas.resolution[2]
+            z_factor = z / self._atlas.resolution[0]
             scale = (z_factor, *scale)
+            print(f"3D scale factors (z,y,x): {scale}")
+        
+        print(f"Original image shape: {self._moving_image_data_backup.shape}")
+        print(f"Atlas shape: {self._atlas.reference.shape}")
 
         self._moving_image.data = rescale(
             self._moving_image_data_backup,
@@ -720,6 +731,9 @@ class RegistrationWidget(QScrollArea):
             preserve_range=True,
             anti_aliasing=True,
         ).astype(self._moving_image_data_backup.dtype)
+        
+        print(f"Scaled image shape: {self._moving_image.data.shape}")
+        print("---")
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
