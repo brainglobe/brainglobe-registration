@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from brainglobe_registration.similarity_metrics import (
     compute_similarity_metric,
@@ -6,40 +7,58 @@ from brainglobe_registration.similarity_metrics import (
     pad_to_match_shape,
     prepare_images,
     safe_ncc,
-    scale_moving_image,
 )
 
 
-def test_pad_to_match_shape():
+@pytest.mark.parametrize(
+    "mode,constant_values",
+    [
+        ("constant", 5),
+        ("edge", 0),
+    ],
+)
+def test_pad_to_match_shape_shapes_and_values(mode, constant_values):
     """
-    Test that padding correctly centers a smaller array
-    within a larger one, with zero fill.
+    Test that padding produces correct output shapes and expected values
+    for different padding modes.
     """
-    small = np.ones((2, 3))
-    large = np.zeros((4, 6))
-    padded_small, large_unchanged = pad_to_match_shape(
-        small, large, mode="constant"
+    # Create two arrays of different shapes
+    moving = np.ones((10, 20))
+    fixed = np.ones((16, 12))
+
+    moving_padded, fixed_padded = pad_to_match_shape(
+        moving, fixed, mode=mode, constant_values=constant_values
     )
 
-    assert padded_small.shape == large.shape
-    assert large_unchanged.shape == large.shape
+    # Target shape should be the maximum shape of both
+    expected_shape = (16, 20)
+    assert moving_padded.shape == expected_shape
+    assert fixed_padded.shape == expected_shape
 
-    top = (4 - 2) // 2
-    left = (6 - 3) // 2
-    assert np.all(padded_small[top : top + 2, left : left + 3] == 1)
-    assert np.all(padded_small[:top, :] == 0)
-    assert np.all(padded_small[:, :left] == 0)
+    # Content checks:
+    if mode == "constant":
+        # Check padding value is correct at corners
+        assert moving_padded[0, 0] == constant_values
+        assert fixed_padded[0, 0] == constant_values
+    elif mode == "edge":
+        # Should repeat edge value (which is 1)
+        assert moving_padded[0, 0] == 1
+        assert fixed_padded[0, 0] == 1
 
 
-def test_pad_to_match_shape_same_shape():
+def test_pad_to_match_shape_no_padding():
     """
-    Test that arrays of equal shape remain unchanged after padding.
+    Test that no padding is applied when input shapes already match.
     """
-    arr1 = np.ones((4, 6))
-    arr2 = np.zeros((4, 6))
-    padded1, padded2 = pad_to_match_shape(arr1, arr2, mode="constant")
-    assert np.all(padded1 == arr1)
-    assert np.all(padded2 == arr2)
+    # Arrays already the same shape — should return unchanged
+    a = np.random.rand(10, 10)
+    b = np.random.rand(10, 10)
+    a_padded, b_padded = pad_to_match_shape(a, b, mode="constant")
+
+    assert np.allclose(a, a_padded)
+    assert np.allclose(b, b_padded)
+    assert a_padded.shape == (10, 10)
+    assert b_padded.shape == (10, 10)
 
 
 def test_normalise_image():
@@ -59,32 +78,6 @@ def test_normalise_image_constant_input():
     img = np.ones((10, 10)) * 42
     normed = normalise_image(img)
     assert np.allclose(normed, 0.0)
-
-
-def test_scale_moving_image():
-    """
-    Test that the moving image is successfully scaled to atlas resolution.
-    """
-    img = np.random.rand(100, 100)
-    scaled = scale_moving_image(
-        img, atlas_res=(25.0, 25.0, 25.0), moving_res=(2.0, 2.0, 2.0)
-    )
-    assert scaled.ndim == 2
-    assert isinstance(scaled, np.ndarray)
-
-
-def test_scale_moving_image_invalid_scale():
-    """
-    Test that scaling with invalid resolution raises ValueError.
-    """
-    img = np.random.rand(50, 50)
-    try:
-        _ = scale_moving_image(
-            img, atlas_res=(25.0, 25.0, 25.0), moving_res=(0, 0, 0)
-        )
-        assert False, "Expected ValueError for zero scale"
-    except ValueError:
-        pass
 
 
 def test_prepare_images():
@@ -111,6 +104,23 @@ def test_safe_ncc():
     assert -1.0 <= score <= 1.0
 
 
+def test_safe_ncc_high_similarity():
+    """
+    Test that safe_ncc returns a high score (~1.0) for nearly identical images.
+    """
+    rng = np.random.default_rng(42)
+    img1 = rng.random((256, 256))
+    img2 = img1 + rng.normal(0, 1e-3, img1.shape)  # very slight noise
+
+    score = safe_ncc(img1, img2)
+
+    assert isinstance(score, float)
+    assert -1.0 <= score <= 1.0
+    assert (
+        score > 0.99
+    ), f"NCC score too low for highly similar images: {score}"
+
+
 def test_safe_ncc_mismatched_shapes():
     """
     Test that safe_ncc raises ValueError on shape mismatch.
@@ -124,13 +134,27 @@ def test_safe_ncc_mismatched_shapes():
         pass
 
 
-def test_compute_similarity_metric_each():
+@pytest.mark.parametrize(
+    "metric,weights",
+    [
+        ("mi", None),
+        ("ncc", None),
+        ("ssim", None),
+        ("combined", (0.6, 0.2, 0.2)),
+    ],
+)
+def test_compute_similarity_metric_with_weights(metric, weights):
     """
-    Test that each similarity metric returns a valid float score.
+    Test that each similarity metric returns a float.
     """
-    moving = np.random.rand(256, 256)
-    fixed = moving + np.random.normal(0, 0.05, (256, 256))
+    moving = np.random.rand(128, 128)
+    fixed = moving + np.random.normal(0, 0.05, (128, 128))
 
-    for metric in ["mi", "ncc", "ssim", "combined"]:
+    if metric == "combined":
+        score = compute_similarity_metric(
+            moving, fixed, metric=metric, weights=weights
+        )
+    else:
         score = compute_similarity_metric(moving, fixed, metric=metric)
-        assert isinstance(score, float)
+
+    assert isinstance(score, float)

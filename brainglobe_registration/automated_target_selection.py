@@ -1,5 +1,6 @@
 import warnings
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from bayes_opt import BayesianOptimization
@@ -23,17 +24,25 @@ from brainglobe_registration.utils.utils import (
 
 
 def registration_objective(
-    pitch,
-    yaw,
-    roll,
-    z_slice,
-    atlas_volume,
-    sample,
-    metric="mi",
+    pitch: float,
+    yaw: float,
+    roll: float,
+    z_slice: float,
+    atlas_volume: np.ndarray,
+    sample: np.ndarray,
+    metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
+    weights: tuple[float, float, float] = (0.7, 0.15, 0.15),
 ):
     """
-    Perform image registration with given rotation and slice parameters
-    and return a similarity score.
+    Compute a similarity score between a 2D sample image and a
+    rotated slice from a 3D atlas volume.
+
+    1. Applies 3D rotation (pitch, yaw, roll) to the atlas volume.
+    2. Extracts the specified z-slice (can be fractional)
+       from the rotated volume.
+    3. Registers the extracted atlas slice to the 2D sample image.
+    4. Computes a similarity score based on the selected metric.
+
 
     Parameters
     ----------
@@ -45,13 +54,17 @@ def registration_objective(
         3D atlas volume used as the fixed reference.
     sample : np.ndarray
         2D moving image to be aligned to the atlas slice.
-    metric : str
-        Similarity metric to use for comparison. One of:
+    metric : Literal["mi", "ncc", "ssim", "combined"], optional
+        Similarity metric used to compare the sample and atlas slice:
         - "mi"       : Mutual Information
         - "ncc"      : Normalised Cross-Correlation
         - "ssim"     : Structural Similarity Index
-        - "combined" : 0.7 * mi + 0.15 * ncc + 0.15 * ssim
+        - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
         Defaults to "mi".
+    weights : tuple[float, float, float], optional
+        3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
+        Only used if metric="combined". Must sum to 1.
+        Defaults to (0.7, 0.15, 0.15).
 
     Returns
     -------
@@ -89,7 +102,7 @@ def registration_objective(
             Path(__file__).parent
             / "parameters"
             / "brainglobe_registration"
-            / f"{transform_type}.txt"
+            / f"automated_reg_{transform_type}.txt"
         )
 
         transform_params = open_parameter_file(file_path)
@@ -128,6 +141,7 @@ def registration_objective(
             moving=sample,
             fixed=atlas_in_data_space,
             metric=metric,
+            weights=weights,
         )
         if np.isnan(score):
             print("Warning: computed similarity score is NaN.")
@@ -139,10 +153,16 @@ def registration_objective(
         return -1.0
 
 
-def similarity_only_objective(roll, target_slice, sample, metric="mi"):
+def similarity_only_objective(
+    roll: float,
+    target_slice: np.ndarray,
+    sample: np.ndarray,
+    metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
+    weights: tuple[float, float, float] = (0.7, 0.15, 0.15),
+):
     """
     Compute similarity score between rotated fixed slice and 2D sample image.
-    Used during fine registration to optimise roll independently.
+    Used to optimise roll independently.
 
     Parameters
     ----------
@@ -152,13 +172,17 @@ def similarity_only_objective(roll, target_slice, sample, metric="mi"):
         Slice from the rotated atlas volume.
     sample : np.ndarray
         2D image to be aligned.
-    metric : str
-        Similarity metric to use for comparison. One of:
+    metric : Literal["mi", "ncc", "ssim", "combined"], optional
+        Similarity metric used to compare the sample and atlas slice:
         - "mi"       : Mutual Information
         - "ncc"      : Normalised Cross-Correlation
         - "ssim"     : Structural Similarity Index
-        - "combined" : 0.7 * mi + 0.15 * ncc + 0.15 * ssim
+        - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
         Defaults to "mi".
+    weights : tuple[float, float, float], optional
+        3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
+        Only used if metric="combined". Must sum to 1.
+        Defaults to (0.7, 0.15, 0.15).
 
     Returns
     -------
@@ -170,23 +194,26 @@ def similarity_only_objective(roll, target_slice, sample, metric="mi"):
         moving=sample,
         fixed=rotated_slice,
         metric=metric,
+        weights=weights,
     )
     return score
 
 
 def run_bayesian_generator(
-    atlas_volume,
-    sample,
-    manual_z_range,
-    pitch_bounds=(-5, 5),
-    yaw_bounds=(-5, 5),
-    roll_bounds=(-5, 5),
-    init_points=5,
-    n_iter=15,
-    metric="mi",
+    atlas_volume: np.ndarray,
+    sample: np.ndarray,
+    manual_z_range: tuple[float, float],
+    pitch_bounds: tuple[float, float] = (-5, 5),
+    yaw_bounds: tuple[float, float] = (-5, 5),
+    roll_bounds: tuple[float, float] = (-5, 5),
+    init_points: int = 5,
+    n_iter: int = 15,
+    metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
+    weights: tuple[float, float, float] = (0.7, 0.15, 0.15),
 ):
     """
-    Run Bayesian optimisation to align an atlas volume to a sample image.
+    Run Bayesian optimisation to estimate the position of the
+    sample image within the atlas volume.
     Uses the registration objective function to optimise pitch, yaw, roll,
     and z-slice for best similarity between the atlas and sample.
 
@@ -196,26 +223,40 @@ def run_bayesian_generator(
         3D atlas volume used as the reference.
     sample : np.ndarray
         2D image to be aligned to the atlas.
-    manual_z_range : tuple of float
+    manual_z_range : tuple[float, float]
         Lower and upper bounds for z-slice selection.
-    pitch_bounds, yaw_bounds, roll_bounds : tuple of float, optional
+    pitch_bounds, yaw_bounds, roll_bounds : tuple[float, float], optional
         Bounds for rotation angles (default: (-5, 5) degrees).
     init_points : int, optional
         Number of initial random points for Bayesian optimisation (default: 5).
     n_iter : int, optional
         Number of optimisation iterations (default: 15).
-    metric : str
-        Similarity metric to use for comparison. One of:
+    metric : Literal["mi", "ncc", "ssim", "combined"], optional
+        Similarity metric used to compare the sample and atlas slice:
         - "mi"       : Mutual Information
         - "ncc"      : Normalised Cross-Correlation
         - "ssim"     : Structural Similarity Index
-        - "combined" : 0.7 * mi + 0.15 * ncc + 0.15 * ssim
+        - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
         Defaults to "mi".
+    weights : tuple[float, float, float], optional
+        3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
+        Only used if metric="combined". Must sum to 1.
+        Defaults to (0.7, 0.15, 0.15).
 
     Returns
     -------
-    tuple
-        Optimal pitch, yaw, roll, z_slice parameters based on similarity score.
+    dict
+        Dictionary containing the optimal alignment parameters:
+        - "best_pitch" : float
+            Optimal pitch angle (in degrees).
+        - "best_yaw" : float
+            Optimal yaw angle (in degrees).
+        - "best_roll" : float
+            Optimal roll angle (in degrees).
+        - "best_z_slice" : int
+            Optimal z-slice index within the rotated atlas.
+        - "done" : bool
+            Indicates that optimisation is complete (always True).
 
     Prints
     ------
@@ -237,6 +278,7 @@ def run_bayesian_generator(
             atlas_volume,
             sample,
             metric,
+            weights,
         ),
         pbounds=pbounds,
         verbose=2,
@@ -280,6 +322,7 @@ def run_bayesian_generator(
             target_slice,
             sample,
             metric,
+            weights,
         ),
         pbounds=pbounds_roll,
         verbose=2,
@@ -307,7 +350,7 @@ def run_bayesian_generator(
     )
     print(f"pitch: {pitch}, yaw: {yaw}, roll: {roll}, z_slice: {z_slice}")
 
-    yield {
+    return {
         "best_pitch": pitch,
         "best_yaw": yaw,
         "best_roll": roll,
