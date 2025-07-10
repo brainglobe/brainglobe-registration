@@ -1,5 +1,6 @@
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -104,6 +105,18 @@ class AutoSliceDialog(QDialog):
         self.n_iter.setValue(15)
         form.addRow("Bayesian iterations:", self.n_iter)
 
+        # similarity metric dropdown
+        self.metric_dropdown = QComboBox()
+        self.metric_dropdown.addItems(
+            [
+                "Mutual Information (recommended)",
+                "Normalised Cross-Correlation",
+                "Structural Similarity Index",
+                "Combined",
+            ]
+        )
+        form.addRow("Similarity metric:", self.metric_dropdown)
+
         self.layout().addLayout(form)
 
         # OK/Cancel buttons
@@ -115,6 +128,16 @@ class AutoSliceDialog(QDialog):
         self.layout().addWidget(buttons)
 
     def accept(self):
+        # Map dropdown selection to internal code
+        metric_map = {
+            "Mutual Information (recommended)": "mi",
+            "Normalised Cross-Correlation": "ncc",
+            "Structural Similarity Index": "ssim",
+            "Combined": "combined",
+        }
+        selected_metric = self.metric_dropdown.currentText()
+        metric_value = metric_map.get(selected_metric, "mi")
+
         params = {
             "z_range": (self.z_min.value(), self.z_max.value()),
             "pitch_bounds": (self.pitch_min.value(), self.pitch_max.value()),
@@ -122,6 +145,7 @@ class AutoSliceDialog(QDialog):
             "roll_bounds": (self.roll_min.value(), self.roll_max.value()),
             "init_points": self.init_points.value(),
             "n_iter": self.n_iter.value(),
+            "metric": metric_value,
         }
         self.parameters_confirmed.emit(params)
         super().accept()

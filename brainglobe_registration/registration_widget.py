@@ -921,6 +921,7 @@ class RegistrationWidget(QScrollArea):
                     params["roll_bounds"],
                     params["init_points"],
                     params["n_iter"],
+                    params["metric"],
                 )
             ):
                 last_result = result
