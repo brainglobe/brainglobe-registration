@@ -29,6 +29,7 @@ def registration_objective(
     z_slice,
     atlas_volume,
     sample,
+    metric="mi",
 ):
     """
     Perform image registration with given rotation and slice parameters
@@ -44,6 +45,13 @@ def registration_objective(
         3D atlas volume used as the fixed reference.
     sample : np.ndarray
         2D moving image to be aligned to the atlas slice.
+    metric : str
+        Similarity metric to use for comparison. One of:
+        - "mi"       : Mutual Information
+        - "ncc"      : Normalised Cross-Correlation
+        - "ssim"     : Structural Similarity Index
+        - "combined" : 0.7 * mi + 0.15 * ncc + 0.15 * ssim
+        Defaults to "mi".
 
     Returns
     -------
@@ -119,6 +127,7 @@ def registration_objective(
         score = compute_similarity_metric(
             moving=sample,
             fixed=atlas_in_data_space,
+            metric=metric,
         )
         if np.isnan(score):
             print("Warning: computed similarity score is NaN.")
@@ -130,7 +139,7 @@ def registration_objective(
         return -1.0
 
 
-def similarity_only_objective(roll, target_slice, sample):
+def similarity_only_objective(roll, target_slice, sample, metric="mi"):
     """
     Compute similarity score between rotated fixed slice and 2D sample image.
     Used during fine registration to optimise roll independently.
@@ -143,6 +152,13 @@ def similarity_only_objective(roll, target_slice, sample):
         Slice from the rotated atlas volume.
     sample : np.ndarray
         2D image to be aligned.
+    metric : str
+        Similarity metric to use for comparison. One of:
+        - "mi"       : Mutual Information
+        - "ncc"      : Normalised Cross-Correlation
+        - "ssim"     : Structural Similarity Index
+        - "combined" : 0.7 * mi + 0.15 * ncc + 0.15 * ssim
+        Defaults to "mi".
 
     Returns
     -------
@@ -153,6 +169,7 @@ def similarity_only_objective(roll, target_slice, sample):
     score = compute_similarity_metric(
         moving=sample,
         fixed=rotated_slice,
+        metric=metric,
     )
     return score
 
@@ -166,6 +183,7 @@ def run_bayesian_generator(
     roll_bounds=(-5, 5),
     init_points=5,
     n_iter=15,
+    metric="mi",
 ):
     """
     Run Bayesian optimisation to align an atlas volume to a sample image.
@@ -186,6 +204,13 @@ def run_bayesian_generator(
         Number of initial random points for Bayesian optimisation (default: 5).
     n_iter : int, optional
         Number of optimisation iterations (default: 15).
+    metric : str
+        Similarity metric to use for comparison. One of:
+        - "mi"       : Mutual Information
+        - "ncc"      : Normalised Cross-Correlation
+        - "ssim"     : Structural Similarity Index
+        - "combined" : 0.7 * mi + 0.15 * ncc + 0.15 * ssim
+        Defaults to "mi".
 
     Returns
     -------
@@ -211,6 +236,7 @@ def run_bayesian_generator(
             z_slice,
             atlas_volume,
             sample,
+            metric,
         ),
         pbounds=pbounds,
         verbose=2,
@@ -253,6 +279,7 @@ def run_bayesian_generator(
             roll,
             target_slice,
             sample,
+            metric,
         ),
         pbounds=pbounds_roll,
         verbose=2,
