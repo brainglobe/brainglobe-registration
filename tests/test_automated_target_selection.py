@@ -7,13 +7,17 @@ from brainglobe_registration.automated_target_selection import (
     run_bayesian_generator,
     similarity_only_objective,
 )
-from brainglobe_registration.similarity_metrics import (
-    scale_moving_image,
-)
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
     rotate_volume,
+    scale_moving_image,
 )
+
+ROLL = 2.10
+YAW = -0.30
+PITCH = 1.20
+TRUE_SLICE = 43
+SAMPLE_RES = [25.0, 25.0, 25.0]
 
 
 @pytest.fixture(scope="module")
@@ -23,20 +27,18 @@ def atlas_and_sample():
     atlas_res = atlas.resolution
 
     rot_matrix, bounding_box = create_rotation_matrix(
-        roll=2.10, yaw=-0.30, pitch=1.20, img_shape=atlas_volume.shape
+        roll=ROLL, yaw=YAW, pitch=PITCH, img_shape=atlas_volume.shape
     )
     rotated_volume = rotate_volume(
         atlas_volume, atlas_volume.shape, rot_matrix, bounding_box
     )
-    slice_idx = 43
-    sample = rotated_volume[slice_idx].compute()
+    sample = rotated_volume[TRUE_SLICE].compute()
 
-    sample_res = [25.0, 25.0, 25.0]
     scaled_sample = scale_moving_image(
-        sample, atlas_res=atlas_res, moving_res=sample_res
+        sample, atlas_res=atlas_res, moving_res=SAMPLE_RES
     )
 
-    return atlas_volume, scaled_sample, slice_idx
+    return atlas_volume, scaled_sample, TRUE_SLICE
 
 
 def test_registration_objective_valid_input(atlas_and_sample):
@@ -46,15 +48,15 @@ def test_registration_objective_valid_input(atlas_and_sample):
     """
     atlas_volume, sample, slice_idx = atlas_and_sample
     score = registration_objective(
-        pitch=1.2,
-        yaw=-0.3,
-        roll=2.1,
+        pitch=PITCH,
+        yaw=YAW,
+        roll=ROLL,
         z_slice=slice_idx,
         atlas_volume=atlas_volume,
         sample=sample,
     )
     assert isinstance(score, float)
-    assert -1.0 <= score <= 1.0
+    assert 0.5 < score <= 1.0
 
 
 def test_registration_objective_invalid_slice_index(atlas_and_sample):
@@ -79,12 +81,12 @@ def test_similarity_only_objective_returns_valid_score(atlas_and_sample):
     Test that similarity_only_objective returns a positive similarity score.
     """
     atlas_volume, sample, slice_idx = atlas_and_sample
-    target_slice = atlas_volume[slice_idx]  # Removed `.compute()`
+    target_slice = atlas_volume[slice_idx]
     score = similarity_only_objective(
         roll=0.0, target_slice=target_slice, sample=sample
     )
     assert isinstance(score, float)
-    assert -1.0 <= score <= 1.0
+    assert 0.5 < score <= 1.0
 
 
 def test_run_bayesian_generator_returns_reasonable_z_slice(atlas_and_sample):
