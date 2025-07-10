@@ -13,6 +13,7 @@ def get_auto_slice_logging_args(params: dict) -> tuple:
         "roll_bounds": str(params["roll_bounds"]),
         "init_points": str(params["init_points"]),
         "n_iter": str(params["n_iter"]),
+        "metric": str(params["metric"]),
     }
 
     AutoSliceArgs = namedtuple(
@@ -24,6 +25,7 @@ def get_auto_slice_logging_args(params: dict) -> tuple:
             "roll_bounds",
             "init_points",
             "n_iter",
+            "metric",
         ),
     )
     return AutoSliceArgs(*args_dict.values()), args_dict
