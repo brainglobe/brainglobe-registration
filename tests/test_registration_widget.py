@@ -384,3 +384,128 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
     assert (tmp_path / "deformation_field_1.tiff").exists()
     assert (tmp_path / "downsampled.tiff").exists()
     assert (tmp_path / "brainglobe-registration.json").exists()
+
+
+def test_open_auto_slice_dialog_no_atlas(registration_widget, mocker):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget._atlas = None
+    registration_widget._atlas_data_layer = None
+    registration_widget._moving_image = True
+
+    registration_widget._open_auto_slice_dialog()
+
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget,
+        title="Warning",
+        message="Please select an atlas before "
+        "clicking 'Automatic Slice Detection'.",
+    )
+
+
+def test_open_auto_slice_dialog_no_moving_image(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget_with_example_atlas._moving_image = None
+
+    registration_widget_with_example_atlas._open_auto_slice_dialog()
+
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget_with_example_atlas,
+        title="Warning",
+        message="Please select a moving image before "
+        "clicking 'Automatic Slice Detection'.",
+    )
+
+
+def test_open_auto_slice_dialog_moving_equals_atlas(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget_with_example_atlas._moving_image = (
+        registration_widget_with_example_atlas._atlas_data_layer
+    )
+
+    registration_widget_with_example_atlas._open_auto_slice_dialog()
+
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget_with_example_atlas,
+        title="Warning",
+        message="Your moving image cannot be an atlas.",
+    )
+
+
+def test_open_auto_slice_dialog_valid(
+    registration_widget_with_example_atlas, mocker
+):
+    mocked_dialog_class = mocker.patch(
+        "brainglobe_registration.registration_widget.AutoSliceDialog"
+    )
+    mocked_dialog = mocked_dialog_class.return_value
+    # Register that dialog box was called
+    mocked_dialog.exec_ = mocker.Mock()
+
+    registration_widget_with_example_atlas._moving_image = mocker.Mock()
+    (
+        registration_widget_with_example_atlas._moving_image
+        != registration_widget_with_example_atlas._atlas_data_layer
+    )
+
+    registration_widget_with_example_atlas._open_auto_slice_dialog()
+
+    mocked_dialog_class.assert_called_once()
+    mocked_dialog.exec_.assert_called_once()
+
+
+def test_set_optimal_rotation_params_sets_gui_values(
+    registration_widget, mocker
+):
+    result = {
+        "done": True,
+        "best_pitch": 5,
+        "best_yaw": 10,
+        "best_roll": -2,
+        "best_z_slice": 42,
+    }
+
+    # Create mock layers
+    mock_layer = mocker.Mock()
+    mock_layer.name = "mock_layer"
+
+    # Create viewer mock with iterable .layers
+    viewer_mock = mocker.Mock()
+    viewer_mock.layers = [mock_layer]
+    viewer_mock.dims.set_point = mocker.Mock()
+
+    # Mock adjust widget
+    adjust_widget_mock = mocker.Mock()
+    adjust_widget_mock.adjust_atlas_pitch.setValue = mocker.Mock()
+    adjust_widget_mock.adjust_atlas_yaw.setValue = mocker.Mock()
+    adjust_widget_mock.adjust_atlas_roll.setValue = mocker.Mock()
+    adjust_widget_mock.progress_bar.reset = mocker.Mock()
+    adjust_widget_mock.progress_bar.setVisible = mocker.Mock()
+
+    # Assign mocks to widget
+    registration_widget._viewer = viewer_mock
+    registration_widget.adjust_moving_image_widget = adjust_widget_mock
+    registration_widget._on_adjust_atlas_rotation = mocker.Mock()
+
+    # Call method
+    registration_widget.set_optimal_rotation_params(result)
+
+    # Assertions
+    registration_widget._on_adjust_atlas_rotation.assert_called_once_with(
+        5, 10, -2
+    )
+    viewer_mock.dims.set_point.assert_called_once_with(0, 42)
+    adjust_widget_mock.adjust_atlas_pitch.setValue.assert_called_once_with(5)
+    adjust_widget_mock.adjust_atlas_yaw.setValue.assert_called_once_with(10)
+    adjust_widget_mock.adjust_atlas_roll.setValue.assert_called_once_with(-2)
+    adjust_widget_mock.progress_bar.reset.assert_called_once()
+    adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
