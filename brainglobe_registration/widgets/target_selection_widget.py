@@ -1,13 +1,18 @@
+import math
+
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QSpinBox,
     QVBoxLayout,
+    QWidget,
 )
 
 
@@ -115,7 +120,37 @@ class AutoSliceDialog(QDialog):
                 "Combined",
             ]
         )
+        self.metric_dropdown.currentTextChanged.connect(
+            self.toggle_weights_row
+        )
         form.addRow("Similarity metric:", self.metric_dropdown)
+
+        # Combined metric weights (initially hidden)
+        self.weights_layout = QHBoxLayout()
+        self.mi_weight = QDoubleSpinBox()
+        self.ncc_weight = QDoubleSpinBox()
+        self.ssim_weight = QDoubleSpinBox()
+
+        for spinbox, label, default in zip(
+            [self.mi_weight, self.ncc_weight, self.ssim_weight],
+            ["MI weight:", "NCC weight:", "SSIM weight:"],
+            [0.7, 0.15, 0.15],
+        ):
+            spinbox.setRange(0.0, 1.0)
+            spinbox.setSingleStep(0.01)
+            spinbox.setValue(default)
+            self.weights_layout.addWidget(QLabel(label))
+            self.weights_layout.addWidget(spinbox)
+
+        self.weights_container = QWidget()
+        self.weights_container.setLayout(self.weights_layout)
+
+        self.weights_label = QLabel("Combined weights:")
+        form.addRow(self.weights_label, self.weights_container)
+
+        # Initially hide both label and widget
+        self.weights_label.setVisible(False)
+        self.weights_container.setVisible(False)
 
         self.layout().addLayout(form)
 
@@ -126,6 +161,11 @@ class AutoSliceDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         self.layout().addWidget(buttons)
+
+    def toggle_weights_row(self, text):
+        show = "Combined" in text
+        self.weights_label.setVisible(show)
+        self.weights_container.setVisible(show)
 
     def accept(self):
         # Map dropdown selection to internal code
@@ -138,6 +178,28 @@ class AutoSliceDialog(QDialog):
         selected_metric = self.metric_dropdown.currentText()
         metric_value = metric_map.get(selected_metric, "mi")
 
+        if metric_value == "combined":
+            total = (
+                self.mi_weight.value()
+                + self.ncc_weight.value()
+                + self.ssim_weight.value()
+            )
+            if not math.isclose(total, 1.0, abs_tol=1e-6):
+                QMessageBox.warning(
+                    self, "Invalid Weights", "Total weight must equal 1.0."
+                )
+                return
+            weights = tuple(
+                round(val, 2)
+                for val in (
+                    self.mi_weight.value(),
+                    self.ncc_weight.value(),
+                    self.ssim_weight.value(),
+                )
+            )
+        else:
+            weights = (0.0, 0.0, 0.0)
+
         params = {
             "z_range": (self.z_min.value(), self.z_max.value()),
             "pitch_bounds": (self.pitch_min.value(), self.pitch_max.value()),
@@ -146,6 +208,8 @@ class AutoSliceDialog(QDialog):
             "init_points": self.init_points.value(),
             "n_iter": self.n_iter.value(),
             "metric": metric_value,
+            "weights": weights,
         }
+
         self.parameters_confirmed.emit(params)
         super().accept()

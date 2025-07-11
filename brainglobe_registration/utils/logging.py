@@ -16,8 +16,8 @@ def get_auto_slice_logging_args(params: dict) -> tuple:
         "metric": str(params["metric"]),
     }
 
-    AutoSliceArgs = namedtuple(
-        "AutoSliceArgs",
+    AutoSliceArgsBase = namedtuple(
+        "AutoSliceArgsBase",
         (
             "z_range",
             "pitch_bounds",
@@ -28,7 +28,28 @@ def get_auto_slice_logging_args(params: dict) -> tuple:
             "metric",
         ),
     )
-    return AutoSliceArgs(*args_dict.values()), args_dict
+
+    # namedtuple() requires List or tuple literal as second arg
+    # So cannot just add ["combined_weights"] to AutoSliceArgsBase
+    AutoSliceArgsWithWeights = namedtuple(
+        "AutoSliceArgsWithWeights",
+        (
+            "z_range",
+            "pitch_bounds",
+            "yaw_bounds",
+            "roll_bounds",
+            "init_points",
+            "n_iter",
+            "metric",
+            "combined_weights",
+        ),
+    )
+
+    if params["metric"] == "combined":
+        args_dict["combined_weights"] = str(params["weights"])
+        return AutoSliceArgsWithWeights(*args_dict.values()), args_dict
+    else:
+        return AutoSliceArgsBase(*args_dict.values()), args_dict
 
 
 @contextmanager
