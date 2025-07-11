@@ -11,7 +11,7 @@ def pad_to_match_shape(
     fixed: np.ndarray,
     mode: str,
     constant_values: int = 0,
-):
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Symmetrically pad both 2D arrays to match the largest shape.
 
