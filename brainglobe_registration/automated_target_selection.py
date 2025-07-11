@@ -262,7 +262,12 @@ def run_bayesian_generator(
     ------
     Optimal parameters and similarity score for alignment.
     """
-    # Bounds in degrees and slice index
+
+    def objective(pitch, yaw, z_slice):
+        return registration_objective(
+            pitch, yaw, 0, z_slice, atlas_volume, sample, metric, weights
+        )
+
     pbounds = {
         "pitch": pitch_bounds,
         "yaw": yaw_bounds,
@@ -270,34 +275,45 @@ def run_bayesian_generator(
     }
 
     optimizer = BayesianOptimization(
-        f=lambda pitch, yaw, z_slice: registration_objective(
-            pitch,
-            yaw,
-            0,
-            z_slice,
-            atlas_volume,
-            sample,
-            metric,
-            weights,
-        ),
+        f=None,
         pbounds=pbounds,
         verbose=2,
         random_state=42,
     )
+    # Customise Gaussian Progress
+    optimizer.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
 
-    optimizer.maximize(init_points=init_points, n_iter=n_iter)
-    for result in optimizer.res:
-        current_params = result["params"]
-        current_score = result["target"]
+    # Initial random points
+    for _ in range(init_points):
+        point = optimizer.suggest()
+        score = objective(**point)
+        optimizer.register(params=point, target=score)
+
         yield {
-            "pitch": round(current_params["pitch"], 2),
-            "yaw": round(current_params["yaw"], 2),
-            "z_slice": round(current_params["z_slice"]),
-            "score": current_score,
+            "stage": "coarse",
+            "pitch": round(point["pitch"], 2),
+            "yaw": round(point["yaw"], 2),
+            "z_slice": round(point["z_slice"]),
+            "score": score,
+        }
+
+    # Iterative Bayesian updates
+    for _ in range(n_iter):
+        point = optimizer.suggest()
+        score = objective(**point)
+        optimizer.register(params=point, target=score)
+
+        yield {
+            "stage": "coarse",
+            "pitch": round(point["pitch"], 2),
+            "yaw": round(point["yaw"], 2),
+            "z_slice": round(point["z_slice"]),
+            "score": score,
         }
 
     best_params = optimizer.max["params"]
     best_score = optimizer.max["target"]
+
     pitch = round(best_params["pitch"], 2)
     yaw = round(best_params["yaw"], 2)
     z_slice = round(best_params["z_slice"])
@@ -305,55 +321,63 @@ def run_bayesian_generator(
     rot_matrix, out_shape = create_rotation_matrix(
         0, yaw, pitch, atlas_volume.shape
     )
-
     transformed_atlas = rotate_volume(
         atlas_volume, atlas_volume.shape, rot_matrix, out_shape
     )
-
     target_slice = transformed_atlas[z_slice].compute()
 
-    pbounds_roll = {
-        "roll": roll_bounds,
-    }
+    # Roll Optimisation
+    def roll_objective(roll):
+        return similarity_only_objective(
+            roll, target_slice, sample, metric, weights
+        )
 
     opt_roll = BayesianOptimization(
-        f=lambda roll: similarity_only_objective(
-            roll,
-            target_slice,
-            sample,
-            metric,
-            weights,
-        ),
-        pbounds=pbounds_roll,
+        f=None,
+        pbounds={"roll": roll_bounds},
         verbose=2,
         random_state=42,
     )
+    opt_roll.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
 
-    opt_roll.maximize(init_points=init_points, n_iter=n_iter)
-    for result in opt_roll.res:
-        current_roll = result["params"]
-        current_roll_score = result["target"]
+    # Initial roll points
+    for _ in range(init_points):
+        point = opt_roll.suggest()
+        score = roll_objective(**point)
+        opt_roll.register(params=point, target=score)
+
         yield {
-            "roll": round(current_roll["roll"], 2),
-            "roll_score": current_roll_score,
+            "stage": "fine",
+            "roll": round(point["roll"], 2),
+            "roll_score": score,
         }
 
-    best_roll = opt_roll.max["params"]
-    best_roll_score = opt_roll.max["target"]
+    # Iterative roll tuning
+    for _ in range(n_iter):
+        point = opt_roll.suggest()
+        score = roll_objective(**point)
+        opt_roll.register(params=point, target=score)
 
-    roll = round(best_roll["roll"], 2)
+        yield {
+            "stage": "fine",
+            "roll": round(point["roll"], 2),
+            "roll_score": score,
+        }
+
+    best_roll = round(opt_roll.max["params"]["roll"], 2)
+    best_roll_score = opt_roll.max["target"]
 
     print(
         f"\n[Bayesian] Optimal result:"
         f"\nScore (without roll): {best_score:.4f}"
         f"\nScore (including roll): {best_roll_score:.4f}"
     )
-    print(f"pitch: {pitch}, yaw: {yaw}, roll: {roll}, z_slice: {z_slice}")
+    print(f"pitch: {pitch}, yaw: {yaw}, roll: {best_roll}, z_slice: {z_slice}")
 
     return {
         "best_pitch": pitch,
         "best_yaw": yaw,
-        "best_roll": roll,
+        "best_roll": best_roll,
         "best_z_slice": z_slice,
         "done": True,
     }
