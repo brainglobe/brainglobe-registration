@@ -404,7 +404,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
-            np.int16
+            np.uint16
         )
         current_atlas_slice = self._viewer.dims.current_step[0]
 
