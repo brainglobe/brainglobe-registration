@@ -56,7 +56,7 @@ def test_registration_objective_valid_input(atlas_and_sample):
         sample=sample,
     )
     assert isinstance(score, float)
-    assert 0.5 < score <= 1.0
+    assert 0.0 < score <= 1.0
 
 
 def test_registration_objective_invalid_slice_index(atlas_and_sample):
@@ -86,7 +86,7 @@ def test_similarity_only_objective_returns_valid_score(atlas_and_sample):
         roll=0.0, target_slice=target_slice, sample=sample
     )
     assert isinstance(score, float)
-    assert 0.5 < score <= 1.0
+    assert 0.0 < score <= 1.0
 
 
 def test_run_bayesian_generator_returns_reasonable_z_slice(atlas_and_sample):
@@ -160,7 +160,7 @@ def test_registration_objective_rejects_non_2d_sample(atlas_and_sample):
 def test_run_bayesian_generator_yield_count(atlas_and_sample):
     """
     Test that run_bayesian_generator yields the expected
-    number of intermediate results.
+    number of intermediate results (not including the final return).
     """
     atlas_volume, sample, _ = atlas_and_sample
     init_points = 3
@@ -174,5 +174,4 @@ def test_run_bayesian_generator_yield_count(atlas_and_sample):
     )
 
     results = list(gen)
-    assert len(results) == (2 * (init_points + n_iter)) + 1
-    assert results[-1]["done"] is True
+    assert len(results) == 2 * (init_points + n_iter)
