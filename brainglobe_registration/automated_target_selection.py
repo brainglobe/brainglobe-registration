@@ -190,9 +190,7 @@ def similarity_only_objective(
     float
         Similarity score between rotated fixed slice and sample image.
     """
-    rotated_slice = rotate(
-        target_slice, roll, reshape=True, order=1, mode="constant", cval=0.0
-    )
+    rotated_slice = rotate(target_slice, roll, clip=False)
     sample_padded, rotated_slice_padded = pad_to_match_shape(
         sample, rotated_slice, mode="constant", constant_values=0
     )
