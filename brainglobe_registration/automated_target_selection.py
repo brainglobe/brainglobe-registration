@@ -12,6 +12,7 @@ from brainglobe_registration.elastix.register import (
 )
 from brainglobe_registration.similarity_metrics import (
     compute_similarity_metric,
+    pad_to_match_shape,
     prepare_images,
 )
 from brainglobe_registration.utils.transforms import (
@@ -189,10 +190,16 @@ def similarity_only_objective(
     float
         Similarity score between rotated fixed slice and sample image.
     """
-    rotated_slice = rotate(target_slice, roll)
+    rotated_slice = rotate(
+        target_slice, roll, reshape=True, order=1, mode="constant", cval=0.0
+    )
+    sample_padded, rotated_slice_padded = pad_to_match_shape(
+        sample, rotated_slice, mode="constant", constant_values=0
+    )
+
     score = compute_similarity_metric(
-        moving=sample,
-        fixed=rotated_slice,
+        moving=sample_padded,
+        fixed=rotated_slice_padded,
         metric=metric,
         weights=weights,
     )
