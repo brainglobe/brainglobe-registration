@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 import numpy as np
 from bayes_opt import BayesianOptimization
@@ -202,7 +202,7 @@ def similarity_only_objective(
 def run_bayesian_generator(
     atlas_volume: np.ndarray,
     sample: np.ndarray,
-    manual_z_range: tuple[float, float],
+    manual_z_range: Optional[tuple[float, float]] = None,
     pitch_bounds: tuple[float, float] = (-5, 5),
     yaw_bounds: tuple[float, float] = (-5, 5),
     roll_bounds: tuple[float, float] = (-5, 5),
@@ -225,6 +225,7 @@ def run_bayesian_generator(
         2D image to be aligned to the atlas.
     manual_z_range : tuple[float, float]
         Lower and upper bounds for z-slice selection.
+        Defaults to None i.e. entire range.
     pitch_bounds, yaw_bounds, roll_bounds : tuple[float, float], optional
         Bounds for rotation angles (default: (-5, 5) degrees).
     init_points : int, optional
@@ -262,6 +263,9 @@ def run_bayesian_generator(
     ------
     Optimal parameters and similarity score for alignment.
     """
+
+    if manual_z_range is None:
+        manual_z_range = (0, atlas_volume.shape[0] - 1)
 
     def objective(pitch, yaw, z_slice):
         return registration_objective(
