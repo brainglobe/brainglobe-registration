@@ -694,7 +694,8 @@ class RegistrationWidget(QScrollArea):
         z_res : float
             Moving image z pixel size (> 0.0).
         orientation : str
-            The orientation of the moving image BrainGlobe convention. Required for 3D scaling, can be empty string if the moving image is 2D.
+            The orientation of the moving image BrainGlobe convention.
+            Required for 3D scaling, can be an empty string if the image is 2D.
 
         Will show an error if the pixel sizes are less than or equal to 0.
         Will show an error if the moving image or atlas is not selected.
@@ -727,6 +728,11 @@ class RegistrationWidget(QScrollArea):
         if self._moving_image_data_backup is None:
             self._moving_image_data_backup = self._moving_image.data.copy()
 
+        # Debug: Print resolution information
+        print(f"Atlas resolution (z,y,x): {self._atlas.resolution}")
+        print(f"Input pixel sizes - x: {x_res}, y: {y_res}, z: {z_res}")
+
+        # Atlas resolution is stored as z,y,x
         if self._moving_image.data.ndim == 3:
             self.moving_anatomical_space = AnatomicalSpace(
                 origin=orientation,
@@ -750,9 +756,15 @@ class RegistrationWidget(QScrollArea):
                 anti_aliasing=True,
             ).astype(self._moving_image_data_backup.dtype)
 
+        print(f"Original image shape: {self._moving_image_data_backup.shape}")
+        print(f"Atlas shape: {self._atlas.reference.shape}")
+
         # Resets the viewer grid to update the grid to the scaled moving image
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+        print(f"Scaled image shape: {self._moving_image.data.shape}")
+        print("---")
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
