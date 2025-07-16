@@ -694,7 +694,7 @@ class RegistrationWidget(QScrollArea):
         z_res : float
             Moving image z pixel size (> 0.0).
         orientation : str
-            The orientation of the moving image BrainGlobe convention.
+            The orientation of the moving image BrainGlobe convention. Required for 3D scaling, can be empty string if the moving image is 2D.
 
         Will show an error if the pixel sizes are less than or equal to 0.
         Will show an error if the moving image or atlas is not selected.
