@@ -904,9 +904,11 @@ class RegistrationWidget(QScrollArea):
         if is_slab:
             total = 4 * (params["init_points"] + params["n_iter"])
             run_method = self.run_auto_slab_thread
+            callback = self.set_optimal_rotation_params_for_slab
         else:
             total = 2 * (params["init_points"] + params["n_iter"])
             run_method = self.run_auto_slice_thread
+            callback = self.set_optimal_rotation_params
 
         self.adjust_moving_image_widget.progress_bar.setVisible(True)
         self.adjust_moving_image_widget.progress_bar.setValue(0)
@@ -919,7 +921,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         worker.yielded.connect(self.handle_auto_slice_progress)
-        worker.returned.connect(self.set_optimal_rotation_params)
+        worker.returned.connect(callback)
         worker.start()
 
     def run_auto_slice_thread(self, params: dict):
@@ -1102,14 +1104,32 @@ class RegistrationWidget(QScrollArea):
                 np.linspace(z_min, z_max, num_slices).astype(int).tolist()
             )
 
-        # Store pitch/yaw/roll from best alignment
-        # (use first slice's angles for now)
+        # Interpolate pitch/yaw/roll across the number of slices
+        num_slices = slab.shape[0]
+        pitches = np.linspace(
+            final_first["best_pitch"], final_last["best_pitch"], num_slices
+        )
+        yaws = np.linspace(
+            final_first["best_yaw"], final_last["best_yaw"], num_slices
+        )
+        rolls = np.linspace(
+            final_first["best_roll"], final_last["best_roll"], num_slices
+        )
+
+        per_slice_params = []
+        for i in range(num_slices):
+            per_slice_params.append(
+                {
+                    "pitch": float(pitches[i]),
+                    "yaw": float(yaws[i]),
+                    "roll": float(rolls[i]),
+                    "z_slice": target_z_indices[i],
+                }
+            )
+
         return {
             "done": True,
-            "best_pitch": final_first["best_pitch"],
-            "best_yaw": final_first["best_yaw"],
-            "best_roll": final_first["best_roll"],
-            "z_indices": target_z_indices,
+            "per_slice_params": per_slice_params,
         }
 
     def handle_auto_slice_progress(self, update: dict):
@@ -1146,46 +1166,36 @@ class RegistrationWidget(QScrollArea):
         atlas_volume = get_data_from_napari_layer(self._atlas_data_layer)
         slab = get_data_from_napari_layer(self._moving_image).astype(np.int16)
 
-        pitch = result["best_pitch"]
-        yaw = result["best_yaw"]
-        roll = result["best_roll"]
-        target_z_indices = result["z_indices"]
+        per_slice_params = result["per_slice_params"]
+        self._per_slice_rotation_params = per_slice_params
 
-        # Step 1: Apply rotation to atlas volume
-        self._on_adjust_atlas_rotation(pitch, yaw, roll)
-
-        # Step 2: Create blank volume with same shape as atlas
+        # 1: Create blank volume and fill it with rotated slices at target Z
         blank_volume = np.zeros_like(atlas_volume)
-
-        # Step 3: Insert each slab slice into blank_volume at correct Z
-        # Centreed in YX
-        for slab_idx, atlas_z in enumerate(target_z_indices):
+        for i, entry in enumerate(per_slice_params):
+            slab_idx = i
+            atlas_z = entry["z_slice"]
             if not (0 <= slab_idx < slab.shape[0]):
-                continue  # Skip if slab index is invalid
+                continue
+            if not (0 <= atlas_z < blank_volume.shape[0]):
+                continue
 
             slice_data = slab[slab_idx]
+            y_offset = (atlas_volume.shape[1] - slice_data.shape[0]) // 2
+            x_offset = (atlas_volume.shape[2] - slice_data.shape[1]) // 2
 
-            if 0 <= atlas_z < blank_volume.shape[0]:
-                y_offset = (atlas_volume.shape[1] - slice_data.shape[0]) // 2
-                x_offset = (atlas_volume.shape[2] - slice_data.shape[1]) // 2
+            y_start = max(0, y_offset)
+            x_start = max(0, x_offset)
+            y_end = min(y_start + slice_data.shape[0], atlas_volume.shape[1])
+            x_end = min(x_start + slice_data.shape[1], atlas_volume.shape[2])
 
-                y_start = max(0, y_offset)
-                x_start = max(0, x_offset)
-                y_end = min(
-                    y_start + slice_data.shape[0], atlas_volume.shape[1]
-                )
-                x_end = min(
-                    x_start + slice_data.shape[1], atlas_volume.shape[2]
-                )
+            y_slice_end = y_end - y_start
+            x_slice_end = x_end - x_start
 
-                y_slice_end = y_end - y_start
-                x_slice_end = x_end - x_start
+            blank_volume[atlas_z, y_start:y_end, x_start:x_end] = slice_data[
+                :y_slice_end, :x_slice_end
+            ]
 
-                blank_volume[atlas_z, y_start:y_end, x_start:x_end] = (
-                    slice_data[:y_slice_end, :x_slice_end]
-                )
-
-        # Step 4: Replace existing moving image layer with aligned slab
+        # 2: Replace existing moving image layer
         moving_image_name = self._moving_image.name
         if moving_image_name in self._viewer.layers:
             self._viewer.layers.remove(moving_image_name)
@@ -1195,10 +1205,8 @@ class RegistrationWidget(QScrollArea):
         )
         self._moving_image = new_layer
 
-        # Update sample images list with new layer name
+        # 3: Update sample image list
         new_layer_name = new_layer.name
-
-        # Replace old layer name in _sample_images
         for i, name in enumerate(self._sample_images):
             if name == moving_image_name or name == self._moving_image.name:
                 self._sample_images[i] = new_layer_name
@@ -1206,23 +1214,67 @@ class RegistrationWidget(QScrollArea):
         else:
             self._sample_images.append(new_layer_name)
 
-        # Update dropdown UI with new list
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
-
-        # Set dropdown index to the new layer
         dropdown_index = self._sample_images.index(new_layer_name)
         self._on_sample_dropdown_index_changed(dropdown_index)
 
-        # Step 5: Move viewer to first Z of slab
-        if target_z_indices:
-            self._viewer.dims.set_point(0, target_z_indices[0])
+        # 4: Jump viewer to first Z
+        if per_slice_params:
+            first_z = per_slice_params[0]["z_slice"]
+            self._viewer.dims.set_point(0, first_z)
 
-        # Step 6: Update spinboxes
-        self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(pitch)
-        self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(yaw)
-        self.adjust_moving_image_widget.adjust_atlas_roll.setValue(roll)
+        # 5: Set initial spinbox values from first slice
+        self._on_adjust_atlas_rotation(
+            per_slice_params[0]["pitch"],
+            per_slice_params[0]["yaw"],
+            per_slice_params[0]["roll"],
+        )
+        self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(
+            per_slice_params[0]["pitch"]
+        )
+        self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(
+            per_slice_params[0]["yaw"]
+        )
+        self.adjust_moving_image_widget.adjust_atlas_roll.setValue(
+            per_slice_params[0]["roll"]
+        )
 
-        # Step 7: Hide progress bar
+        # 6: Dynamic update of spinboxes based on Z
+        def _update_spinboxes_from_slice(event=None):
+            # Only update if event is for axis 0 or if event is None
+            if event is not None and getattr(event, "axis", 0) != 0:
+                return
+
+            current_z = int(self._viewer.dims.point[0])
+            for entry in self._per_slice_rotation_params:
+
+                if entry["z_slice"] == current_z:
+                    self._on_adjust_atlas_rotation(
+                        entry["pitch"],
+                        entry["yaw"],
+                        entry["roll"],
+                    )
+
+                    (
+                        self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(
+                            entry["pitch"]
+                        )
+                    )
+                    (
+                        self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(
+                            entry["yaw"]
+                        )
+                    )
+                    (
+                        self.adjust_moving_image_widget.adjust_atlas_roll.setValue(
+                            entry["roll"]
+                        )
+                    )
+                    break
+
+        self._viewer.dims.events.point.connect(_update_spinboxes_from_slice)
+
+        # 7: Hide progress bar
         self.adjust_moving_image_widget.progress_bar.reset()
         self.adjust_moving_image_widget.progress_bar.setVisible(False)
 
