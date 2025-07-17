@@ -267,11 +267,6 @@ def run_bayesian_generator(
     if manual_z_range is None:
         manual_z_range = (0, atlas_volume.shape[0] - 1)
 
-    def objective(pitch, yaw, z_slice):
-        return registration_objective(
-            pitch, yaw, z_slice, atlas_volume, sample, metric, weights
-        )
-
     pbounds = {
         "pitch": pitch_bounds,
         "yaw": yaw_bounds,
@@ -344,11 +339,6 @@ def run_bayesian_generator(
     target_slice = transformed_atlas[z_slice].compute()
 
     # Roll Optimisation
-    def roll_objective(roll):
-        return similarity_only_objective(
-            roll, target_slice, sample, metric, weights
-        )
-
     opt_roll = BayesianOptimization(
         f=None,
         pbounds={"roll": roll_bounds},

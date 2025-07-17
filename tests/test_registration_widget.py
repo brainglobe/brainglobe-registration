@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from brainglobe_atlasapi.descriptors import ANNOTATION_DTYPE, REFERENCE_DTYPE
+from brainglobe_space import AnatomicalSpace
 from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
@@ -113,14 +114,16 @@ def test_scale_moving_image_no_atlas(
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
     )
+    atlas_backup = registration_widget._atlas
     registration_widget._atlas = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10, 10
+        10, 10, 10, "prs"
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
         "Please select a sample image and atlas before scaling"
     )
+    registration_widget._atlas = atlas_backup
 
 
 def test_scale_moving_image_no_sample_image(
@@ -129,13 +132,48 @@ def test_scale_moving_image_no_sample_image(
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
     )
+    image_backup = registration_widget._moving_image
     registration_widget._moving_image = None
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        10, 10, 10
+        10, 10, 10, "prs"
     )
     mocked_show_error.assert_called_once_with(
         "Sample image or atlas not selected. "
         "Please select a sample image and atlas before scaling"
+    )
+    registration_widget._moving_image = image_backup
+
+
+@pytest.mark.parametrize(
+    "x_res, y_res",
+    [
+        (0, 10),
+        (10, 0),
+    ],
+)
+def test_scale_moving_image_wrong_scale(
+    make_napari_viewer_with_images, registration_widget, mocker, x_res, y_res
+):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mock_atlas = mocker.patch(
+        "brainglobe_registration.registration_widget.BrainGlobeAtlas"
+    )
+    mock_atlas.resolution = [20, 20, 20]
+    registration_widget._atlas = mock_atlas
+
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_x.setValue(
+        x_res
+    )
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_y.setValue(
+        y_res
+    )
+
+    registration_widget.adjust_moving_image_widget._on_scale_image_button_click()
+
+    mocked_show_error.assert_called_once_with(
+        "Pixel sizes must be greater than 0"
     )
 
 
@@ -164,14 +202,112 @@ def test_scale_moving_image_2d(
 
     current_size = registration_widget._moving_image.data.shape
     registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
-        mock_atlas.resolution[1] * x_scale_factor,
-        mock_atlas.resolution[2] * y_scale_factor,
+        mock_atlas.resolution[2] * x_scale_factor,
+        mock_atlas.resolution[1] * y_scale_factor,
         0.001,
+        # Empty orientation string
+        "",
     )
 
     assert registration_widget._moving_image.data.shape == (
         current_size[0] * y_scale_factor,
         current_size[1] * x_scale_factor,
+    )
+
+
+@pytest.mark.parametrize(
+    "x_scale_factor, y_scale_factor, z_scale_factor",
+    [
+        (0.5, 0.5, 0.5),
+        (1.0, 1.0, 1.0),
+        (2.0, 2.0, 2.0),
+        (0.5, 1.0, 1.0),
+        (1.0, 0.5, 1.0),
+        (1.0, 1.0, 0.5),
+    ],
+)
+def test_scale_moving_image_3d(
+    make_napari_viewer_with_images,
+    registration_widget,
+    mocker,
+    x_scale_factor,
+    y_scale_factor,
+    z_scale_factor,
+):
+    mock_atlas = mocker.patch(
+        "brainglobe_registration.registration_widget.BrainGlobeAtlas"
+    )
+    mock_atlas.resolution = [100, 100, 100]
+    mock_atlas.space = AnatomicalSpace(
+        origin="asr", resolution=mock_atlas.resolution
+    )
+    registration_widget._atlas = mock_atlas
+
+    moving_image_3d_index = registration_widget._sample_images.index(
+        "moving_image_3d"
+    )
+    registration_widget._on_sample_dropdown_index_changed(
+        moving_image_3d_index
+    )
+
+    current_size = registration_widget._moving_image.data.shape
+    registration_widget.adjust_moving_image_widget.scale_image_signal.emit(
+        mock_atlas.resolution[2] * x_scale_factor,
+        mock_atlas.resolution[1] * y_scale_factor,
+        mock_atlas.resolution[0] * z_scale_factor,
+        "asr",
+    )
+
+    expected_size = np.round(
+        (
+            current_size[0] * z_scale_factor,
+            current_size[1] * y_scale_factor,
+            current_size[2] * x_scale_factor,
+        )
+    )
+
+    assert np.all(
+        registration_widget._moving_image.data.shape == expected_size
+    )
+
+
+def test_invalid_sample_orientation(
+    make_napari_viewer_with_images, registration_widget, mocker
+):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mock_atlas = mocker.patch(
+        "brainglobe_registration.registration_widget.BrainGlobeAtlas"
+    )
+    mock_atlas.resolution = [20, 20, 20]
+    registration_widget._atlas = mock_atlas
+
+    moving_image_3d_index = registration_widget._sample_images.index(
+        "moving_image_3d"
+    )
+    registration_widget._on_sample_dropdown_index_changed(
+        moving_image_3d_index
+    )
+
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_x.setValue(
+        mock_atlas.resolution[2] * 0.5
+    )
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_y.setValue(
+        mock_atlas.resolution[1] * 0.5
+    )
+    registration_widget.adjust_moving_image_widget.adjust_moving_image_pixel_size_z.setValue(
+        mock_atlas.resolution[0] * 0.5
+    )
+    registration_widget.adjust_moving_image_widget.data_orientation_field.setText(
+        "abc"
+    )
+
+    registration_widget.adjust_moving_image_widget._on_scale_image_button_click()
+
+    mocked_show_error.assert_called_once_with(
+        "Invalid orientation. "
+        "Please use the BrainGlobe convention (e.g. 'psl')"
     )
 
 
