@@ -1,316 +1,214 @@
-from typing import Callable, Dict, Iterable, Optional, Tuple
+import warnings
+from typing import Literal, Tuple
 
 import numpy as np
-import numpy.typing as npt
-import skimage.metrics
+from skimage.metrics import structural_similarity
+from sklearn.feature_selection import mutual_info_regression
 
 
-def _match_image_sizes(
-    img1: npt.NDArray, img2: npt.NDArray
-) -> Tuple[Optional[npt.NDArray], Optional[npt.NDArray]]:
+def pad_to_match_shape(
+    moving: np.ndarray,
+    fixed: np.ndarray,
+    mode: str,
+    constant_values: int = 0,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Match the sizes of two images by cropping to the smaller dimensions.
-    Also checks for NaNs in the cropped regions and handles them.
+    Symmetrically pad both 2D arrays to match the
+    largest shape along each axis.
 
     Parameters
     ----------
-    img1 : npt.NDArray
-        First image
-    img2 : npt.NDArray
-        Second image
+    moving : np.ndarray
+        Moving (sample) image.
+    fixed : np.ndarray
+        Atlas image.
+    mode : str
+        Padding mode (e.g., 'constant', 'edge', 'reflect', etc.).
+    constant_values : int
+        Constant value to use for 'constant' mode padding.
+        Default = 0
 
     Returns
     -------
-    Tuple[Optional[npt.NDArray], Optional[npt.NDArray]]
-        Tuple of (cropped_img1, cropped_img2).
-        If img1 or img2 has NaNs, first or second element is None.
-        If both are valid, both are returned as cropped arrays.
+    np.ndarray
+        Padded moving image.
+    np.ndarray
+        Padded fixed image.
     """
-    min_shape = np.minimum(img1.shape, img2.shape)
-    img1_crop = img1[: min_shape[0], : min_shape[1]]
-    img2_crop = img2[: min_shape[0], : min_shape[1]]
 
-    img1_proc = None if np.isnan(img1_crop).any() else img1_crop
-    img2_proc = None if np.isnan(img2_crop).any() else img2_crop
+    target_height = max(moving.shape[0], fixed.shape[0])
+    target_width = max(moving.shape[1], fixed.shape[1])
 
-    return img1_proc, img2_proc
+    def pad_to_shape(img, target_shape):
+        pad_height = target_shape[0] - img.shape[0]
+        pad_width = target_shape[1] - img.shape[1]
+
+        pad_top = pad_height // 2
+        pad_bottom = pad_height - pad_top
+        pad_left = pad_width // 2
+        pad_right = pad_width - pad_left
+
+        kwargs = {"mode": mode}
+        if mode == "constant":
+            kwargs["constant_values"] = constant_values
+
+        return np.pad(
+            img,
+            pad_width=((pad_top, pad_bottom), (pad_left, pad_right)),
+            **kwargs,
+        )
+
+    moving_padded = pad_to_shape(moving, (target_height, target_width))
+    fixed_padded = pad_to_shape(fixed, (target_height, target_width))
+
+    return moving_padded, fixed_padded
 
 
-def _normalize_image(img: npt.NDArray) -> npt.NDArray:
-    """Normalize image array to the range [0, 1]."""
-    img_float = img.astype(np.float32)
-    max_val = np.max(img_float)
-    if max_val != 0:
-        return img_float / max_val
-    else:
-        return img_float
-
-
-def normalized_cross_correlation(
-    img1: npt.NDArray, img2: npt.NDArray
-) -> float:
+def normalise_image(img):
     """
-    Calculate the normalized cross-correlation between two images.
+    Normalise a NumPy array to the range [0, 1].
 
     Parameters
     ----------
-    img1 : numpy.ndarray
-        First image
-    img2 : numpy.ndarray
-        Second image
+    img : np.ndarray
+        Input image array.
+
+    Returns
+    -------
+    np.ndarray
+        Normalised image with values in [0, 1].
+    """
+    img = img.astype(np.float32)
+    img_min = img.min()
+    img_max = img.max()
+    return (img - img_min) / (img_max - img_min + 1e-8)
+
+
+def prepare_images(moving: np.ndarray, fixed: np.ndarray):
+    """
+    Pad and normalise moving and fixed images for registration.
+
+    Parameters
+    ----------
+    moving : np.ndarray
+        Moving image to be aligned.
+    fixed : np.ndarray
+        Fixed reference image.
+
+    Returns
+    -------
+    moving : np.ndarray
+        The preprocessed moving image, scaled, padded, and normalised.
+    fixed : np.ndarray
+        The preprocessed fixed image, padded and normalised.
+    """
+
+    # Match shape by padding the smaller image
+    moving, fixed = pad_to_match_shape(moving, fixed, "constant")
+
+    # Normalise
+    moving = normalise_image(moving)
+    fixed = normalise_image(fixed)
+
+    return moving, fixed
+
+
+def safe_ncc(img1, img2):
+    """
+    Compute Normalised Cross-Correlation (NCC) between two images.
+    Returns 0.0 if either image has zero standard deviation.
+
+    Parameters
+    ----------
+    img1 : np.ndarray
+        First image.
+    img2 : np.ndarray
+        Second image.
 
     Returns
     -------
     float
-        Normalized cross-correlation value between -1 and 1
+        NCC score between -1.0 and 1.0.
     """
-    # Ensure both images are the same size and handle NaNs
-    img1_proc, img2_proc = _match_image_sizes(img1, img2)
-    if img1_proc is None or img2_proc is None:
-        raise ValueError("Input images contain NaN values.")
-    # Calculate means
-    img1_mean = np.mean(img1_proc)
-    img2_mean = np.mean(img2_proc)
-
-    # Calculate normalized cross-correlation
-    numerator = np.sum((img1_proc - img1_mean) * (img2_proc - img2_mean))
-    denominator = np.sqrt(
-        np.sum((img1_proc - img1_mean) ** 2)
-        * np.sum((img2_proc - img2_mean) ** 2)
-    )
-
-    # Check for zero denominator (happens when one or both images are
-    # constant)
-    if denominator == 0:
-        return 0.0
-
-    return numerator / denominator
-
-
-def mutual_information(
-    img1: npt.NDArray, img2: npt.NDArray, bins: int = 256
-) -> float:
-    """
-    Calculate the mutual information between two images.
-
-    Parameters
-    ----------
-    img1 : numpy.ndarray
-        First image
-    img2 : numpy.ndarray
-        Second image
-    bins : int, optional
-        Number of bins for histogram, by default 256
-
-    Returns
-    -------
-    float
-        Mutual information value
-    """
-    # Ensure both images are the same size and handle NaNs
-    img1_proc, img2_proc = _match_image_sizes(img1, img2)
-    if img1_proc is None or img2_proc is None:
-        raise ValueError("Input images contain NaN values.")
-    # Check for constant images BEFORE normalization
-    is_img1_constant = np.all(img1_proc == img1_proc.flat[0])
-    is_img2_constant = np.all(img2_proc == img2_proc.flat[0])
-
-    if is_img1_constant and is_img2_constant:
-        # Both are constant images
-        return 2.0 if img1_proc.flat[0] == img2_proc.flat[0] else 1.0
-    elif is_img1_constant or is_img2_constant:
-        # If only one image is constant, MI is 1
-        return 1.0
-
-    # Normalize images to [0, 1] range
-    img1_norm = _normalize_image(img1_proc)
-    img2_norm = _normalize_image(img2_proc)
-
-    try:
-        # Calculate normalized mutual information using scikit-image
-        mi_value = skimage.metrics.normalized_mutual_information(
-            img1_norm, img2_norm
-        )
-
-        # Handle potential NaN results - Although NMI should be robust
-        if np.isnan(mi_value):
-            raise ValueError("Mutual information calculation resulted in NaN.")
-
-        return mi_value
-    except (ValueError, RuntimeError, TypeError) as e:
-        # If any error occurs during calculation inform user and exit
-        raise RuntimeError(f"Error calculating mutual information: {e}")
-
-
-def structural_similarity_index(img1: npt.NDArray, img2: npt.NDArray) -> float:
-    """
-    Calculate the structural similarity index between two images.
-
-    Parameters
-    ----------
-    img1 : numpy.ndarray
-        First image
-    img2 : numpy.ndarray
-        Second image
-
-    Returns
-    -------
-    float
-        Structural similarity index value between -1 and 1
-    """
-    # Ensure both images are the same size and handle NaNs
-    img1_proc, img2_proc = _match_image_sizes(img1, img2)
-    if img1_proc is None or img2_proc is None:
-        raise ValueError("Input images contain NaN values.")
-    # Normalize images to [0,1]
-    img1_norm = _normalize_image(img1_proc)
-    img2_norm = _normalize_image(img2_proc)
-
-    try:
-        # Use scikit-image SSIM function
-        ssim_value = skimage.metrics.structural_similarity(
-            img1_norm, img2_norm, data_range=1.0
-        )
-
-        # Handle potential NaN results
-        if np.isnan(ssim_value):
-            raise ValueError("SSIM calculation resulted in NaN.")
-
-        return ssim_value
-    except (ValueError, RuntimeError, TypeError) as e:
-        # If any error occurs during calculation inform user and exit
-        raise RuntimeError(
-            f"Error calculating structural similarity index: {e}"
-        )
-
-
-def compare_image_to_atlas_slices(
-    moving_image: npt.NDArray,
-    atlas_volume: npt.NDArray,
-    slice_range: Optional[
-        Tuple[int, int]
-    ] = None,  # (start,end), exclusive of end
-    slice_indices: Optional[Iterable[int]] = None,  # if not None, use this
-    search_step: int = 1,
-    metric: str = "mi",
-) -> Dict[int, float]:
-    """
-    Compare an input image with multiple atlas slices.
-
-    Parameters
-    ----------
-    moving_image : npt.NDArray
-        Input image to compare
-    atlas_volume : npt.NDArray
-        3D atlas volume
-    slice_range : Optional[Tuple[int, int]], optional
-        Tuple (start_slice, end_slice) defining a contiguous range
-        (exclusive of end_slice), or an iterable of specific slice indices
-        to compare.
-    slice_indices : Optional[Iterable[int]], optional
-        Iterable of specific slice indices to compare. If None, use
-        slice_range.
-    search_step: int, optional
-        Step size for searching slices, by default 1
-    metric : str, optional
-        Similarity metric ("ncc", "mi", "ssim"), by default "mi"
-
-    Returns
-    -------
-    Dict[int, float]
-        Dictionary with slice indices as keys and similarity values as values
-    """
-    # Dictionary mapping metric names to functions
-    MetricFunction = Callable[[npt.NDArray, npt.NDArray], float]
-    metric_functions: dict[str, MetricFunction] = {
-        "ncc": normalized_cross_correlation,
-        "mi": mutual_information,
-        "ssim": structural_similarity_index,
-    }
-    if slice_indices is not None:
-        indices_to_process = slice_indices
-    elif slice_range is not None:
-        start_slice, end_slice = slice_range
-        start_slice = max(0, start_slice)
-        end_slice = min(atlas_volume.shape[0], end_slice)
-        indices_to_process = range(start_slice, end_slice, search_step)
-    else:
-        indices_to_process = range(0, atlas_volume.shape[0], search_step)
-
-    if metric not in metric_functions:
+    if img1.shape != img2.shape:
         raise ValueError(
-            f"Invalid metric: {metric}. "
-            f"Choose from {list(metric_functions.keys())}"
+            f"Input shapes must match. Got {img1.shape} and {img2.shape}"
         )
-    metric_func = metric_functions[metric]
-
-    results = {}
-    for slice_idx in indices_to_process:
-        # Ensure index is within bounds
-        if not (0 <= slice_idx < atlas_volume.shape[0]):
-            raise IndexError(f"{slice_idx} is out of bounds for atlas volume")
-
-        atlas_slice = atlas_volume[slice_idx, :, :]
-
-        # Let metric functions handle specific cases like constant images or
-        # NaNs.
-        try:
-            results[slice_idx] = metric_func(moving_image, atlas_slice)
-        except (ValueError, RuntimeError, TypeError) as e:
-            # Handle any errors that might occur during metric calculation
-            raise RuntimeError(f"Error processing slice {slice_idx}: {e}")
-
-    return results
+    if np.std(img1) == 0 or np.std(img2) == 0:
+        warnings.warn(
+            "One or both input images are constant. NCC is undefined."
+        )
+        return 0.0  # return very low score if either image is constant.
+    return np.corrcoef(img1.ravel(), img2.ravel())[0, 1]
 
 
-def find_best_atlas_slice(
-    moving_image: npt.NDArray,
-    atlas_volume: npt.NDArray,
-    metric: str = "mi",
-    search_range: Optional[Tuple[int, int]] = None,
-    search_step: int = 1,
-) -> int:
+def compute_similarity_metric(
+    moving: np.ndarray,
+    fixed: np.ndarray,
+    metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
+    weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
+):
     """
-    Find the best matching atlas slice for a given image.
+    Compute similarity between two images using SSIM, NCC, MI, or combined.
 
     Parameters
     ----------
-    moving_image : npt.NDArray
-        Input image to compare
-    atlas_volume : npt.NDArray
-        3D atlas volume
-    metric : str, optional
-        Metric to use for comparison, by default "mi"
-        Options: "ncc", "mi", "ssim"
-    search_range : tuple, optional
-        Range of slices to search (start, end), by default None
-        If None, searches all slices
-    search_step : int, optional
-        Step size for searching slices, by default 1
+    moving : np.ndarray
+        Moving image.
+    fixed : np.ndarray
+        Fixed reference image.
+    metric : Literal["mi", "ncc", "ssim", "combined"], optional
+        Similarity metric used to compare the sample and atlas slice:
+        - "mi"       : Mutual Information
+        - "ncc"      : Normalised Cross-Correlation
+        - "ssim"     : Structural Similarity Index
+        - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
+        Defaults to "mi".
+    weights : Tuple[float, float, float], optional
+        3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
+        Only used if metric="combined". Must sum to 1.
+        Defaults to (0.7, 0.15, 0.15).
 
     Returns
     -------
-    int
-        Index of the best matching slice
+    float
+        Similarity score for chosen metric.
     """
-    # Use compare_image_to_atlas_slices to get similarities
-    similarity_results = compare_image_to_atlas_slices(
-        moving_image,
-        atlas_volume,
-        slice_range=search_range,
-        search_step=search_step,
-        metric=metric,
-    )
+    moving, fixed = prepare_images(moving, fixed)
 
-    # Check if similarity_results is empty (e.g., invalid range)
-    if not similarity_results:
+    if metric == "mi":
+        mi = mutual_info_regression(
+            moving.ravel().reshape(-1, 1), fixed.ravel()
+        )[0]
+        return mi
+    elif metric == "ncc":
+        ncc = safe_ncc(moving, fixed)
+        return ncc
+    elif metric == "ssim":
+        ssim = structural_similarity(moving, fixed, data_range=1.0)
+        return ssim
+
+    elif metric == "combined":
+        if (
+            not isinstance(weights, tuple)
+            or len(weights) != 3
+            or not all(isinstance(w, (int, float)) for w in weights)
+            or abs(sum(weights) - 1.0) > 1e-6
+        ):
+            raise ValueError(
+                f"Invalid weights: {weights}."
+                f"Must be a 3-tuple of floats summing to 1."
+            )
+        mi = mutual_info_regression(
+            moving.ravel().reshape(-1, 1), fixed.ravel()
+        )[0]
+        ncc = safe_ncc(moving, fixed)
+        ssim = structural_similarity(moving, fixed, data_range=1.0)
+
+        return weights[0] * mi + weights[1] * ncc + weights[2] * ssim
+
+    else:
         raise ValueError(
-            "No slices were compared; check your search_range and search_step."
+            f"Unsupported metric '{metric}'. "
+            f"Choose from 'mi', 'ncc', 'ssim', 'combined'."
         )
-
-    # Find the slice index with the maximum similarity value
-    best_slice_index = max(
-        similarity_results,
-        key=lambda k: similarity_results[k],
-    )
-    return best_slice_index
