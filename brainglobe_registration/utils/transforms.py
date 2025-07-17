@@ -117,7 +117,7 @@ def rotate_volume(
 
 def scale_moving_image(
     moving_image: np.ndarray,
-    atlas_res: Tuple,
+    atlas_res: Tuple[float, float, float],
     moving_res: Tuple[float, float, float] = (1.0, 1.0, 1.0),
 ):
     """
@@ -127,9 +127,9 @@ def scale_moving_image(
     ----------
     moving_image : np.ndarray
         Image to be scaled.
-    atlas_res : tuple
+    atlas_res : Tuple[float, float, float]
         Resolution (z, y, x) of the atlas.
-    moving_res : tuple of float
+    moving_res : Tuple[float, float, float]
         Resolution (z, y, x) of moving image.
         Defaults to (1.0, 1.0, 1.0).
 
