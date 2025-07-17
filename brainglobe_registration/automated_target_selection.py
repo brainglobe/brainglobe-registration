@@ -288,6 +288,7 @@ def run_bayesian_generator(
         pbounds=pbounds,
         verbose=2,
         random_state=42,
+        allow_duplicate_points=True,
     )
     # Customise Gaussian Progress
     optimizer.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
@@ -346,6 +347,7 @@ def run_bayesian_generator(
         pbounds={"roll": roll_bounds},
         verbose=2,
         random_state=42,
+        allow_duplicate_points=True,
     )
     opt_roll.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
 
