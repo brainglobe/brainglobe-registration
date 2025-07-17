@@ -50,7 +50,6 @@ def test_registration_objective_valid_input(atlas_and_sample):
     score = registration_objective(
         pitch=PITCH,
         yaw=YAW,
-        roll=ROLL,
         z_slice=slice_idx,
         atlas_volume=atlas_volume,
         sample=sample,
@@ -69,7 +68,6 @@ def test_registration_objective_invalid_slice_index(atlas_and_sample):
         registration_objective(
             pitch=0,
             yaw=0,
-            roll=0,
             z_slice=-1,
             atlas_volume=atlas_volume,
             sample=sample,
@@ -103,8 +101,12 @@ def test_run_bayesian_generator_returns_reasonable_z_slice(atlas_and_sample):
         n_iter=15,
     )
 
-    results = list(gen)
-    final_result = results[-1]
+    try:
+        while True:
+            next(gen)
+    except StopIteration as stop:
+        final_result = stop.value
+
     assert final_result["done"] is True
 
     # Confirm best_z_slice is close to true
@@ -131,7 +133,6 @@ def test_registration_objective_nan_score_handling(
     score = reg.registration_objective(
         pitch=1,
         yaw=0,
-        roll=0,
         z_slice=slice_idx,
         atlas_volume=atlas_volume,
         sample=sample,
@@ -149,7 +150,6 @@ def test_registration_objective_rejects_non_2d_sample(atlas_and_sample):
     score = registration_objective(
         pitch=0,
         yaw=0,
-        roll=0,
         z_slice=slice_idx,
         atlas_volume=atlas_volume,
         sample=bad_sample,

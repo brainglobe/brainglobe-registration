@@ -155,10 +155,7 @@ def test_scale_moving_image_invalid_scale():
     Test that scaling with invalid resolution raises ValueError.
     """
     img = np.random.rand(50, 50)
-    try:
+    with pytest.raises(ValueError, match="Pixel sizes must be greater than 0"):
         _ = scale_moving_image(
             img, atlas_res=(25.0, 25.0, 25.0), moving_res=(0, 0, 0)
         )
-        assert False, "Expected ValueError for zero scale"
-    except ValueError:
-        pass
