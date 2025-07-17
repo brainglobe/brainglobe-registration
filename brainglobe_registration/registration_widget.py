@@ -18,6 +18,7 @@ import numpy as np
 import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
+from brainglobe_space import AnatomicalSpace
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
@@ -80,6 +81,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas_transform_matrix: Optional[npt.NDArray] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
+        self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
 
@@ -677,26 +679,28 @@ class RegistrationWidget(QScrollArea):
         self._sample_images = get_image_layer_names(self._viewer)
         self.get_atlas_widget.update_sample_image_names(self._sample_images)
 
-    def _on_scale_moving_image(self, x: float, y: float, z: float):
+    def _on_scale_moving_image(
+        self, x_res: float, y_res: float, z_res: float, orientation: str
+    ):
         """
         Scale the moving image to have resolution equal to the atlas.
 
         Parameters
         ------------
-        x : float
+        x_res : float
             Moving image x pixel size (> 0.0).
-        y : float
+        y_res : float
             Moving image y pixel size (> 0.0).
-        z : float
+        z_res : float
             Moving image z pixel size (> 0.0).
+        orientation : str
+            The orientation of the moving image BrainGlobe convention.
+            Required for 3D scaling, can be an empty string if the image is 2D.
 
         Will show an error if the pixel sizes are less than or equal to 0.
         Will show an error if the moving image or atlas is not selected.
+        Will show an error if the orientation is invalid.
         """
-        if x <= 0 or y <= 0 or z <= 0:
-            show_error("Pixel sizes must be greater than 0")
-            return
-
         if not (self._moving_image and self._atlas):
             show_error(
                 "Sample image or atlas not selected. "
@@ -704,24 +708,63 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        if (x_res <= 0 or y_res <= 0) or (
+            self._moving_image.data.ndim == 3 and z_res <= 0
+        ):
+            show_error("Pixel sizes must be greater than 0")
+            return
+
+        valid_orientation_labels = ["p", "a", "s", "i", "l", "r"]
+        orientation = orientation.lower()
+
+        for label in orientation:
+            if label not in valid_orientation_labels:
+                show_error(
+                    "Invalid orientation. "
+                    "Please use the BrainGlobe convention (e.g. 'psl')"
+                )
+                return
+
         if self._moving_image_data_backup is None:
             self._moving_image_data_backup = self._moving_image.data.copy()
 
-        x_factor = x / self._atlas.resolution[0]
-        y_factor = y / self._atlas.resolution[1]
-        scale: Tuple[float, ...] = (y_factor, x_factor)
+        # Debug: Print resolution information
+        print(f"Atlas resolution (z,y,x): {self._atlas.resolution}")
+        print(f"Input pixel sizes - x: {x_res}, y: {y_res}, z: {z_res}")
 
+        # Atlas resolution is stored as z,y,x
         if self._moving_image.data.ndim == 3:
-            z_factor = z / self._atlas.resolution[2]
-            scale = (z_factor, *scale)
+            self.moving_anatomical_space = AnatomicalSpace(
+                origin=orientation,
+                resolution=(z_res, y_res, x_res),
+            )
+            self._moving_image.data = (
+                self.moving_anatomical_space.map_stack_to(
+                    self._atlas.space, self._moving_image_data_backup
+                )
+            )
+        else:
+            x_factor = x_res / self._atlas.resolution[0]
+            y_factor = y_res / self._atlas.resolution[1]
+            scale: Tuple[float, ...] = (y_factor, x_factor)
 
-        self._moving_image.data = rescale(
-            self._moving_image_data_backup,
-            scale,
-            mode="constant",
-            preserve_range=True,
-            anti_aliasing=True,
-        ).astype(self._moving_image_data_backup.dtype)
+            self._moving_image.data = rescale(
+                self._moving_image_data_backup,
+                scale,
+                mode="constant",
+                preserve_range=True,
+                anti_aliasing=True,
+            ).astype(self._moving_image_data_backup.dtype)
+
+        print(f"Original image shape: {self._moving_image_data_backup.shape}")
+        print(f"Atlas shape: {self._atlas.reference.shape}")
+
+        # Resets the viewer grid to update the grid to the scaled moving image
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
+
+        print(f"Scaled image shape: {self._moving_image.data.shape}")
+        print("---")
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
