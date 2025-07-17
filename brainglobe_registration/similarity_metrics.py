@@ -13,7 +13,7 @@ def pad_to_match_shape(
     constant_values: int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Symmetrically pad both 2D arrays to match the largest shape.
+    Symmetrically pad both 2D arrays to match the largest shape along each axis.
 
     Parameters
     ----------
