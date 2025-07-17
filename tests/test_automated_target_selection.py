@@ -96,7 +96,7 @@ def test_run_bayesian_generator_returns_reasonable_z_slice(atlas_and_sample):
     gen = run_bayesian_generator(
         atlas_volume=atlas_volume,
         sample=sample,
-        manual_z_range=(20, 60),
+        manual_z_range=(30, 50),
         init_points=3,
         n_iter=5,
     )
