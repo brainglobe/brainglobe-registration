@@ -1,5 +1,5 @@
 import warnings
-from typing import Literal
+from typing import Literal, Tuple
 
 import numpy as np
 from skimage.metrics import structural_similarity
@@ -11,9 +11,10 @@ def pad_to_match_shape(
     fixed: np.ndarray,
     mode: str,
     constant_values: int = 0,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Symmetrically pad both 2D arrays to match the largest shape.
+    Symmetrically pad both 2D arrays to match the
+    largest shape along each axis.
 
     Parameters
     ----------
@@ -145,7 +146,7 @@ def compute_similarity_metric(
     moving: np.ndarray,
     fixed: np.ndarray,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
-    weights: tuple[float, float, float] = (0.7, 0.15, 0.15),
+    weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
 ):
     """
     Compute similarity between two images using SSIM, NCC, MI, or combined.
@@ -163,7 +164,7 @@ def compute_similarity_metric(
         - "ssim"     : Structural Similarity Index
         - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
         Defaults to "mi".
-    weights : tuple[float, float, float], optional
+    weights : Tuple[float, float, float], optional
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
         Only used if metric="combined". Must sum to 1.
         Defaults to (0.7, 0.15, 0.15).

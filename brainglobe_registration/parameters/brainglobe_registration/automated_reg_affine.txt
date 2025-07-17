@@ -1,8 +1,8 @@
 //Affine Transformation - brainglobe-registration
 
 //ImageTypes
-(FixedInternalImagePixelType "short")
-(MovingInternalImagePixelType "short")
+(FixedInternalImagePixelType "float")
+(MovingInternalImagePixelType "float")
 
 //Components
 (Registration "MultiResolutionRegistration")

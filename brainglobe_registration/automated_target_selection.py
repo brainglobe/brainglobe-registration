@@ -1,6 +1,6 @@
 import warnings
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Tuple
 
 import numpy as np
 from bayes_opt import BayesianOptimization
@@ -27,12 +27,11 @@ from brainglobe_registration.utils.utils import (
 def registration_objective(
     pitch: float,
     yaw: float,
-    roll: float,
     z_slice: float,
     atlas_volume: np.ndarray,
     sample: np.ndarray,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
-    weights: tuple[float, float, float] = (0.7, 0.15, 0.15),
+    weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
 ):
     """
     Compute a similarity score between a 2D sample image and a
@@ -62,7 +61,7 @@ def registration_objective(
         - "ssim"     : Structural Similarity Index
         - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
         Defaults to "mi".
-    weights : tuple[float, float, float], optional
+    weights : Tuple[float, float, float], optional
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
         Only used if metric="combined". Must sum to 1.
         Defaults to (0.7, 0.15, 0.15).
@@ -85,7 +84,7 @@ def registration_objective(
     try:
         # Create rotation matrix
         rot_matrix, bounding_box = create_rotation_matrix(
-            roll, yaw, pitch, img_shape=atlas_volume.shape
+            0, yaw, pitch, img_shape=atlas_volume.shape
         )
 
         # Rotate atlas
@@ -107,10 +106,6 @@ def registration_objective(
         )
 
         transform_params = open_parameter_file(file_path)
-
-        # Force internal pixel type to float before wrapping in list
-        transform_params["FixedInternalImagePixelType"] = ["float"]
-        transform_params["MovingInternalImagePixelType"] = ["float"]
 
         transform_param_list = [(transform_type, transform_params)]
 
@@ -159,7 +154,7 @@ def similarity_only_objective(
     target_slice: np.ndarray,
     sample: np.ndarray,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
-    weights: tuple[float, float, float] = (0.7, 0.15, 0.15),
+    weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
 ):
     """
     Compute similarity score between rotated fixed slice and 2D sample image.
@@ -180,7 +175,7 @@ def similarity_only_objective(
         - "ssim"     : Structural Similarity Index
         - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
         Defaults to "mi".
-    weights : tuple[float, float, float], optional
+    weights : Tuple[float, float, float], optional
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
         Only used if metric="combined". Must sum to 1.
         Defaults to (0.7, 0.15, 0.15).
@@ -207,14 +202,14 @@ def similarity_only_objective(
 def run_bayesian_generator(
     atlas_volume: np.ndarray,
     sample: np.ndarray,
-    manual_z_range: Optional[tuple[float, float]] = None,
-    pitch_bounds: tuple[float, float] = (-5, 5),
-    yaw_bounds: tuple[float, float] = (-5, 5),
-    roll_bounds: tuple[float, float] = (-5, 5),
+    manual_z_range: Optional[Tuple[float, float]] = None,
+    pitch_bounds: Tuple[float, float] = (-5, 5),
+    yaw_bounds: Tuple[float, float] = (-5, 5),
+    roll_bounds: Tuple[float, float] = (-5, 5),
     init_points: int = 5,
     n_iter: int = 15,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
-    weights: tuple[float, float, float] = (0.7, 0.15, 0.15),
+    weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
 ):
     """
     Run Bayesian optimisation to estimate the position of the
@@ -228,10 +223,10 @@ def run_bayesian_generator(
         3D atlas volume used as the reference.
     sample : np.ndarray
         2D image to be aligned to the atlas.
-    manual_z_range : tuple[float, float]
+    manual_z_range : Tuple[float, float], optional
         Lower and upper bounds for z-slice selection.
         Defaults to None i.e. entire range.
-    pitch_bounds, yaw_bounds, roll_bounds : tuple[float, float], optional
+    pitch_bounds, yaw_bounds, roll_bounds : Tuple[float, float], optional
         Bounds for rotation angles (default: (-5, 5) degrees).
     init_points : int, optional
         Number of initial random points for Bayesian optimisation (default: 5).
@@ -244,7 +239,7 @@ def run_bayesian_generator(
         - "ssim"     : Structural Similarity Index
         - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
         Defaults to "mi".
-    weights : tuple[float, float, float], optional
+    weights : Tuple[float, float, float], optional
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
         Only used if metric="combined". Must sum to 1.
         Defaults to (0.7, 0.15, 0.15).
@@ -272,11 +267,6 @@ def run_bayesian_generator(
     if manual_z_range is None:
         manual_z_range = (0, atlas_volume.shape[0] - 1)
 
-    def objective(pitch, yaw, z_slice):
-        return registration_objective(
-            pitch, yaw, 0, z_slice, atlas_volume, sample, metric, weights
-        )
-
     pbounds = {
         "pitch": pitch_bounds,
         "yaw": yaw_bounds,
@@ -296,7 +286,13 @@ def run_bayesian_generator(
     # Initial random points
     for _ in range(init_points):
         point = optimizer.suggest()
-        score = objective(**point)
+        score = registration_objective(
+            **point,
+            atlas_volume=atlas_volume,
+            sample=sample,
+            metric=metric,
+            weights=weights,
+        )
         optimizer.register(params=point, target=score)
 
         yield {
@@ -310,7 +306,13 @@ def run_bayesian_generator(
     # Iterative Bayesian updates
     for _ in range(n_iter):
         point = optimizer.suggest()
-        score = objective(**point)
+        score = registration_objective(
+            **point,
+            atlas_volume=atlas_volume,
+            sample=sample,
+            metric=metric,
+            weights=weights,
+        )
         optimizer.register(params=point, target=score)
 
         yield {
@@ -337,11 +339,6 @@ def run_bayesian_generator(
     target_slice = transformed_atlas[z_slice].compute()
 
     # Roll Optimisation
-    def roll_objective(roll):
-        return similarity_only_objective(
-            roll, target_slice, sample, metric, weights
-        )
-
     opt_roll = BayesianOptimization(
         f=None,
         pbounds={"roll": roll_bounds},
@@ -354,7 +351,13 @@ def run_bayesian_generator(
     # Initial roll points
     for _ in range(init_points):
         point = opt_roll.suggest()
-        score = roll_objective(**point)
+        score = similarity_only_objective(
+            **point,
+            target_slice=target_slice,
+            sample=sample,
+            metric=metric,
+            weights=weights,
+        )
         opt_roll.register(params=point, target=score)
 
         yield {
@@ -366,7 +369,13 @@ def run_bayesian_generator(
     # Iterative roll tuning
     for _ in range(n_iter):
         point = opt_roll.suggest()
-        score = roll_objective(**point)
+        score = similarity_only_objective(
+            **point,
+            target_slice=target_slice,
+            sample=sample,
+            metric=metric,
+            weights=weights,
+        )
         opt_roll.register(params=point, target=score)
 
         yield {
