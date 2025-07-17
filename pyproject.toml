@@ -23,7 +23,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "napari>=0.6.1",
+    "napari>=0.4.18, !=0.6.0",
+    "bayesian-optimization",
     "brainglobe-atlasapi",
     "brainglobe-utils>=0.4.3",
     "dask",
