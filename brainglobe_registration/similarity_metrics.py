@@ -193,11 +193,9 @@ def compute_similarity_metric(
             not isinstance(weights, tuple)
             or len(weights) != 3
             or not all(isinstance(w, (int, float)) for w in weights)
-            or abs(sum(weights) - 1.0) > 1e-6
         ):
             raise ValueError(
-                f"Invalid weights: {weights}."
-                f"Must be a 3-tuple of floats summing to 1."
+                f"Invalid weights: {weights}." f"Must be a 3-tuple of floats."
             )
         mi = mutual_info_regression(
             moving.ravel().reshape(-1, 1), fixed.ravel()
