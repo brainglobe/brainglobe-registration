@@ -29,8 +29,6 @@ def get_auto_slice_logging_args(params: dict) -> tuple:
         ),
     )
 
-    # namedtuple() requires List or tuple literal as second arg
-    # So cannot just add ["combined_weights"] to AutoSliceArgsBase
     AutoSliceArgsWithWeights = namedtuple(
         "AutoSliceArgsWithWeights",
         (
