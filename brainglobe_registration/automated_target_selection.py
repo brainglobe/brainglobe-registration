@@ -63,7 +63,7 @@ def registration_objective(
         Defaults to "mi".
     weights : Tuple[float, float, float], optional
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
-        Only used if metric="combined". Must sum to 1.
+        Only used if metric="combined".
         Defaults to (0.7, 0.15, 0.15).
 
     Returns
@@ -177,7 +177,7 @@ def similarity_only_objective(
         Defaults to "mi".
     weights : Tuple[float, float, float], optional
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
-        Only used if metric="combined". Must sum to 1.
+        Only used if metric="combined".
         Defaults to (0.7, 0.15, 0.15).
 
     Returns
@@ -241,7 +241,7 @@ def run_bayesian_generator(
         Defaults to "mi".
     weights : Tuple[float, float, float], optional
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
-        Only used if metric="combined". Must sum to 1.
+        Only used if metric="combined".
         Defaults to (0.7, 0.15, 0.15).
 
     Returns
