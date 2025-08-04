@@ -20,6 +20,7 @@ import napari.layers
 import numpy as np
 import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
+from brainglobe_atlasapi.config import get_brainglobe_dir
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_space import AnatomicalSpace
 from brainglobe_utils.qtpy.logo import header_widget
@@ -924,7 +925,9 @@ class RegistrationWidget(QScrollArea):
         logging.getLogger().setLevel(logging.INFO)
 
         # Define a logging output directory
-        logging_dir = Path.home() / "auto_slice_logs"
+        logging_dir = (
+            get_brainglobe_dir() / "brainglobe_reg_target_selection_logs"
+        )
         logging_dir.mkdir(parents=True, exist_ok=True)
 
         args_namedtuple, args_dict = get_auto_slice_logging_args(params)
