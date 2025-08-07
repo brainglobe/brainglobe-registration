@@ -5,7 +5,6 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/brainglobe-registration.svg?color=green)](https://python.org)
 [![tests](https://github.com/brainglobe/brainglobe-registration/workflows/tests/badge.svg)](https://github.com/brainglobe/brainglobe-registration/actions)
 [![codecov](https://codecov.io/gh/brainglobe/brainglobe-registration/branch/main/graph/badge.svg)](https://codecov.io/gh/brainglobe/brainglobe-registration)
-[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/brainglobe-registration)](https://napari-hub.org/plugins/brainglobe-registration)
 
 Registration to a BrainGlobe atlas using Elastix
 
