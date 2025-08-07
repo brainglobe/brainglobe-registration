@@ -1,3 +1,4 @@
+import logging
 import warnings
 from pathlib import Path
 from typing import Literal, Optional, Tuple
@@ -14,6 +15,9 @@ from brainglobe_registration.similarity_metrics import (
     compute_similarity_metric,
     pad_to_match_shape,
     prepare_images,
+)
+from brainglobe_registration.utils.logging import (
+    FancyBayesLogger,
 )
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
@@ -280,6 +284,9 @@ def run_bayesian_generator(
         random_state=42,
         allow_duplicate_points=True,
     )
+
+    optimizer.logger = FancyBayesLogger(verbose=2)
+
     # Customise Gaussian Progress
     optimizer.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
 
@@ -346,6 +353,9 @@ def run_bayesian_generator(
         random_state=42,
         allow_duplicate_points=True,
     )
+
+    opt_roll.logger = FancyBayesLogger(verbose=2)
+
     opt_roll.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
 
     # Initial roll points
@@ -387,12 +397,19 @@ def run_bayesian_generator(
     best_roll = round(opt_roll.max["params"]["roll"], 2)
     best_roll_score = opt_roll.max["target"]
 
-    print(
+    logging.info(
         f"\n[Bayesian] Optimal result:"
         f"\nScore (without roll): {best_score:.4f}"
         f"\nScore (including roll): {best_roll_score:.4f}"
     )
-    print(f"pitch: {pitch}, yaw: {yaw}, roll: {best_roll}, z_slice: {z_slice}")
+    logging.info(
+        f"pitch: {pitch}, yaw: {yaw}, roll: {best_roll}, z_slice: {z_slice}"
+    )
+
+    root_logger = logging.getLogger()
+    if root_logger.hasHandlers():
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
 
     return {
         "best_pitch": pitch,

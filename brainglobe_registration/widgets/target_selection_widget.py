@@ -1,5 +1,3 @@
-import math
-
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import (
     QComboBox,
@@ -9,7 +7,6 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -136,7 +133,7 @@ class AutoSliceDialog(QDialog):
             ["MI weight:", "NCC weight:", "SSIM weight:"],
             [0.7, 0.15, 0.15],
         ):
-            spinbox.setRange(0.0, 1.0)
+            spinbox.setRange(0.0, 9999)
             spinbox.setSingleStep(0.01)
             spinbox.setValue(default)
             self.weights_layout.addWidget(QLabel(label))
@@ -179,16 +176,6 @@ class AutoSliceDialog(QDialog):
         metric_value = metric_map.get(selected_metric, "mi")
 
         if metric_value == "combined":
-            total = (
-                self.mi_weight.value()
-                + self.ncc_weight.value()
-                + self.ssim_weight.value()
-            )
-            if not math.isclose(total, 1.0, abs_tol=1e-6):
-                QMessageBox.warning(
-                    self, "Invalid Weights", "Total weight must equal 1.0."
-                )
-                return
             weights = tuple(
                 round(val, 2)
                 for val in (
@@ -197,8 +184,12 @@ class AutoSliceDialog(QDialog):
                     self.ssim_weight.value(),
                 )
             )
-        else:
-            weights = (0.0, 0.0, 0.0)
+        elif metric_value == "mi":
+            weights = tuple((1.0, 0.0, 0.0))
+        elif metric_value == "ncc":
+            weights = tuple((0.0, 1.0, 0.0))
+        elif metric_value == "ssim":
+            weights = tuple((0.0, 0.0, 1.0))
 
         params = {
             "z_range": (self.z_min.value(), self.z_max.value()),
