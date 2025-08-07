@@ -10,7 +10,6 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -55,6 +54,7 @@ from brainglobe_registration.automated_target_selection import (
     run_bayesian_generator,
 )
 from brainglobe_registration.utils.logging import (
+    StripANSIColorFilter,
     get_auto_slice_logging_args,
 )
 from brainglobe_registration.utils.transforms import (
@@ -935,14 +935,6 @@ class RegistrationWidget(QScrollArea):
             verbose=True,
             write_git=False,
         )
-
-        # Clean up logging
-        ANSI_ESCAPE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-
-        class StripANSIColorFilter(logging.Filter):
-            def filter(self, record):
-                record.msg = ANSI_ESCAPE.sub("", str(record.msg))
-                return True
 
         for handler in logging.getLogger().handlers:
             handler.addFilter(StripANSIColorFilter())

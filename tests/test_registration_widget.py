@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,9 @@ from brainglobe_space import AnatomicalSpace
 from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
+from brainglobe_registration.utils.logging import (
+    StripANSIColorFilter,
+)
 
 
 @pytest.fixture()
@@ -597,6 +601,62 @@ def test_open_auto_slice_dialog_valid(
 
     mocked_dialog_class.assert_called_once()
     mocked_dialog.exec_.assert_called_once()
+
+
+def test__on_auto_slice_parameters_confirmed_starts_worker(
+    registration_widget, mocker
+):
+    params = {
+        "init_points": 3,
+        "n_iter": 5,
+    }
+    total = 2 * (params["init_points"] + params["n_iter"])
+
+    # Mock progress bar
+    progress_bar_mock = mocker.Mock()
+    registration_widget.adjust_moving_image_widget.progress_bar = (
+        progress_bar_mock
+    )
+
+    mocked_worker = mocker.Mock()
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        return_value=mocked_worker,
+    )
+
+    # Call method
+    registration_widget._on_auto_slice_parameters_confirmed(params)
+
+    # Assert progress bar is set correctly
+    progress_bar_mock.setVisible.assert_called_once_with(True)
+    progress_bar_mock.setValue.assert_called_once_with(0)
+    progress_bar_mock.setRange.assert_called_once_with(0, total)
+
+    # Assert worker created and connected correctly
+    mocked_create_worker.assert_called_once()
+    mocked_worker.yielded.connect.assert_called_once_with(
+        registration_widget.handle_auto_slice_progress
+    )
+    mocked_worker.returned.connect.assert_called_once_with(
+        registration_widget.set_optimal_rotation_params
+    )
+    mocked_worker.start.assert_called_once()
+
+
+def test_strip_ansi_color_filter_removes_escape_codes():
+    record = logging.LogRecord(
+        "name",
+        logging.INFO,
+        "pathname",
+        0,
+        "\x1b[31mRed Text\x1b[0m",
+        (),
+        None,
+    )
+    filt = StripANSIColorFilter()
+    filt.filter(record)
+
+    assert record.msg == "Red Text"
 
 
 def test_set_optimal_rotation_params_sets_gui_values(

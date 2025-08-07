@@ -1,4 +1,5 @@
 import logging
+import re
 from collections import namedtuple
 
 from bayes_opt.logger import ScreenLogger
@@ -51,3 +52,12 @@ class FancyBayesLogger(ScreenLogger):
         self._logger.info(
             f"[BayesOpt] Step | Target: {target:.4f} | {log_str}"
         )
+
+
+ANSI_ESCAPE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+
+class StripANSIColorFilter(logging.Filter):
+    def filter(self, record):
+        record.msg = ANSI_ESCAPE.sub("", str(record.msg))
+        return True
