@@ -952,6 +952,7 @@ class RegistrationWidget(QScrollArea):
             params["n_iter"],
             params["metric"],
             params["weights"],
+            logging_dir=logging_dir,
         )
 
         i = 0
