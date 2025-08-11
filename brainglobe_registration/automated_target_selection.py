@@ -401,8 +401,6 @@ def run_bayesian_generator(
         f"\n[Bayesian] Optimal result:"
         f"\nScore (without roll): {best_score:.4f}"
         f"\nScore (including roll): {best_roll_score:.4f}"
-    )
-    logging.info(
         f"pitch: {pitch}, yaw: {yaw}, roll: {best_roll}, z_slice: {z_slice}"
     )
 
