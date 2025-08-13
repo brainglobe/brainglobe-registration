@@ -454,11 +454,6 @@ def run_bayesian_generator(
         f"\nBest z_slice: {z_slice}"
     )
 
-    root_logger = logging.getLogger()
-    if root_logger.hasHandlers():
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-
     return {
         "best_pitch": pitch,
         "best_yaw": yaw,
