@@ -10,11 +10,9 @@ Users can download and add the atlas images/structures as layers to the viewer.
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Optional, Tuple
 
-import bayes_opt
 import dask.array as da
 import napari.layers
 import numpy as np
@@ -975,6 +973,11 @@ class RegistrationWidget(QScrollArea):
         except StopIteration as stop:
             final_result = stop.value
 
+        root_logger = logging.getLogger()
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers[:]:
+                root_logger.removeHandler(handler)
+
         return {
             "done": True,
             "best_pitch": final_result["best_pitch"],
@@ -987,80 +990,83 @@ class RegistrationWidget(QScrollArea):
         atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
         slab = get_data_from_napari_layer(self._moving_image).astype(np.int16)
 
-        logging.getLogger().setLevel(logging.INFO)
-        logging_dir = Path.home() / "auto_slice_logs"
+        # Define a logging output directory
+        logging_dir = get_brainglobe_dir() / "brainglobe_registration_logs"
         logging_dir.mkdir(parents=True, exist_ok=True)
 
-        args_namedtuple, args_dict = get_auto_slice_logging_args(params)
+        args_namedtuple = get_auto_slice_logging_args(params)
 
         fancylog.start_logging(
             output_dir=str(logging_dir),
-            package=bayes_opt,
+            package=brainglobe_registration,
             filename="auto_slab_log",
             variables=args_namedtuple,
             log_header="AUTO SLAB DETECTION LOG",
-            verbose=False,
+            verbose=True,
             write_git=False,
         )
-
-        ANSI_ESCAPE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-
-        class StripANSIColorFilter(logging.Filter):
-            def filter(self, record):
-                record.msg = ANSI_ESCAPE.sub("", str(record.msg))
-                return True
 
         for handler in logging.getLogger().handlers:
             handler.addFilter(StripANSIColorFilter())
 
-        logging.info("Starting slab slice detection...")
+        logging.info(
+            "\nBayesian slice detection for the first slice in the slab..."
+        )
 
         first_slice = slab[0]
         last_slice = slab[-1]
 
-        with redirect_stdout_to_fancylog():
-            progress_i = 0
-            result_first = run_bayesian_generator(
-                atlas_image,
-                first_slice,
-                params["z_range"],
-                params["pitch_bounds"],
-                params["yaw_bounds"],
-                params["roll_bounds"],
-                params["init_points"],
-                params["n_iter"],
-                params["metric"],
-                params["weights"],
-            )
-            while True:
-                try:
-                    next(result_first)
-                    progress_i += 1
-                    yield {"progress": progress_i}
-                except StopIteration as stop:
-                    final_first = stop.value
-                    break
+        progress_i = 0
+        result_first = run_bayesian_generator(
+            atlas_image,
+            first_slice,
+            params["z_range"],
+            params["pitch_bounds"],
+            params["yaw_bounds"],
+            params["roll_bounds"],
+            params["init_points"],
+            params["n_iter"],
+            params["metric"],
+            params["weights"],
+        )
 
-            result_last = run_bayesian_generator(
-                atlas_image,
-                last_slice,
-                params["z_range"],
-                params["pitch_bounds"],
-                params["yaw_bounds"],
-                params["roll_bounds"],
-                params["init_points"],
-                params["n_iter"],
-                params["metric"],
-                params["weights"],
-            )
+        try:
             while True:
-                try:
-                    next(result_last)
-                    progress_i += 1
-                    yield {"progress": progress_i}
-                except StopIteration as stop:
-                    final_last = stop.value
-                    break
+                next(result_first)
+                progress_i += 1
+                yield {"progress": progress_i}
+        except StopIteration as stop:
+            final_first = stop.value
+
+        logging.info(
+            "\nBayesian slice detection for the last slice in the slab..."
+        )
+
+        result_last = run_bayesian_generator(
+            atlas_image,
+            last_slice,
+            params["z_range"],
+            params["pitch_bounds"],
+            params["yaw_bounds"],
+            params["roll_bounds"],
+            params["init_points"],
+            params["n_iter"],
+            params["metric"],
+            params["weights"],
+        )
+
+        try:
+            while True:
+                next(result_last)
+                progress_i += 1
+                yield {"progress": progress_i}
+        except StopIteration as stop:
+            final_last = stop.value
+
+        logging.info(
+            "\nFirst and last slices have been matched to the atlas."
+            "Finding slices in between..."
+        )
 
         # --- Z slice calculation ---
         z1 = final_first["best_z_slice"]
@@ -1116,6 +1122,11 @@ class RegistrationWidget(QScrollArea):
                     "z_slice": target_z_indices[i],
                 }
             )
+
+        root_logger = logging.getLogger()
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers[:]:
+                root_logger.removeHandler(handler)
 
         return {
             "done": True,
