@@ -963,6 +963,11 @@ class RegistrationWidget(QScrollArea):
         except StopIteration as stop:
             final_result = stop.value
 
+        root_logger = logging.getLogger()
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers[:]:
+                root_logger.removeHandler(handler)
+
         return {
             "done": True,
             "best_pitch": final_result["best_pitch"],
