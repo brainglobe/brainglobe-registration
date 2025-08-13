@@ -51,12 +51,13 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
+import brainglobe_registration
 from brainglobe_registration.automated_target_selection import (
     run_bayesian_generator,
 )
 from brainglobe_registration.utils.logging import (
+    StripANSIColorFilter,
     get_auto_slice_logging_args,
-    redirect_stdout_to_fancylog,
 )
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
@@ -931,34 +932,21 @@ class RegistrationWidget(QScrollArea):
             np.int16
         )
 
-        # Suppress DEBUG statements
-        logging.getLogger().setLevel(logging.INFO)
-
         # Define a logging output directory
-        logging_dir = (
-            get_brainglobe_dir() / "brainglobe_reg_target_selection_logs"
-        )
+        logging_dir = get_brainglobe_dir() / "brainglobe_registration_logs"
         logging_dir.mkdir(parents=True, exist_ok=True)
 
-        args_namedtuple, args_dict = get_auto_slice_logging_args(params)
+        args_namedtuple = get_auto_slice_logging_args(params)
 
         fancylog.start_logging(
             output_dir=str(logging_dir),
-            package=bayes_opt,
+            package=brainglobe_registration,
             filename="auto_slice_log",
             variables=args_namedtuple,
             log_header="AUTO SLICE DETECTION LOG",
-            verbose=False,
+            verbose=True,
             write_git=False,
         )
-
-        # Clean up logging
-        ANSI_ESCAPE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-
-        class StripANSIColorFilter(logging.Filter):
-            def filter(self, record):
-                record.msg = ANSI_ESCAPE.sub("", str(record.msg))
-                return True
 
         for handler in logging.getLogger().handlers:
             handler.addFilter(StripANSIColorFilter())
@@ -978,15 +966,14 @@ class RegistrationWidget(QScrollArea):
             params["weights"],
         )
 
-        with redirect_stdout_to_fancylog():
-            i = 0
-            try:
-                while True:
-                    next(result_generator)
-                    i += 1
-                    yield {"progress": i}
-            except StopIteration as stop:
-                final_result = stop.value
+        i = 0
+        try:
+            while True:
+                next(result_generator)
+                i += 1
+                yield {"progress": i}
+        except StopIteration as stop:
+            final_result = stop.value
 
         return {
             "done": True,

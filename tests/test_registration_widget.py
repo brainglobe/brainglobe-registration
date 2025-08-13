@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,9 @@ from brainglobe_space import AnatomicalSpace
 from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
+from brainglobe_registration.utils.logging import (
+    StripANSIColorFilter,
+)
 
 
 @pytest.fixture()
@@ -597,6 +601,181 @@ def test_open_auto_slice_dialog_valid(
 
     mocked_dialog_class.assert_called_once()
     mocked_dialog.exec_.assert_called_once()
+
+
+def test__on_auto_slice_parameters_confirmed_starts_worker(
+    registration_widget, mocker
+):
+    params = {
+        "init_points": 3,
+        "n_iter": 5,
+    }
+    total = 2 * (params["init_points"] + params["n_iter"])
+
+    # Mock progress bar
+    progress_bar_mock = mocker.Mock()
+    registration_widget.adjust_moving_image_widget.progress_bar = (
+        progress_bar_mock
+    )
+
+    mocked_worker = mocker.Mock()
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        return_value=mocked_worker,
+    )
+
+    # Call method
+    registration_widget._on_auto_slice_parameters_confirmed(params)
+
+    # Assert progress bar is set correctly
+    progress_bar_mock.setVisible.assert_called_once_with(True)
+    progress_bar_mock.setValue.assert_called_once_with(0)
+    progress_bar_mock.setRange.assert_called_once_with(0, total)
+
+    # Assert worker created and connected correctly
+    mocked_create_worker.assert_called_once()
+    mocked_worker.yielded.connect.assert_called_once_with(
+        registration_widget.handle_auto_slice_progress
+    )
+    mocked_worker.returned.connect.assert_called_once_with(
+        registration_widget.set_optimal_rotation_params
+    )
+    mocked_worker.start.assert_called_once()
+
+
+def test_strip_ansi_color_filter_removes_escape_codes():
+    record = logging.LogRecord(
+        "name",
+        logging.INFO,
+        "pathname",
+        0,
+        "\x1b[31mRed Text\x1b[0m",
+        (),
+        None,
+    )
+    filt = StripANSIColorFilter()
+    filt.filter(record)
+
+    assert record.msg == "Red Text"
+
+
+def test_run_auto_slice_thread_logs_and_yields_results(
+    mocker, registration_widget
+):
+    atlas_image = np.ones((10, 10), dtype=np.uint8)
+    moving_image = (np.ones((10, 10)) * 2).astype(np.int16)
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget."
+        "get_data_from_napari_layer",
+        side_effect=[atlas_image, moving_image],
+    )
+
+    logging_dir = Path("/tmp/fake_logging_dir")
+    mocker.patch(
+        "brainglobe_registration.registration_widget.get_brainglobe_dir",
+        return_value=logging_dir,
+    )
+
+    mock_args_namedtuple = mocker.Mock()
+    mock_get_args = mocker.patch(
+        "brainglobe_registration.registration_widget."
+        "get_auto_slice_logging_args",
+        return_value=mock_args_namedtuple,
+    )
+
+    mock_start_logging = mocker.patch(
+        "brainglobe_registration.registration_widget.fancylog.start_logging"
+    )
+
+    # Patch logger handlers
+    handler_1 = mocker.Mock()
+    handler_2 = mocker.Mock()
+    handler_1.level = logging.NOTSET
+    handler_2.level = logging.NOTSET
+    logger = logging.getLogger()
+    original_handlers = logger.handlers
+    logger.handlers = [handler_1, handler_2]
+
+    # Spy on logging.info
+    info_spy = mocker.spy(logging, "info")
+
+    final_result = {
+        "best_pitch": 1,
+        "best_yaw": 2,
+        "best_roll": 3,
+        "best_z_slice": 4,
+    }
+
+    def mock_generator(*args, **kwargs):
+        yield  # 1st progress
+        yield  # 2nd progress
+        return final_result
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.run_bayesian_generator",
+        side_effect=mock_generator,
+    )
+
+    # Define params
+    params = {
+        "z_range": (0, 10),
+        "pitch_bounds": (-10, 10),
+        "yaw_bounds": (-10, 10),
+        "roll_bounds": (-10, 10),
+        "init_points": 1,
+        "n_iter": 1,
+        "metric": "mi",
+        "weights": [1.0, 0.0, 0.0],
+    }
+
+    # Call the function and collect outputs
+    gen = registration_widget.run_auto_slice_thread(params)
+
+    progress = []
+    try:
+        while True:
+            progress.append(next(gen))
+    except StopIteration as stop:
+        final_result = stop.value
+
+    expected_output_dir = str(logging_dir / "brainglobe_registration_logs")
+
+    mock_start_logging.assert_called_once_with(
+        output_dir=expected_output_dir,
+        package=mocker.ANY,
+        filename="auto_slice_log",
+        variables=mock_args_namedtuple,
+        log_header="AUTO SLICE DETECTION LOG",
+        verbose=True,
+        write_git=False,
+    )
+
+    mock_get_args.assert_called_once_with(params)
+
+    # Check StripANSIColorFilter added
+    handler_1.addFilter.assert_called_once()
+    handler_2.addFilter.assert_called_once()
+    assert isinstance(
+        handler_1.addFilter.call_args.args[0], StripANSIColorFilter
+    )
+
+    # Check logging.info was called
+    info_spy.assert_any_call("Starting Bayesian slice detection...")
+
+    # Check progress yields
+    assert progress == [{"progress": 1}, {"progress": 2}]
+
+    assert final_result == {
+        "done": True,
+        "best_pitch": 1,
+        "best_yaw": 2,
+        "best_roll": 3,
+        "best_z_slice": 4,
+    }
+
+    # Restore logger handlers
+    logger.handlers = original_handlers
 
 
 def test_set_optimal_rotation_params_sets_gui_values(

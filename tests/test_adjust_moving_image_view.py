@@ -17,7 +17,7 @@ def adjust_moving_image_view() -> AdjustMovingImageView:
 def test_init(qtbot, adjust_moving_image_view):
     qtbot.addWidget(adjust_moving_image_view)
 
-    assert adjust_moving_image_view.layout().rowCount() == 12
+    assert adjust_moving_image_view.layout().rowCount() == 14
 
 
 @pytest.mark.parametrize(

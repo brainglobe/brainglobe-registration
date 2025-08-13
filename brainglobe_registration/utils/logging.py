@@ -1,8 +1,8 @@
 import logging
-import sys
+import re
 from collections import namedtuple
-from contextlib import contextmanager
-from io import StringIO
+
+from bayes_opt.logger import ScreenLogger
 
 
 def get_auto_slice_logging_args(params: dict) -> tuple:
@@ -14,10 +14,11 @@ def get_auto_slice_logging_args(params: dict) -> tuple:
         "init_points": str(params["init_points"]),
         "n_iter": str(params["n_iter"]),
         "metric": str(params["metric"]),
+        "metric_weights": str(f"('mi', 'ncc', 'ssim') = {params['weights']}"),
     }
 
-    AutoSliceArgsBase = namedtuple(
-        "AutoSliceArgsBase",
+    AutoSliceArgs = namedtuple(
+        "AutoSliceArgs",
         (
             "z_range",
             "pitch_bounds",
@@ -26,44 +27,37 @@ def get_auto_slice_logging_args(params: dict) -> tuple:
             "init_points",
             "n_iter",
             "metric",
+            "metric_weights",
         ),
     )
 
-    AutoSliceArgsWithWeights = namedtuple(
-        "AutoSliceArgsWithWeights",
-        (
-            "z_range",
-            "pitch_bounds",
-            "yaw_bounds",
-            "roll_bounds",
-            "init_points",
-            "n_iter",
-            "metric",
-            "combined_weights",
-        ),
-    )
-
-    if params["metric"] == "combined":
-        args_dict["combined_weights"] = str(params["weights"])
-        return AutoSliceArgsWithWeights(*args_dict.values()), args_dict
-    else:
-        return AutoSliceArgsBase(*args_dict.values()), args_dict
+    return AutoSliceArgs(*args_dict.values())
 
 
-@contextmanager
-def redirect_stdout_to_fancylog(level=logging.INFO):
-    """
-    Redirects print() output within the context block to the fancylog logger.
-    """
-    logger = logging.getLogger()
-    old_stdout = sys.stdout
-    stream = StringIO()
-    sys.stdout = stream
+class FancyBayesLogger(ScreenLogger):
+    def __init__(self, verbose=2):
+        super().__init__(verbose=verbose)
+        self._logger = logging.getLogger("fancylog.bayesopt")
 
-    try:
-        yield
-    finally:
-        sys.stdout = old_stdout
-        output = stream.getvalue()
-        for line in output.strip().splitlines():
-            logger.log(level, line)
+    def log_optimization_step(self, keys, result, params_config, best):
+        """
+        Logs a single Bayesian optimisation step using logging.info().
+
+        Overrides the default `ScreenLogger` used by `BayesianOptimization`,
+        which prints to stdout. Redirecting output through `fancylog` allows
+        better integration with file-based and structured logging.
+        """
+        log_str = "|".join([f"{k}: {result['params'][k]:.4f}" for k in keys])
+        target = result["target"]
+        self._logger.info(
+            f"[BayesOpt] Step | Target: {target:.4f} | {log_str}"
+        )
+
+
+ANSI_ESCAPE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+
+class StripANSIColorFilter(logging.Filter):
+    def filter(self, record):
+        record.msg = ANSI_ESCAPE.sub("", str(record.msg))
+        return True
