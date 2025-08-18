@@ -1,7 +1,7 @@
 import logging
 import warnings
 from pathlib import Path
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple
 
 import numpy as np
 from bayes_opt import BayesianOptimization
@@ -215,7 +215,6 @@ def run_bayesian_generator(
     n_iter: int = 15,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
     weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
-    logging_dir: Optional[Union[str, Path]] = None,
 ):
     """
     Run Bayesian optimisation to estimate the position of the
@@ -249,9 +248,6 @@ def run_bayesian_generator(
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
         Only used if metric="combined".
         Defaults to (0.7, 0.15, 0.15).
-    logging_dir : str or Path, optional
-        Directory where optimisation logs, intermediate images, and data
-        objects will be saved.
 
     Returns
     -------
@@ -315,34 +311,30 @@ def run_bayesian_generator(
         }
 
         # Logging image + data
-        if logging_dir:
-            rot_matrix, bbox = create_rotation_matrix(
-                roll=0,
-                yaw=rounded["yaw"],
-                pitch=rounded["pitch"],
-                img_shape=atlas_volume.shape,
-            )
-            rotated = rotate_volume(
-                atlas_volume, atlas_volume.shape, rot_matrix, bbox
-            )
-            slice_image = rotated[rounded["z"]].compute()
+        rot_matrix, bbox = create_rotation_matrix(
+            roll=0,
+            yaw=rounded["yaw"],
+            pitch=rounded["pitch"],
+            img_shape=atlas_volume.shape,
+        )
+        rotated = rotate_volume(
+            atlas_volume, atlas_volume.shape, rot_matrix, bbox
+        )
+        slice_image = rotated[rounded["z"]].compute()
 
-            image_subfolder = f"media/images/coarse_{iteration:03}"
-            fancylog.log_image(
-                slice_image,
-                name="rotated_slice",
-                logging_dir=logging_dir,
-                subfolder=image_subfolder,
-                metadata={**rounded, "score": score, "stage": "coarse"},
-            )
+        subfolder = f"coarse_{iteration:03}"
+        fancylog.log_image(
+            slice_image,
+            name="rotated_slice",
+            subfolder=subfolder,
+            metadata={**rounded, "score": score, "stage": "coarse"},
+        )
 
-            data_subfolder = f"media/data/coarse_{iteration:03}"
-            fancylog.log_data_object(
-                rot_matrix.tolist(),
-                name="rotation_matrix",
-                logging_dir=logging_dir,
-                subfolder=data_subfolder,
-            )
+        fancylog.log_data_object(
+            rot_matrix.tolist(),
+            name="rotation_matrix",
+            subfolder=subfolder,
+        )
 
         yield {
             "stage": "coarse",
@@ -397,41 +389,37 @@ def run_bayesian_generator(
 
         rounded_roll = round(point["roll"], 2)
 
-        if logging_dir:
-            rot_matrix, bbox = create_rotation_matrix(
-                roll=rounded_roll,
-                yaw=yaw,
-                pitch=pitch,
-                img_shape=atlas_volume.shape,
-            )
-            rotated = rotate_volume(
-                atlas_volume, atlas_volume.shape, rot_matrix, bbox
-            )
-            slice_image = rotated[z_slice].compute()
+        rot_matrix, bbox = create_rotation_matrix(
+            roll=rounded_roll,
+            yaw=yaw,
+            pitch=pitch,
+            img_shape=atlas_volume.shape,
+        )
+        rotated = rotate_volume(
+            atlas_volume, atlas_volume.shape, rot_matrix, bbox
+        )
+        slice_image = rotated[z_slice].compute()
 
-            image_subfolder = f"media/images/fine_{roll_iteration:03}"
-            fancylog.log_image(
-                slice_image,
-                name="rotated_slice",
-                logging_dir=logging_dir,
-                subfolder=image_subfolder,
-                metadata={
-                    "pitch": pitch,
-                    "yaw": yaw,
-                    "z": z_slice,
-                    "roll": rounded_roll,
-                    "score": score,
-                    "stage": "fine",
-                },
-            )
+        subfolder = f"fine_{roll_iteration:03}"
+        fancylog.log_image(
+            slice_image,
+            name="rotated_slice",
+            subfolder=subfolder,
+            metadata={
+                "pitch": pitch,
+                "yaw": yaw,
+                "z": z_slice,
+                "roll": rounded_roll,
+                "score": score,
+                "stage": "fine",
+            },
+        )
 
-            data_subfolder = f"media/data/fine_{roll_iteration:03}"
-            fancylog.log_data_object(
-                rot_matrix.tolist(),
-                name="rotation_matrix",
-                logging_dir=logging_dir,
-                subfolder=data_subfolder,
-            )
+        fancylog.log_data_object(
+            rot_matrix.tolist(),
+            name="rotation_matrix",
+            subfolder=subfolder,
+        )
 
         yield {
             "stage": "fine",
