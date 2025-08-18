@@ -136,6 +136,7 @@ passenv =
     PYVISTA_OFF_SCREEN
 extras =
     dev
+    image
 commands =
     pytest -v --color=yes --cov=brainglobe_registration --cov-report=xml
 deps =
