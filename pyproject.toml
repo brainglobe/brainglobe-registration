@@ -29,7 +29,7 @@ dependencies = [
     "brainglobe-utils>=0.4.3",
     "dask",
     "dask-image",
-    "fancylog",
+    "fancylog[image]",
     "itk-elastix",
     "lxml_html_clean",
     "numpy",
