@@ -708,9 +708,9 @@ def test_run_auto_slice_thread_logs_and_yields_results(
     }
 
     def mock_generator(*args, **kwargs):
-        yield  # 1st progress
-        yield  # 2nd progress
-        return final_result
+        yield
+        yield
+        return expected_result
 
     mocker.patch(
         "brainglobe_registration.registration_widget.run_bayesian_generator",
