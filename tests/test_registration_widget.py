@@ -700,7 +700,7 @@ def test_run_auto_slice_thread_logs_and_yields_results(
     # Spy on logging.info
     info_spy = mocker.spy(logging, "info")
 
-    final_result = {
+    expected_result = {
         "best_pitch": 1,
         "best_yaw": 2,
         "best_roll": 3,
