@@ -1056,6 +1056,7 @@ def test_set_optimal_rotation_params_for_slab_updates_viewer_and_spinboxes(
     viewer_mock.dims.point = [per_slice_params[0]["z_slice"]]
     viewer_mock.dims.set_point = mocker.Mock()
     viewer_mock.add_image = mocker.Mock(return_value=mock_layer)
+    viewer_mock.dims.events.point.connect = mocker.Mock()
 
     # Mock adjust widget
     adjust_widget_mock = mocker.Mock()
@@ -1086,6 +1087,22 @@ def test_set_optimal_rotation_params_for_slab_updates_viewer_and_spinboxes(
     adjust_widget_mock.adjust_atlas_roll.setValue.assert_any_call(3)
     adjust_widget_mock.progress_bar.reset.assert_called_once()
     adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
+
+    # Extract the connected callback
+    update_callback = viewer_mock.dims.events.point.connect.call_args[0][0]
+
+    # Simulate moving to slice z=6
+    viewer_mock.dims.point = [6]
+    update_callback()
+
+    registration_widget._on_adjust_atlas_rotation.assert_any_call(4, 5, 6)
+    adjust_widget_mock.adjust_atlas_pitch.setValue.assert_any_call(4)
+    adjust_widget_mock.adjust_atlas_yaw.setValue.assert_any_call(5)
+    adjust_widget_mock.adjust_atlas_roll.setValue.assert_any_call(6)
+
+    # Simulate moving to a slice with no params (z=10)
+    viewer_mock.dims.point = [10]
+    update_callback()
 
 
 def test_handle_auto_slice_progress_updates_progress_bar(

@@ -1123,6 +1123,16 @@ class RegistrationWidget(QScrollArea):
                 }
             )
 
+        logging.info(
+            "Optimal parameters for each slice in the slab:\n"
+            + "\n".join(
+                f"Slice {i}: pitch={p['pitch']:.3f}, "
+                f"yaw={p['yaw']:.3f}, roll={p['roll']:.3f}, "
+                f"z_slice={p['z_slice']}"
+                for i, p in enumerate(per_slice_params)
+            )
+        )
+
         root_logger = logging.getLogger()
         if root_logger.hasHandlers():
             for handler in root_logger.handlers[:]:
