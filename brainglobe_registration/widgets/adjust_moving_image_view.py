@@ -2,8 +2,10 @@ from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
+    QProgressBar,
     QPushButton,
     QWidget,
 )
@@ -42,7 +44,7 @@ class AdjustMovingImageView(QWidget):
     atlas_rotation_signal = Signal(float, float, float)
     reset_atlas_signal = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, auto_slice_callback=None):
         """
         Initialize the widget.
 
@@ -120,7 +122,34 @@ class AdjustMovingImageView(QWidget):
         )
         self.layout().addRow(self.scale_moving_image_button)
 
-        self.layout().addRow(QLabel("Adjust the atlas pitch and yaw: "))
+        automate_slice_label = QLabel(
+            "Automatically choose atlas slice "
+            "and rotation parameters that align "
+            "most closely with your moving image:"
+        )
+        automate_slice_label.setWordWrap(True)
+        self.layout().addRow(automate_slice_label)
+        if auto_slice_callback is not None:
+            self.auto_slice_button = QPushButton("Automatic Slice Detection")
+            self.auto_slice_button.clicked.connect(auto_slice_callback)
+            self.layout().addRow(self.auto_slice_button)
+
+        # Progress bar wrapper to reserve height
+        self.progress_bar_container = QWidget(self)
+        self.progress_bar_layout = QHBoxLayout(self.progress_bar_container)
+        self.progress_bar_layout.setContentsMargins(0, 0, 0, 0)
+        self.progress_bar_layout.setSpacing(0)
+
+        self.progress_bar = QProgressBar(self.progress_bar_container)
+        self.progress_bar.setFixedHeight(20)
+        self.progress_bar_layout.addWidget(self.progress_bar)
+
+        self.layout().addRow(self.progress_bar_container)
+        self.progress_bar.setVisible(False)
+
+        self.layout().addRow(
+            QLabel("Manually refine the atlas pitch and yaw: ")
+        )
         self.layout().addRow("Pitch:", self.adjust_atlas_pitch)
         self.layout().addRow("Yaw:", self.adjust_atlas_yaw)
         self.layout().addRow("Roll:", self.adjust_atlas_roll)

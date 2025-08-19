@@ -9,6 +9,7 @@ Users can download and add the atlas images/structures as layers to the viewer.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -17,12 +18,17 @@ import napari.layers
 import numpy as np
 import numpy.typing as npt
 from brainglobe_atlasapi import BrainGlobeAtlas
+from brainglobe_atlasapi.config import get_brainglobe_dir
 from brainglobe_atlasapi.list_atlases import get_downloaded_atlases
 from brainglobe_space import AnatomicalSpace
 from brainglobe_utils.qtpy.logo import header_widget
 from dask_image.imread import imread as dask_imread
 from dask_image.ndinterp import affine_transform as dask_affine_transform
-from napari.qt.threading import thread_worker
+from fancylog import fancylog
+from napari.qt.threading import (
+    create_worker,
+    thread_worker,
+)
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
 from napari.viewer import Viewer
@@ -43,6 +49,14 @@ from skimage.segmentation import find_boundaries
 from skimage.transform import rescale
 from tifffile import imwrite
 
+import brainglobe_registration
+from brainglobe_registration.automated_target_selection import (
+    run_bayesian_generator,
+)
+from brainglobe_registration.utils.logging import (
+    StripANSIColorFilter,
+    get_auto_slice_logging_args,
+)
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
     rotate_volume,
@@ -63,6 +77,9 @@ from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
+from brainglobe_registration.widgets.target_selection_widget import (
+    AutoSliceDialog,
+)
 from brainglobe_registration.widgets.transform_select_view import (
     TransformSelectView,
 )
@@ -133,7 +150,10 @@ class RegistrationWidget(QScrollArea):
             self._on_sample_popup_about_to_show
         )
 
-        self.adjust_moving_image_widget = AdjustMovingImageView(parent=self)
+        self.adjust_moving_image_widget = AdjustMovingImageView(
+            parent=self,
+            auto_slice_callback=self._open_auto_slice_dialog,
+        )
         self.adjust_moving_image_widget.scale_image_signal.connect(
             self._on_scale_moving_image
         )
@@ -840,6 +860,146 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer.data = self._atlas.annotation
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
+
+    def _open_auto_slice_dialog(self):
+        if not (self._atlas and self._atlas_data_layer):
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select an atlas before "
+                "clicking 'Automatic Slice Detection'.",
+            )
+            return
+
+        if not self._moving_image:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Please select a moving image before "
+                "clicking 'Automatic Slice Detection'.",
+            )
+            return
+
+        if self._moving_image == self._atlas_data_layer:
+            display_info(
+                widget=self,
+                title="Warning",
+                message="Your moving image cannot be an atlas.",
+            )
+            return
+
+        # Launch dialog
+        max_z = self._atlas.reference.shape[0] - 1
+        dialog = AutoSliceDialog(parent=self._widget, z_max_value=max_z)
+
+        dialog.parameters_confirmed.connect(
+            self._on_auto_slice_parameters_confirmed
+        )
+        dialog.exec_()
+
+    def _on_auto_slice_parameters_confirmed(self, params: dict):
+        total = 2 * (params["init_points"] + params["n_iter"])
+
+        self.adjust_moving_image_widget.progress_bar.setVisible(True)
+        self.adjust_moving_image_widget.progress_bar.setValue(0)
+        self.adjust_moving_image_widget.progress_bar.setRange(0, total)
+
+        worker = create_worker(
+            self.run_auto_slice_thread,
+            params,
+            _progress={"total": total, "desc": "Optimising..."},
+        )
+
+        worker.yielded.connect(self.handle_auto_slice_progress)
+        worker.returned.connect(self.set_optimal_rotation_params)
+        worker.start()
+
+    def run_auto_slice_thread(self, params: dict):
+        atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
+        moving_image = get_data_from_napari_layer(self._moving_image).astype(
+            np.int16
+        )
+
+        # Define a logging output directory
+        logging_dir = get_brainglobe_dir() / "brainglobe_registration_logs"
+        logging_dir.mkdir(parents=True, exist_ok=True)
+
+        args_namedtuple = get_auto_slice_logging_args(params)
+
+        fancylog.start_logging(
+            output_dir=str(logging_dir),
+            package=brainglobe_registration,
+            filename="auto_slice_log",
+            variables=args_namedtuple,
+            log_header="AUTO SLICE DETECTION LOG",
+            verbose=True,
+            write_git=False,
+        )
+
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(StripANSIColorFilter())
+
+        logging.info("Starting Bayesian slice detection...")
+
+        result_generator = run_bayesian_generator(
+            atlas_image,
+            moving_image,
+            params["z_range"],
+            params["pitch_bounds"],
+            params["yaw_bounds"],
+            params["roll_bounds"],
+            params["init_points"],
+            params["n_iter"],
+            params["metric"],
+            params["weights"],
+        )
+
+        i = 0
+        try:
+            while True:
+                next(result_generator)
+                i += 1
+                yield {"progress": i}
+        except StopIteration as stop:
+            final_result = stop.value
+
+        root_logger = logging.getLogger()
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers[:]:
+                root_logger.removeHandler(handler)
+
+        return {
+            "done": True,
+            "best_pitch": final_result["best_pitch"],
+            "best_yaw": final_result["best_yaw"],
+            "best_roll": final_result["best_roll"],
+            "best_z_slice": final_result["best_z_slice"],
+        }
+
+    def handle_auto_slice_progress(self, update: dict):
+        if isinstance(update, dict) and "progress" in update:
+            self.adjust_moving_image_widget.progress_bar.setValue(
+                update["progress"]
+            )
+
+    def set_optimal_rotation_params(self, result):
+        if result.get("done"):
+            pitch = result["best_pitch"]
+            yaw = result["best_yaw"]
+            roll = result["best_roll"]
+            z_slice = result["best_z_slice"]
+
+            # Apply rotation to atlas
+            self._on_adjust_atlas_rotation(pitch, yaw, roll)
+            self._viewer.dims.set_point(0, z_slice)
+
+            # Update pitch, yaw, roll on GUI display
+            self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(pitch)
+            self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(yaw)
+            self.adjust_moving_image_widget.adjust_atlas_roll.setValue(roll)
+
+            self.adjust_moving_image_widget.progress_bar.reset()
+            self.adjust_moving_image_widget.progress_bar.setVisible(False)
 
     def save_outputs(
         self,
