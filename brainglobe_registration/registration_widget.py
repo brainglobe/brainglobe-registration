@@ -250,6 +250,14 @@ class RegistrationWidget(QScrollArea):
 
         self.setWidgetResizable(True)
         self.setWidget(self._widget)
+        self._update_is_3d_flag()
+
+    def _update_is_3d_flag(self):
+        if self._moving_image is None:
+            return
+        ndim = self._moving_image.data.ndim
+        is_3d = ndim == 3
+        self.adjust_moving_image_widget.set_is_3d(is_3d)
 
     def _connect_events(self):
         @self._viewer.layers.events.removed.connect
@@ -365,6 +373,7 @@ class RegistrationWidget(QScrollArea):
 
         self._moving_image = self._viewer.layers[viewer_index]
         self._moving_image_data_backup = self._moving_image.data.copy()
+        self._update_is_3d_flag()
 
     def _on_output_directory_text_edited(self):
         self.output_directory = Path(self.output_directory_text_field.text())

@@ -113,14 +113,22 @@ class AdjustMovingImageView(QWidget):
             "Sample image Y pixel size (\u03bcm / pixel):",
             self.adjust_moving_image_pixel_size_y,
         )
+
+        self.z_row_label = QLabel(
+            "Sample image Z pixel size (\u03bcm / pixel):"
+        )
+        self.orientation_row_label = QLabel("Data orientation:")
+
         self.layout().addRow(
-            "Sample image Z pixel size (\u03bcm / pixel):",
-            self.adjust_moving_image_pixel_size_z,
+            self.z_row_label, self.adjust_moving_image_pixel_size_z
         )
         self.layout().addRow(
-            QLabel("Data orientation:"), self.data_orientation_field
+            self.orientation_row_label, self.data_orientation_field
         )
+
         self.layout().addRow(self.scale_moving_image_button)
+
+        self.set_is_3d(False)
 
         automate_slice_label = QLabel(
             "Automatically choose atlas slice "
@@ -155,6 +163,15 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow("Roll:", self.adjust_atlas_roll)
         self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)
+
+    def set_is_3d(self, is_3d: bool):
+        """
+        Show / hide Z pixel size and orientation based on data dimensionality.
+        """
+        self.z_row_label.setVisible(is_3d)
+        self.adjust_moving_image_pixel_size_z.setVisible(is_3d)
+        self.orientation_row_label.setVisible(is_3d)
+        self.data_orientation_field.setVisible(is_3d)
 
     def _on_scale_image_button_click(self):
         """

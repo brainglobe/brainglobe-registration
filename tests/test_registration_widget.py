@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -54,6 +55,42 @@ def test_registration_widget(make_napari_viewer_with_images):
     widget = RegistrationWidget(make_napari_viewer_with_images)
 
     assert widget is not None
+
+
+@pytest.mark.parametrize(
+    "image_data, expected_is_3d",
+    [
+        (None, None),
+        (np.zeros((10, 10)), False),
+        (np.zeros((10, 10, 10)), True),
+    ],
+)
+def test_update_is_3d_flag_parametrized(
+    make_napari_viewer_with_images,
+    registration_widget,
+    image_data,
+    expected_is_3d,
+):
+    registration_widget.adjust_moving_image_widget.set_is_3d = MagicMock()
+
+    class MockImage:
+        def __init__(self, data):
+            self.data = data
+
+    if image_data is None:
+        registration_widget._moving_image = None
+        registration_widget._update_is_3d_flag()
+        (
+            registration_widget.adjust_moving_image_widget.set_is_3d.assert_not_called()
+        )
+    else:
+        registration_widget._moving_image = MockImage(image_data)
+        registration_widget._update_is_3d_flag()
+        (
+            registration_widget.adjust_moving_image_widget.set_is_3d.assert_called_once_with(
+                expected_is_3d
+            )
+        )
 
 
 def test_atlas_dropdown_index_changed_with_valid_index(
