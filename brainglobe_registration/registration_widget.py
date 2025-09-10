@@ -255,8 +255,7 @@ class RegistrationWidget(QScrollArea):
     def _update_is_3d_flag(self):
         if self._moving_image is None:
             return
-        ndim = self._moving_image.data.ndim
-        is_3d = ndim == 3
+        is_3d = self._moving_image.ndim == 3
         self.adjust_moving_image_widget.set_is_3d(is_3d)
 
     def _connect_events(self):

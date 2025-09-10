@@ -105,23 +105,28 @@ class AdjustMovingImageView(QWidget):
         self.reset_atlas_button.clicked.connect(self._on_atlas_reset)
 
         self.layout().addRow(QLabel("Prepare the moving image:"))
-        self.layout().addRow(
-            "Sample image X pixel size (\u03bcm / pixel):",
-            self.adjust_moving_image_pixel_size_x,
+        self.x_row_label = QLabel(
+            "Sample image X pixel size (\u03bcm / pixel):"
         )
-        self.layout().addRow(
-            "Sample image Y pixel size (\u03bcm / pixel):",
-            self.adjust_moving_image_pixel_size_y,
+        self.y_row_label = QLabel(
+            "Sample image Y pixel size (\u03bcm / pixel):"
         )
-
         self.z_row_label = QLabel(
             "Sample image Z pixel size (\u03bcm / pixel):"
         )
-        self.orientation_row_label = QLabel("Data orientation:")
 
+        self.layout().addRow(
+            self.x_row_label, self.adjust_moving_image_pixel_size_x
+        )
+        self.layout().addRow(
+            self.y_row_label, self.adjust_moving_image_pixel_size_y
+        )
         self.layout().addRow(
             self.z_row_label, self.adjust_moving_image_pixel_size_z
         )
+
+        self.orientation_row_label = QLabel("Data orientation:")
+
         self.layout().addRow(
             self.orientation_row_label, self.data_orientation_field
         )

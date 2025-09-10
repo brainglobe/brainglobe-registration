@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -11,6 +10,9 @@ from tifffile import imread
 from brainglobe_registration.registration_widget import RegistrationWidget
 from brainglobe_registration.utils.logging import (
     StripANSIColorFilter,
+)
+from brainglobe_registration.widgets.adjust_moving_image_view import (
+    AdjustMovingImageView,
 )
 
 
@@ -58,39 +60,30 @@ def test_registration_widget(make_napari_viewer_with_images):
 
 
 @pytest.mark.parametrize(
-    "image_data, expected_is_3d",
+    "sample_name, expected_is_3d",
     [
-        (None, None),
-        (np.zeros((10, 10)), False),
-        (np.zeros((10, 10, 10)), True),
+        ("moving_image_2d", False),
+        ("moving_image_3d", True),
     ],
 )
-def test_update_is_3d_flag_parametrized(
-    make_napari_viewer_with_images,
-    registration_widget,
-    image_data,
-    expected_is_3d,
+def test_update_is_3d_flag_with_preloaded_images(
+    registration_widget, mocker, sample_name, expected_is_3d
 ):
-    registration_widget.adjust_moving_image_widget.set_is_3d = MagicMock()
+    mock_set_is_3d = mocker.patch.object(AdjustMovingImageView, "set_is_3d")
 
-    class MockImage:
-        def __init__(self, data):
-            self.data = data
+    sample_index = registration_widget._sample_images.index(sample_name)
+    registration_widget._on_sample_dropdown_index_changed(sample_index)
 
-    if image_data is None:
-        registration_widget._moving_image = None
-        registration_widget._update_is_3d_flag()
-        (
-            registration_widget.adjust_moving_image_widget.set_is_3d.assert_not_called()
-        )
-    else:
-        registration_widget._moving_image = MockImage(image_data)
-        registration_widget._update_is_3d_flag()
-        (
-            registration_widget.adjust_moving_image_widget.set_is_3d.assert_called_once_with(
-                expected_is_3d
-            )
-        )
+    mock_set_is_3d.assert_called_once_with(expected_is_3d)
+
+
+def test_update_is_3d_flag_with_none(registration_widget, mocker):
+    mock_set_is_3d = mocker.patch.object(AdjustMovingImageView, "set_is_3d")
+
+    registration_widget._moving_image = None
+    registration_widget._update_is_3d_flag()
+
+    mock_set_is_3d.assert_not_called()
 
 
 def test_atlas_dropdown_index_changed_with_valid_index(
