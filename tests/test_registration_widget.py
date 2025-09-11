@@ -11,6 +11,9 @@ from brainglobe_registration.registration_widget import RegistrationWidget
 from brainglobe_registration.utils.logging import (
     StripANSIColorFilter,
 )
+from brainglobe_registration.widgets.adjust_moving_image_view import (
+    AdjustMovingImageView,
+)
 
 
 @pytest.fixture()
@@ -54,6 +57,33 @@ def test_registration_widget(make_napari_viewer_with_images):
     widget = RegistrationWidget(make_napari_viewer_with_images)
 
     assert widget is not None
+
+
+@pytest.mark.parametrize(
+    "sample_name, expected_is_3d",
+    [
+        ("moving_image_2d", False),
+        ("moving_image_3d", True),
+    ],
+)
+def test_update_is_3d_flag_with_preloaded_images(
+    registration_widget, mocker, sample_name, expected_is_3d
+):
+    mock_set_is_3d = mocker.patch.object(AdjustMovingImageView, "set_is_3d")
+
+    sample_index = registration_widget._sample_images.index(sample_name)
+    registration_widget._on_sample_dropdown_index_changed(sample_index)
+
+    mock_set_is_3d.assert_called_once_with(expected_is_3d)
+
+
+def test_update_is_3d_flag_with_none(registration_widget, mocker):
+    mock_set_is_3d = mocker.patch.object(AdjustMovingImageView, "set_is_3d")
+
+    registration_widget._moving_image = None
+    registration_widget._update_is_3d_flag()
+
+    mock_set_is_3d.assert_not_called()
 
 
 def test_atlas_dropdown_index_changed_with_valid_index(

@@ -105,22 +105,35 @@ class AdjustMovingImageView(QWidget):
         self.reset_atlas_button.clicked.connect(self._on_atlas_reset)
 
         self.layout().addRow(QLabel("Prepare the moving image:"))
+        self.x_row_label = QLabel(
+            "Sample image X pixel size (\u03bcm / pixel):"
+        )
+        self.y_row_label = QLabel(
+            "Sample image Y pixel size (\u03bcm / pixel):"
+        )
+        self.z_row_label = QLabel(
+            "Sample image Z pixel size (\u03bcm / pixel):"
+        )
+
         self.layout().addRow(
-            "Sample image X pixel size (\u03bcm / pixel):",
-            self.adjust_moving_image_pixel_size_x,
+            self.x_row_label, self.adjust_moving_image_pixel_size_x
         )
         self.layout().addRow(
-            "Sample image Y pixel size (\u03bcm / pixel):",
-            self.adjust_moving_image_pixel_size_y,
+            self.y_row_label, self.adjust_moving_image_pixel_size_y
         )
         self.layout().addRow(
-            "Sample image Z pixel size (\u03bcm / pixel):",
-            self.adjust_moving_image_pixel_size_z,
+            self.z_row_label, self.adjust_moving_image_pixel_size_z
         )
+
+        self.orientation_row_label = QLabel("Data orientation:")
+
         self.layout().addRow(
-            QLabel("Data orientation:"), self.data_orientation_field
+            self.orientation_row_label, self.data_orientation_field
         )
+
         self.layout().addRow(self.scale_moving_image_button)
+
+        self.set_is_3d(False)
 
         automate_slice_label = QLabel(
             "Automatically choose atlas slice "
@@ -155,6 +168,15 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow("Roll:", self.adjust_atlas_roll)
         self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)
+
+    def set_is_3d(self, is_3d: bool):
+        """
+        Show / hide Z pixel size and orientation based on data dimensionality.
+        """
+        self.z_row_label.setVisible(is_3d)
+        self.adjust_moving_image_pixel_size_z.setVisible(is_3d)
+        self.orientation_row_label.setVisible(is_3d)
+        self.data_orientation_field.setVisible(is_3d)
 
     def _on_scale_image_button_click(self):
         """

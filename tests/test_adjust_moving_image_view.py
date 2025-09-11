@@ -90,3 +90,17 @@ def test_atlas_reset_button_click(
         and adjust_moving_image_view.adjust_atlas_yaw.value() == 0
         and adjust_moving_image_view.adjust_atlas_roll.value() == 0
     )
+
+
+@pytest.mark.parametrize("is_3d", [True, False])
+def test_set_is_3d_visibility(qtbot, is_3d):
+    widget = AdjustMovingImageView()
+    qtbot.addWidget(widget)
+    widget.show()
+
+    widget.set_is_3d(is_3d)
+
+    assert widget.adjust_moving_image_pixel_size_z.isVisible() == is_3d
+    assert widget.z_row_label.isVisible() == is_3d
+    assert widget.data_orientation_field.isVisible() == is_3d
+    assert widget.orientation_row_label.isVisible() == is_3d
