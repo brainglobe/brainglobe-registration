@@ -569,7 +569,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         registered_hemisphere_path = (
-            self.output_directory / "registered_hemisphere.tiff"
+            self.output_directory / "registered_hemispheres.tiff"
         )
         imwrite(registered_hemisphere_path, registered_hemisphere)
 
