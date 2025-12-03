@@ -61,7 +61,7 @@ def atlas_annotation(atlas, slice_number=SLICE_NUMBER):
 
 
 @pytest.fixture(scope="module")
-def atlas_hemisphere(atlas, slice_number=SLICE_NUMBER):
+def atlas_hemispheres(atlas, slice_number=SLICE_NUMBER):
     return atlas.hemispheres[slice_number, :, :]
 
 

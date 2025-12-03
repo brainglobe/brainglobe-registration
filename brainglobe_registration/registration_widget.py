@@ -546,10 +546,10 @@ class RegistrationWidget(QScrollArea):
             self.output_directory / "registered_atlas.tiff"
         )
         imwrite(registered_annotation_image_path, registered_annotation_image)
-        hemisphere_image = self._atlas.hemispheres
+        hemispheres_image = self._atlas.hemispheres
 
         if self._atlas_transform_matrix is not None:
-            hemisphere_image = dask_affine_transform(
+            hemispheres_image = dask_affine_transform(
                 self._atlas.hemispheres,
                 self._atlas_transform_matrix,
                 order=0,
@@ -557,21 +557,19 @@ class RegistrationWidget(QScrollArea):
             )
 
         if self._moving_image.ndim == 2:
-            hemisphere_image = hemisphere_image[current_atlas_slice, :, :]
-        else:
-            hemisphere_image = hemisphere_image
+            hemispheres_image = hemispheres_image[current_atlas_slice, :, :]
 
-        if isinstance(hemisphere_image, da.Array):
-            hemisphere_image = hemisphere_image.compute()
+        if isinstance(hemispheres_image, da.Array):
+            hemispheres_image = hemispheres_image.compute()
 
-        registered_hemisphere = transform_annotation_image(
-            hemisphere_image, parameters
+        registered_hemispheres = transform_annotation_image(
+            hemispheres_image, parameters
         )
 
-        registered_hemisphere_path = (
-            self.output_directory / "registered_hemisphere.tiff"
+        registered_hemispheres_path = (
+            self.output_directory / "registered_hemispheres.tiff"
         )
-        imwrite(registered_hemisphere_path, registered_hemisphere)
+        imwrite(registered_hemispheres_path, registered_hemispheres)
 
         if self._moving_image.data.ndim == 2:
             region_stat_path = self.output_directory / "areas.csv"
@@ -581,13 +579,13 @@ class RegistrationWidget(QScrollArea):
         calculate_region_size(
             self._atlas,
             registered_annotation_image,
-            registered_hemisphere,
+            registered_hemispheres,
             region_stat_path,
         )
 
         # Free up memory
-        del registered_hemisphere
-        del hemisphere_image
+        del registered_hemispheres
+        del hemispheres_image
 
         boundaries = find_boundaries(
             registered_annotation_image, mode="inner"
@@ -1017,7 +1015,7 @@ class RegistrationWidget(QScrollArea):
         data_in_atlas_space: npt.NDArray,
         atlas_in_data_space: npt.NDArray,
         annotation_in_data_space: npt.NDArray,
-        registered_hemisphere: npt.NDArray,
+        registered_hemispheres: npt.NDArray,
     ):
         """
         Save the outputs of the registration to the output directory.
@@ -1039,8 +1037,8 @@ class RegistrationWidget(QScrollArea):
             The atlas in data space.
         annotation_in_data_space: npt.NDArray
             The annotation in data space.#
-        registered_hemisphere: npt.NDArray
-            The hemisphere annotation in data space.
+        registered_hemispheres: npt.NDArray
+            The hemispheres annotation in data space.
         """
         assert self._moving_image
         assert self.output_directory
@@ -1066,7 +1064,7 @@ class RegistrationWidget(QScrollArea):
 
         imwrite(
             self.output_directory / "registered_hemispheres.tiff",
-            registered_hemisphere,
+            registered_hemispheres,
         )
 
     def __dict__(self):

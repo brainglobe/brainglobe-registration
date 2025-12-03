@@ -547,7 +547,7 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
         tmp_path / f"downsampled_standard_{moving_image_name}.tiff"
     ).exists()
     assert (tmp_path / "registered_atlas.tiff").exists()
-    assert (tmp_path / "registered_hemisphere.tiff").exists()
+    assert (tmp_path / "registered_hemispheres.tiff").exists()
     assert (tmp_path / "areas.csv").exists()
     assert (tmp_path / "boundaries.tiff").exists()
     assert (tmp_path / "deformation_field_0.tiff").exists()
