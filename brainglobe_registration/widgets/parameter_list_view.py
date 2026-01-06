@@ -1,3 +1,5 @@
+from typing import Dict
+
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QTableWidget,
@@ -48,7 +50,7 @@ class RegistrationParameterListView(QTableWidget):
 
         # Track old parameter names for row deletion
         # Maps row index to parameter name before editing
-        self._old_param_names = {}
+        self._old_param_names: Dict[int, str] = {}
 
         self.set_data(param_dict)
         self.setHorizontalHeaderItem(0, QTableWidgetItem("Parameter"))
@@ -95,26 +97,32 @@ class RegistrationParameterListView(QTableWidget):
         """
         Track parameter name changes to enable row deletion.
 
-        This is called when an item changes and allows us to track
-        the old parameter name for deletion purposes.
+        This is called when an item changes. We use this to ensure
+        the old parameter name is tracked before cellChanged fires.
 
         Parameters
         ----------
         item : QTableWidgetItem
             The item that was changed.
         """
+        # Skip if signals are blocked (during row removal)
+        if self.signalsBlocked():
+            return
+
         row = item.row()
         column = item.column()
 
-        # If parameter name column (0) is being edited, ensure we track the old name
+        # If parameter name column (0) is being edited,
+        # ensure we track the old name
         if column == 0:
-            # Get the old name from item data (stored when item was created/updated)
-            old_name = item.data(Qt.ItemDataRole.UserRole)
-            if old_name is None or old_name == "":
-                # Fallback: use current text as old name (before it changes)
-                old_name = item.text()
-            # Store in tracking dict if not already there
+            # Get the old name from our tracking dict or item data
             if row not in self._old_param_names:
+                # Try to get from item's UserRole data first
+                old_name = item.data(Qt.ItemDataRole.UserRole)
+                if old_name is None or old_name == "":
+                    # Fallback: use current text (might already be new value)
+                    old_name = item.text()
+                # Store in tracking dict
                 self._old_param_names[row] = old_name
 
     def _on_cell_change(self, row, column):
@@ -178,8 +186,8 @@ class RegistrationParameterListView(QTableWidget):
                         self.blockSignals(False)
                     return
                 else:
-                    # Parameter name cleared but value exists - clear the value item
-                    # and update tracking
+                    # Parameter name cleared but value exists
+                    # Clear the value item and update tracking
                     self.blockSignals(True)
                     try:
                         if value_item:
