@@ -107,7 +107,6 @@ class TestRowDeletion:
         qtbot.addWidget(parameter_list_view)
 
         # Get initial state
-        initial_row_count = parameter_list_view.rowCount()
         param_name = "AutomaticScalesEstimation"
         assert param_name in parameter_list_view.param_dict
 
@@ -123,8 +122,8 @@ class TestRowDeletion:
 
         # Clear the parameter name
         # Note: setText() triggers itemChanged, which then triggers cellChanged
-        parameter_list_view.item(target_row, 0).setText("")
-        qtbot.wait(100)  # Wait for signals to process
+        with qtbot.waitSignal(parameter_list_view.cellChanged, timeout=1000):
+            parameter_list_view.item(target_row, 0).setText("")
 
         # Parameter should be removed from dictionary
         assert param_name not in parameter_list_view.param_dict
@@ -151,12 +150,14 @@ class TestRowDeletion:
         assert target_row is not None
 
         # Clear both name and value
-        parameter_list_view.item(target_row, 1).setText("")
-        qtbot.wait(100)  # Small delay to ensure value is cleared
+        with qtbot.waitSignal(parameter_list_view.cellChanged, timeout=1000):
+            parameter_list_view.item(target_row, 1).setText("")
 
         # Clear parameter name (this should trigger row deletion)
-        parameter_list_view.item(target_row, 0).setText("")
-        qtbot.wait(200)  # Wait for signals and row removal to process
+        # Note: row deletion happens synchronously, so we just need to wait
+        # for the cellChanged signal
+        with qtbot.waitSignal(parameter_list_view.cellChanged, timeout=1000):
+            parameter_list_view.item(target_row, 0).setText("")
 
         # Row should be removed
         assert parameter_list_view.rowCount() == initial_row_count - 1
@@ -177,7 +178,6 @@ class TestRowDeletion:
                 break
 
         assert target_row is not None
-        original_value = parameter_list_view.item(target_row, 1).text()
 
         # Clear parameter name (value should also be cleared)
         parameter_list_view.item(target_row, 0).setText("")
@@ -208,8 +208,8 @@ class TestRowDeletion:
         assert target_row is not None
 
         # Rename the parameter
-        parameter_list_view.item(target_row, 0).setText(new_name)
-        qtbot.wait(100)  # Wait for signals to process
+        with qtbot.waitSignal(parameter_list_view.cellChanged, timeout=1000):
+            parameter_list_view.item(target_row, 0).setText(new_name)
 
         # Old name should be removed, new name should have the value
         assert old_name not in parameter_list_view.param_dict
