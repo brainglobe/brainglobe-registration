@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Literal, Optional, Tuple
 
 import numpy as np
-from bayes_opt import BayesianOptimization
+from bayes_opt import BayesianOptimization, acquisition
+from scipy.ndimage import map_coordinates
 from skimage.transform import rotate
 
 from brainglobe_registration.elastix.register import (
@@ -14,14 +15,12 @@ from brainglobe_registration.elastix.register import (
 from brainglobe_registration.similarity_metrics import (
     compute_similarity_metric,
     pad_to_match_shape,
-    prepare_images,
 )
 from brainglobe_registration.utils.logging import (
     FancyBayesLogger,
 )
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
-    rotate_volume,
 )
 from brainglobe_registration.utils.utils import (
     open_parameter_file,
@@ -90,15 +89,27 @@ def registration_objective(
         rot_matrix, bounding_box = create_rotation_matrix(
             0, yaw, pitch, img_shape=atlas_volume.shape
         )
+        rot_matrix = np.linalg.inv(rot_matrix)
 
         # Rotate atlas
-        rotated_volume = rotate_volume(
-            atlas_volume, atlas_volume.shape, rot_matrix, bounding_box
-        )
+        coords_out = np.indices(bounding_box[1:]).reshape(2, -1)
+        coords_out_base = np.ones((4, coords_out.shape[1]))
+        coords_out_base[1:3, :] = coords_out
+        coords_out_base[0, :] = z_slice
 
-        # Convert float z to int index and clip to bounds
-        z_idx = int(np.clip(z_slice, 0, rotated_volume.shape[0] - 1))
-        current_atlas_slice = rotated_volume[z_idx].compute()
+        center_diff = (
+            np.array(bounding_box[1:]) - np.array(atlas_volume[0].shape)
+        ) / 2
+        rot_matrix[1:3, -1] -= center_diff
+
+        transformed_coords_out = rot_matrix @ coords_out_base
+
+        current_atlas_slice = map_coordinates(
+            atlas_volume,
+            transformed_coords_out[:-1, :],
+            order=1,
+            mode="nearest",
+        ).reshape(bounding_box[1:])
 
         # Run registration
         transform_type = "affine"
@@ -113,11 +124,11 @@ def registration_objective(
 
         transform_param_list = [(transform_type, transform_params)]
 
-        moving, fixed = prepare_images(sample, current_atlas_slice)
+        # moving, fixed = prepare_images(sample, current_atlas_slice)
 
         if sample.ndim == 2:
-            atlas_image = fixed.astype(np.float32)
-            moving_image = moving.astype(np.float32)
+            atlas_image = current_atlas_slice.astype(np.float32)
+            moving_image = sample.astype(np.float32)
         else:
             print(
                 f"Error: expected 2D input for 'sample', but received array "
@@ -274,11 +285,16 @@ def run_bayesian_generator(
     pbounds = {
         "pitch": pitch_bounds,
         "yaw": yaw_bounds,
-        "z_slice": manual_z_range,
+        "z_slice": (*manual_z_range, int),
     }
+
+    acquisition_function = acquisition.ExpectedImprovement(
+        xi=0.01, random_state=42
+    )
 
     optimizer = BayesianOptimization(
         f=None,
+        acquisition_function=acquisition_function,
         pbounds=pbounds,
         verbose=2,
         random_state=42,
@@ -288,11 +304,11 @@ def run_bayesian_generator(
     optimizer.logger = FancyBayesLogger(verbose=2)
 
     # Customise Gaussian Progress
-    optimizer.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
+    optimizer.set_gp_params(alpha=1e-2, n_restarts_optimizer=5)
 
     # Initial random points
     for _ in range(init_points):
-        point = optimizer.suggest()
+        point = optimizer.random_sample()[0]
         score = registration_objective(
             **point,
             atlas_volume=atlas_volume,
@@ -337,80 +353,172 @@ def run_bayesian_generator(
     yaw = round(best_params["yaw"], 2)
     z_slice = round(best_params["z_slice"])
 
-    rot_matrix, out_shape = create_rotation_matrix(
-        0, yaw, pitch, atlas_volume.shape
-    )
-    transformed_atlas = rotate_volume(
-        atlas_volume, atlas_volume.shape, rot_matrix, out_shape
-    )
-    target_slice = transformed_atlas[z_slice].compute()
-
-    # Roll Optimisation
-    opt_roll = BayesianOptimization(
-        f=None,
-        pbounds={"roll": roll_bounds},
-        verbose=2,
-        random_state=42,
-        allow_duplicate_points=True,
-    )
-
-    opt_roll.logger = FancyBayesLogger(verbose=2)
-
-    opt_roll.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
-
-    # Initial roll points
-    for _ in range(init_points):
-        point = opt_roll.suggest()
-        score = similarity_only_objective(
-            **point,
-            target_slice=target_slice,
-            sample=sample,
-            metric=metric,
-            weights=weights,
-        )
-        opt_roll.register(params=point, target=score)
-
-        yield {
-            "stage": "fine",
-            "roll": round(point["roll"], 2),
-            "roll_score": score,
-        }
-
-    # Iterative roll tuning
-    for _ in range(n_iter):
-        point = opt_roll.suggest()
-        score = similarity_only_objective(
-            **point,
-            target_slice=target_slice,
-            sample=sample,
-            metric=metric,
-            weights=weights,
-        )
-        opt_roll.register(params=point, target=score)
-
-        yield {
-            "stage": "fine",
-            "roll": round(point["roll"], 2),
-            "roll_score": score,
-        }
-
-    best_roll = round(opt_roll.max["params"]["roll"], 2)
-    best_roll_score = opt_roll.max["target"]
+    # rot_matrix, out_shape = create_rotation_matrix(
+    #     0, yaw, pitch, atlas_volume.shape
+    # )
+    # transformed_atlas = rotate_volume(
+    #     atlas_volume, atlas_volume.shape, rot_matrix, out_shape
+    # )
+    # target_slice = transformed_atlas[z_slice].compute()
+    #
+    # acquisition_function = acquisition.ExpectedImprovement(
+    #     xi=0.05, random_state=42
+    # )
+    #
+    # # Roll Optimisation
+    # opt_roll = BayesianOptimization(
+    #     f=None,
+    #     acquisition_function=acquisition_function,
+    #     pbounds={"roll": roll_bounds},
+    #     verbose=2,
+    #     random_state=42,
+    #     allow_duplicate_points=True,
+    # )
+    #
+    # opt_roll.logger = FancyBayesLogger(verbose=2)
+    #
+    # opt_roll.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
+    #
+    #
+    # # Initial roll points
+    # for _ in range(init_points):
+    #     point = opt_roll.suggest()
+    #     score = similarity_only_objective(
+    #         **point,
+    #         target_slice=target_slice,
+    #         sample=sample,
+    #         metric=metric,
+    #         weights=weights,
+    #     )
+    #     opt_roll.register(params=point, target=score)
+    #
+    #     yield {
+    #         "stage": "fine",
+    #         "roll": round(point["roll"], 2),
+    #         "roll_score": score,
+    #     }
+    #
+    # # Iterative roll tuning
+    # for _ in range(n_iter):
+    #     point = opt_roll.suggest()
+    #     score = similarity_only_objective(
+    #         **point,
+    #         target_slice=target_slice,
+    #         sample=sample,
+    #         metric=metric,
+    #         weights=weights,
+    #     )
+    #     opt_roll.register(params=point, target=score)
+    #
+    #     yield {
+    #         "stage": "fine",
+    #         "roll": round(point["roll"], 2),
+    #         "roll_score": score,
+    #     }
+    #
+    # best_roll = round(opt_roll.max["params"]["roll"], 2)
+    # best_roll_score = opt_roll.max["target"]
 
     logging.info(
         f"\n[Bayesian] Optimal result:"
         f"\nScore (without roll): {best_score:.4f}"
-        f"\nScore (including roll): {best_roll_score:.4f}"
+        # f"\nScore (including roll): {best_roll_score:.4f}"
         f"\nBest pitch: {pitch}"
         f"\nBest yaw: {yaw}"
-        f"\nBest roll: {best_roll}"
+        # f"\nBest roll: {best_roll}"
         f"\nBest z_slice: {z_slice}"
     )
 
     return {
         "best_pitch": pitch,
         "best_yaw": yaw,
-        "best_roll": best_roll,
+        # "best_roll": best_roll,
         "best_z_slice": z_slice,
         "done": True,
     }
+
+
+def run_bayesian_optimization(
+    atlas_volume: np.ndarray,
+    sample: np.ndarray,
+    manual_z_range: Optional[Tuple[float, float]] = None,
+    pitch_bounds: Tuple[float, float] = (-5, 5),
+    yaw_bounds: Tuple[float, float] = (-5, 5),
+    roll_bounds: Tuple[float, float] = (-5, 5),
+    init_points: int = 5,
+    n_iter: int = 15,
+    metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
+    weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
+):
+    """
+    Run Bayesian optimisation to estimate the position of the
+    sample image within the atlas volume.
+    Uses the registration objective function to optimise pitch, yaw, roll,
+    and z-slice for best similarity between the atlas and sample.
+
+    Parameters
+    ----------
+    atlas_volume : np.ndarray
+        3D atlas volume used as the reference.
+    sample : np.ndarray
+        2D image to be aligned to the atlas.
+    manual_z_range : Tuple[float, float], optional
+        Lower and upper bounds for z-slice selection.
+        Defaults to None i.e. entire range.
+    pitch_bounds, yaw_bounds, roll_bounds : Tuple[float, float], optional
+        Bounds for rotation angles (default: (-5, 5) degrees).
+    init_points : int, optional
+        Number of initial random points for Bayesian optimisation (default: 5).
+    n_iter : int, optional
+        Number of optimisation iterations (default: 15).
+    metric : Literal["mi", "ncc", "ssim", "combined"], optional
+        Similarity metric used to compare the sample and atlas slice:
+        - "mi"       : Mutual Information
+        - "ncc"      : Normalised Cross-Correlation
+        - "ssim"     : Structural Similarity Index
+        - "combined" : weights[0]*MI + weights[1]*NCC + weights[2]*SSIM
+        Defaults to "mi".
+    weights : Tuple[float, float, float], optional
+        3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
+        Only used if metric="combined".
+        Defaults to (0.7, 0.15, 0.15).
+
+    Returns
+    -------
+    dict
+        Dictionary containing the optimal alignment parameters:
+        - "best_pitch" : float
+            Optimal pitch angle (in degrees).
+        - "best_yaw" : float
+            Optimal yaw angle (in degrees).
+        - "best_roll" : float
+            Optimal roll angle (in degrees).
+        - "best_z_slice" : int
+            Optimal z-slice index within the rotated atlas.
+        - "done" : bool
+            Indicates that optimisation is complete (always True).
+
+    Prints
+    ------
+    Optimal parameters and similarity score for alignment.
+    """
+    result = run_bayesian_generator(
+        atlas_volume=atlas_volume,
+        sample=sample,
+        manual_z_range=manual_z_range,
+        pitch_bounds=pitch_bounds,
+        yaw_bounds=yaw_bounds,
+        roll_bounds=roll_bounds,
+        init_points=init_points,
+        n_iter=n_iter,
+        metric=metric,
+        weights=weights,
+    )
+
+    try:
+        while True:
+            print(next(result))
+    except StopIteration as stop:
+        final_result = stop.value
+
+    return final_result

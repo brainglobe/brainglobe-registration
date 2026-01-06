@@ -2,7 +2,10 @@ import warnings
 from typing import Literal, Tuple
 
 import numpy as np
-from skimage.metrics import structural_similarity
+from skimage.metrics import (
+    normalized_mutual_information,
+    structural_similarity,
+)
 from sklearn.feature_selection import mutual_info_regression
 
 
@@ -174,12 +177,10 @@ def compute_similarity_metric(
     float
         Similarity score for chosen metric.
     """
-    moving, fixed = prepare_images(moving, fixed)
+    # moving, fixed = prepare_images(moving, fixed)
 
     if metric == "mi":
-        mi = mutual_info_regression(
-            moving.ravel().reshape(-1, 1), fixed.ravel()
-        )[0]
+        mi = normalized_mutual_information(moving, fixed)
         return mi
     elif metric == "ncc":
         ncc = safe_ncc(moving, fixed)
