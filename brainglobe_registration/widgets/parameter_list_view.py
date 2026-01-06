@@ -1,8 +1,8 @@
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
 )
-from qtpy.QtCore import Qt
 
 
 class RegistrationParameterListView(QTableWidget):
@@ -58,7 +58,7 @@ class RegistrationParameterListView(QTableWidget):
         # Use itemChanged to track changes, cellChanged for processing
         self.itemChanged.connect(self._on_item_changed)
         self.cellChanged.connect(self._on_cell_change)
-        
+
         # Track the previous text before editing starts
         # This helps us capture the old parameter name
         self._editing_item = None
@@ -166,7 +166,9 @@ class RegistrationParameterListView(QTableWidget):
                         for i in range(self.rowCount()):
                             item = self.item(i, 0)
                             if item is not None:
-                                stored_name = item.data(Qt.ItemDataRole.UserRole)
+                                stored_name = item.data(
+                                    Qt.ItemDataRole.UserRole
+                                )
                                 if stored_name:
                                     self._old_param_names[i] = stored_name
                                 else:
@@ -199,7 +201,9 @@ class RegistrationParameterListView(QTableWidget):
                 self._old_param_names[row] = new_param_name
                 # Update item data
                 if param_item:
-                    param_item.setData(Qt.ItemDataRole.UserRole, new_param_name)
+                    param_item.setData(
+                        Qt.ItemDataRole.UserRole, new_param_name
+                    )
 
         # Handle value changes (column 1)
         elif column == 1 and param_item:

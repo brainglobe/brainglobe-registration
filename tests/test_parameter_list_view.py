@@ -100,7 +100,9 @@ def test_parameter_list_view_cell_change_last_row_no_value(
 class TestRowDeletion:
     """Tests for row deletion functionality."""
 
-    def test_delete_row_by_clearing_parameter_name(self, parameter_list_view, qtbot):
+    def test_delete_row_by_clearing_parameter_name(
+        self, parameter_list_view, qtbot
+    ):
         """Test that clearing parameter name removes it from dictionary."""
         qtbot.addWidget(parameter_list_view)
 
@@ -219,7 +221,10 @@ class TestRowDeletion:
         qtbot.addWidget(parameter_list_view)
 
         initial_row_count = parameter_list_view.rowCount()
-        params_to_delete = ["AutomaticScalesEstimation", "CheckNumberOfSamples"]
+        params_to_delete = [
+            "AutomaticScalesEstimation",
+            "CheckNumberOfSamples",
+        ]
 
         for param_name in params_to_delete:
             # Find the row
@@ -280,6 +285,7 @@ class TestRowDeletion:
 
         # Verify tracking for existing parameters
         from qtpy.QtCore import Qt
+
         for i, param_name in enumerate(param_dict.keys()):
             item = parameter_list_view.item(i, 0)
             if item:
@@ -309,7 +315,9 @@ class TestRowDeletion:
         # Add a parameter in the last row
         last_row = parameter_list_view.rowCount() - 1
         parameter_list_view.setItem(last_row, 0, QTableWidgetItem("TestParam"))
-        parameter_list_view.setItem(last_row, 1, QTableWidgetItem("test_value"))
+        parameter_list_view.setItem(
+            last_row, 1, QTableWidgetItem("test_value")
+        )
 
         qtbot.wait(100)
 
