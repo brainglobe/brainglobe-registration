@@ -5,11 +5,11 @@ import itk
 import numpy as np
 import numpy.typing as npt
 
-from brainglobe_registration.utils.preprocess import filter_image
-from brainglobe_registration.utils.utils import (
+from brainglobe_registration.utils.atlas import (
     convert_atlas_labels,
     restore_atlas_labels,
 )
+from brainglobe_registration.utils.preprocess import filter_image
 
 
 def run_registration(

@@ -7,19 +7,23 @@ import pytest
 from brainglobe_atlasapi import BrainGlobeAtlas
 from pytransform3d.rotations import active_matrix_from_angle
 
-from brainglobe_registration.utils.utils import (
-    adjust_napari_image_layer,
+from brainglobe_registration.utils.atlas import (
     calculate_region_size,
-    calculate_rotated_bounding_box,
     convert_atlas_labels,
-    find_layer_index,
     generate_mask_from_atlas_annotations,
-    get_data_from_napari_layer,
-    get_image_layer_names,
     mask_atlas,
     mask_atlas_with_annotations,
-    open_parameter_file,
     restore_atlas_labels,
+)
+from brainglobe_registration.utils.file import open_parameter_file
+from brainglobe_registration.utils.napari import (
+    adjust_napari_image_layer,
+    find_layer_index,
+    get_data_from_napari_layer,
+    get_image_layer_names,
+)
+from brainglobe_registration.utils.transforms import (
+    calculate_rotated_bounding_box,
 )
 
 
@@ -247,7 +251,7 @@ def test_get_data_from_napari_layer_squeeze(layer_data, selection):
 def dummy_atlas(mocker):
     # Patch the BrainGlobeAtlas class
     mock_atlas_class = mocker.patch(
-        "brainglobe_registration.utils.utils.BrainGlobeAtlas"
+        "brainglobe_registration.utils.atlas.BrainGlobeAtlas"
     )
 
     # Create a mock instance

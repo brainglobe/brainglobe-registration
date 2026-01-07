@@ -7,7 +7,7 @@ from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_atlasapi import config as bg_config
 from tifffile import imread
 
-from brainglobe_registration.utils.utils import open_parameter_file
+from brainglobe_registration.utils.file import open_parameter_file
 
 
 @pytest.fixture()
