@@ -16,10 +16,10 @@ from brainglobe_registration.similarity_metrics import (
     pad_to_match_shape,
     prepare_images,
 )
+from brainglobe_registration.utils.file import open_parameter_file
 from brainglobe_registration.utils.logging import (
     FancyBayesLogger,
 )
-from brainglobe_registration.utils.file import open_parameter_file
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
     rotate_volume,
