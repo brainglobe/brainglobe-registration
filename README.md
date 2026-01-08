@@ -74,20 +74,22 @@ To install the latest development version:
 
 **Important:** Before you can use the plugin, you must download at least one BrainGlobe atlas. The plugin requires an atlas to be installed on your system.
 
-#### Option 1: Command Line Installation (CLI)
 
-You can install an atlas using the `brainglobe` command-line tool. For example, to install the Allen Mouse Brain Atlas at 25μm resolution:
+
+#### Option 1: GUI Installation
+
+You can install atlases through the napari interface using the brainrender-napari plugin. For detailed instructions, see the [BrainGlobe atlas management tutorial](https://brainglobe.info/tutorials/manage-atlases-in-GUI.html).
+
+#### Option 2: Command Line Installation (CLI)
+
+You can also install an atlas using the `brainglobe` command-line tool. For example, to install the Allen Mouse Brain Atlas at 25μm resolution:
 
     brainglobe install -a allen_mouse_25um
 
 To see all available atlases, run:
 
     brainglobe list
-
-#### Option 2: GUI Installation
-
-You can also install atlases through the napari interface using the brainrender-napari plugin. For detailed instructions, see the [BrainGlobe atlas management tutorial](https://brainglobe.info/tutorials/manage-atlases-in-GUI.html).
-
+    
 ## License
 
 Distributed under the terms of the [BSD-3] license,
