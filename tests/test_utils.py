@@ -105,7 +105,9 @@ def test_open_parameter_file_with_comment_and_paren():
     """Test open_parameter_file handles entries with ) and / comments."""
     file_path = Path("test_file.txt")
     with open(file_path, "w") as f:
-        f.write("(key1 value1 value2 )\n(key2 value3 / comment)\n(key3 value4)")
+        f.write(
+            "(key1 value1 value2 )\n(key2 value3 / comment)\n(key3 value4)"
+        )
     result = open_parameter_file(file_path)
     assert result == {
         "key1": ["value1", "value2"],
@@ -376,6 +378,7 @@ def test_check_atlas_installed_with_atlases(mocker):
 def test_serialize_registration_widget(mocker):
     """Test serialize_registration_widget for different object types."""
     from pathlib import PurePath
+
     import napari
 
     # Test with napari layer
@@ -404,7 +407,8 @@ def test_serialize_registration_widget(mocker):
     assert "(2, 2)" in result
     assert test_array.dtype.name in result or str(test_array.dtype) in result
 
-    # Test with other object that has __dict__() method (like RegistrationWidget)
+    # Test with other object that has __dict__() method
+    # (like RegistrationWidget)
     class TestObj:
         def __dict__(self):
             return {"key": "value"}
