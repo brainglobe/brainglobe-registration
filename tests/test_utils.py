@@ -1,5 +1,5 @@
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import dask.array as da
 import numpy as np
@@ -15,9 +15,13 @@ from brainglobe_registration.utils.atlas import (
     mask_atlas_with_annotations,
     restore_atlas_labels,
 )
-from brainglobe_registration.utils.file import open_parameter_file
+from brainglobe_registration.utils.file import (
+    open_parameter_file,
+    serialize_registration_widget,
+)
 from brainglobe_registration.utils.napari import (
     adjust_napari_image_layer,
+    check_atlas_installed,
     find_layer_index,
     get_data_from_napari_layer,
     get_image_layer_names,
@@ -27,7 +31,7 @@ from brainglobe_registration.utils.transforms import (
 )
 
 
-def adjust_napari_image_layer_no_translation_no_rotation():
+def test_adjust_napari_image_layer_no_translation_no_rotation():
     image_layer = Mock()
     image_layer.data.shape = (100, 100)
     adjust_napari_image_layer(image_layer, 0, 0, 0)
@@ -35,7 +39,7 @@ def adjust_napari_image_layer_no_translation_no_rotation():
     assert np.array_equal(image_layer.affine, np.eye(3))
 
 
-def adjust_napari_image_layer_with_translation_no_rotation():
+def test_adjust_napari_image_layer_with_translation_no_rotation():
     image_layer = Mock()
     image_layer.data.shape = (100, 100)
     adjust_napari_image_layer(image_layer, 10, 20, 0)
@@ -43,7 +47,7 @@ def adjust_napari_image_layer_with_translation_no_rotation():
     assert np.array_equal(image_layer.affine, np.eye(3))
 
 
-def adjust_napari_image_layer_no_translation_with_rotation():
+def test_adjust_napari_image_layer_no_translation_with_rotation():
     image_layer = Mock()
     image_layer.data.shape = (100, 100)
     adjust_napari_image_layer(image_layer, 0, 0, 45)
@@ -57,7 +61,17 @@ def adjust_napari_image_layer_no_translation_with_rotation():
     assert np.array_equal(image_layer.affine, expected_transform_matrix)
 
 
-def open_parameter_file_with_valid_content():
+def test_adjust_napari_image_layer_with_translation_and_rotation():
+    """Test adjust_napari_image_layer with both translation and rotation."""
+    image_layer = Mock()
+    image_layer.data.shape = (100, 100)
+    adjust_napari_image_layer(image_layer, 10, 20, 45)
+    assert image_layer.translate == (20, 10)
+    # Verify that the affine transform was set (not identity)
+    assert not np.array_equal(image_layer.affine, np.eye(3))
+
+
+def test_open_parameter_file_with_valid_content():
     file_path = Path("test_file.txt")
     with open(file_path, "w") as f:
         f.write("(key1 value1 value2)\n(key2 value3 value4)")
@@ -69,7 +83,7 @@ def open_parameter_file_with_valid_content():
     file_path.unlink()
 
 
-def open_parameter_file_with_invalid_content():
+def test_open_parameter_file_with_invalid_content():
     file_path = Path("test_file.txt")
     with open(file_path, "w") as f:
         f.write("invalid content")
@@ -78,12 +92,26 @@ def open_parameter_file_with_invalid_content():
     file_path.unlink()
 
 
-def open_parameter_file_with_empty_content():
+def test_open_parameter_file_with_empty_content():
     file_path = Path("test_file.txt")
     with open(file_path, "w") as f:
         f.write("")
     result = open_parameter_file(file_path)
     assert result == {}
+    file_path.unlink()
+
+
+def test_open_parameter_file_with_comment_and_paren():
+    """Test open_parameter_file handles entries with ) and / comments."""
+    file_path = Path("test_file.txt")
+    with open(file_path, "w") as f:
+        f.write("(key1 value1 value2 )\n(key2 value3 / comment)\n(key3 value4)")
+    result = open_parameter_file(file_path)
+    assert result == {
+        "key1": ["value1", "value2"],
+        "key2": ["value3"],
+        "key3": ["value4"],
+    }
     file_path.unlink()
 
 
@@ -98,6 +126,12 @@ def test_find_layer_index(make_napari_viewer_with_images, name, index):
     viewer = make_napari_viewer_with_images
 
     assert find_layer_index(viewer, name) == index
+
+
+def test_find_layer_index_not_found(make_napari_viewer_with_images):
+    """Test find_layer_index returns -1 when layer is not found."""
+    viewer = make_napari_viewer_with_images
+    assert find_layer_index(viewer, "non_existent_layer") == -1
 
 
 def test_get_image_layer_names(make_napari_viewer_with_images):
@@ -295,3 +329,85 @@ def test_mask_atlas_with_annotations(dummy_atlas):
     )
 
     assert np.array_equal(masked_image, expected)
+
+
+def test_check_atlas_installed_no_atlases(mocker):
+    """Test check_atlas_installed when no atlases are available."""
+    # Mock get_downloaded_atlases to return empty list
+    mock_get_atlases = mocker.patch(
+        "brainglobe_registration.utils.napari.get_downloaded_atlases",
+        return_value=[],
+    )
+    # Mock display_info
+    mock_display_info = mocker.patch(
+        "brainglobe_registration.utils.napari.display_info"
+    )
+
+    parent_widget = MagicMock()
+    check_atlas_installed(parent_widget)
+
+    mock_get_atlases.assert_called_once()
+    mock_display_info.assert_called_once()
+    call_args = mock_display_info.call_args
+    assert call_args[1]["widget"] == parent_widget
+    assert call_args[1]["title"] == "Information"
+
+
+def test_check_atlas_installed_with_atlases(mocker):
+    """Test check_atlas_installed when atlases are available."""
+    # Mock get_downloaded_atlases to return non-empty list
+    mock_get_atlases = mocker.patch(
+        "brainglobe_registration.utils.napari.get_downloaded_atlases",
+        return_value=["atlas1", "atlas2"],
+    )
+    # Mock display_info
+    mock_display_info = mocker.patch(
+        "brainglobe_registration.utils.napari.display_info"
+    )
+
+    parent_widget = MagicMock()
+    check_atlas_installed(parent_widget)
+
+    mock_get_atlases.assert_called_once()
+    # display_info should not be called when atlases exist
+    mock_display_info.assert_not_called()
+
+
+def test_serialize_registration_widget(mocker):
+    """Test serialize_registration_widget for different object types."""
+    from pathlib import PurePath
+    import napari
+
+    # Test with napari layer
+    mock_layer = mocker.MagicMock(spec=napari.layers.Layer)
+    mock_layer.name = "test_layer"
+    assert serialize_registration_widget(mock_layer) == "test_layer"
+
+    # Test with napari viewer
+    mock_viewer = mocker.MagicMock(spec=napari.Viewer)
+    mock_viewer.__str__ = mocker.MagicMock(return_value="test_viewer")
+    assert serialize_registration_widget(mock_viewer) == "test_viewer"
+
+    # Test with PurePath
+    test_path = PurePath("test/path")
+    assert serialize_registration_widget(test_path) == str(test_path)
+
+    # Test with BrainGlobeAtlas
+    mock_atlas = mocker.MagicMock(spec=BrainGlobeAtlas)
+    mock_atlas.atlas_name = "test_atlas"
+    assert serialize_registration_widget(mock_atlas) == "test_atlas"
+
+    # Test with numpy array
+    test_array = np.array([[1, 2], [3, 4]])
+    result = serialize_registration_widget(test_array)
+    assert "<class 'numpy.ndarray'>" in result
+    assert "(2, 2)" in result
+    assert test_array.dtype.name in result or str(test_array.dtype) in result
+
+    # Test with other object that has __dict__() method (like RegistrationWidget)
+    class TestObj:
+        def __dict__(self):
+            return {"key": "value"}
+
+    test_obj = TestObj()
+    assert serialize_registration_widget(test_obj) == {"key": "value"}
