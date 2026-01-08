@@ -89,7 +89,7 @@ You can also install an atlas using the `brainglobe` command-line tool. For exam
 To see all available atlases, run:
 
     brainglobe list
-    
+
 ## License
 
 Distributed under the terms of the [BSD-3] license,
