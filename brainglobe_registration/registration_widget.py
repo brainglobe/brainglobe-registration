@@ -70,6 +70,7 @@ from brainglobe_registration.utils.utils import (
     open_parameter_file,
     serialize_registration_widget,
 )
+from brainglobe_registration.utils.visuals import generate_checkerboard
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
 )
@@ -101,6 +102,8 @@ class RegistrationWidget(QScrollArea):
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
+        # Checkerboard visualization
+        self._checkerboard_layer: Optional[napari.layers.Image] = None
 
         self.transform_params: dict[str, dict] = {
             "affine": {},
@@ -181,6 +184,13 @@ class RegistrationWidget(QScrollArea):
         self.filter_checkbox = QCheckBox("Filter Images")
         self.filter_checkbox.setChecked(False)
 
+        self.checkerboard_checkbox = QCheckBox("Show Checkerboard")
+        self.checkerboard_checkbox.setChecked(False)
+        self.checkerboard_checkbox.setEnabled(False)
+        self.checkerboard_checkbox.toggled.connect(
+            self._on_checkerboard_toggled
+        )
+
         self.output_directory_widget = QWidget()
         self.output_directory_widget.setLayout(QHBoxLayout())
 
@@ -237,6 +247,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
+        self._widget.add_widget(self.checkerboard_checkbox, collapsible=False)
 
         self._widget.add_widget(QLabel("Output Directory"), collapsible=False)
         self._widget.add_widget(
@@ -629,6 +640,9 @@ class RegistrationWidget(QScrollArea):
         self._atlas_data_layer.visible = False
         self._viewer.grid.enabled = False
 
+        # Enable checkerboard checkbox now that registration is complete
+        self.checkerboard_checkbox.setEnabled(True)
+
         print("Saving outputs")
         imwrite(self.output_directory / "downsampled.tiff", moving_image)
 
@@ -636,6 +650,127 @@ class RegistrationWidget(QScrollArea):
             self.output_directory / "brainglobe-registration.json", "w"
         ) as f:
             json.dump(self, f, default=serialize_registration_widget, indent=4)
+
+    def _on_checkerboard_toggled(self, checked: bool):
+        """
+        Handle checkerboard checkbox toggle.
+
+        Parameters
+        ----------
+        checked : bool
+            Whether the checkbox is checked.
+        """
+        if checked:
+            self._show_checkerboard()
+        else:
+            self._hide_checkerboard()
+
+    def _show_checkerboard(self):
+        """Generate and display the checkerboard visualization."""
+        if not self._moving_image:
+            show_error(
+                "No moving image available. "
+                "Please select a moving image first."
+            )
+            self.checkerboard_checkbox.setChecked(False)
+            return
+
+        # Find the "Registered Image" layer
+        registered_layer_index = find_layer_index(
+            self._viewer, "Registered Image"
+        )
+        if registered_layer_index == -1:
+            show_error(
+                "Registered Image layer not found. "
+                "Please run registration first."
+            )
+            self.checkerboard_checkbox.setChecked(False)
+            return
+
+        registered_layer = self._viewer.layers[registered_layer_index]
+
+        # Get the data from both images
+        moving_data = get_data_from_napari_layer(self._moving_image)
+        registered_data = get_data_from_napari_layer(registered_layer)
+
+        # Handle dimension mismatch: if moving image is 2D but registered is 3D,
+        # extract the current slice from the registered image
+        if moving_data.ndim == 2 and registered_data.ndim == 3:
+            # Get current slice position from viewer
+            current_slice = self._viewer.dims.current_step[0]
+            # Extract the corresponding slice
+            registered_data = registered_data[current_slice, :, :]
+        elif moving_data.ndim == 3 and registered_data.ndim == 2:
+            # If moving is 3D but registered is 2D, we can't match them
+            show_error(
+                f"Cannot create checkerboard: dimension mismatch. "
+                f"Moving image is 3D {moving_data.shape} but "
+                f"Registered image is 2D {registered_data.shape}"
+            )
+            self.checkerboard_checkbox.setChecked(False)
+            return
+
+        # Ensure images have the same shape after dimension matching
+        if moving_data.shape != registered_data.shape:
+            show_error(
+                f"Cannot create checkerboard: images have different shapes. "
+                f"Moving image: {moving_data.shape}, "
+                f"Registered image: {registered_data.shape}"
+            )
+            self.checkerboard_checkbox.setChecked(False)
+            return
+
+        # Generate checkerboard pattern
+        # Use a square size based on image dimensions
+        # (roughly 1/16th of smallest dimension)
+        min_dimension = min(moving_data.shape[-2:])
+        # At least 8 pixels, but adaptive
+        square_size = max(8, min_dimension // 16)
+
+        try:
+            checkerboard_data = generate_checkerboard(
+                moving_data, registered_data, square_size=square_size
+            )
+
+            # Remove existing checkerboard layer if it exists
+            if self._checkerboard_layer is not None:
+                if self._checkerboard_layer in self._viewer.layers:
+                    self._viewer.layers.remove(self._checkerboard_layer)
+                self._checkerboard_layer = None
+
+            # Add checkerboard as a new layer
+            self._checkerboard_layer = self._viewer.add_image(
+                checkerboard_data,
+                name="Checkerboard",
+                colormap="gray",
+                blending="opaque",
+                visible=True,
+            )
+
+            # Hide the original images for better visualization
+            self._moving_image.visible = False
+            registered_layer.visible = False
+
+        except Exception as e:
+            show_error(f"Error generating checkerboard: {str(e)}")
+            self.checkerboard_checkbox.setChecked(False)
+
+    def _hide_checkerboard(self):
+        """Hide the checkerboard visualization and restore original images."""
+        if self._checkerboard_layer is not None:
+            if self._checkerboard_layer in self._viewer.layers:
+                self._viewer.layers.remove(self._checkerboard_layer)
+            self._checkerboard_layer = None
+
+        # Restore visibility of original images
+        if self._moving_image is not None:
+            self._moving_image.visible = True
+
+        registered_layer_index = find_layer_index(
+            self._viewer, "Registered Image"
+        )
+        if registered_layer_index != -1:
+            self._viewer.layers[registered_layer_index].visible = False
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int

@@ -854,3 +854,142 @@ def test_set_optimal_rotation_params_sets_gui_values(
     adjust_widget_mock.adjust_atlas_roll.setValue.assert_called_once_with(-2)
     adjust_widget_mock.progress_bar.reset.assert_called_once()
     adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
+
+
+def test_checkerboard_checkbox_initial_state(registration_widget):
+    """Test that checkerboard checkbox is initially disabled."""
+    assert not registration_widget.checkerboard_checkbox.isChecked()
+    assert not registration_widget.checkerboard_checkbox.isEnabled()
+
+
+def test_checkerboard_checkbox_enabled_after_registration(
+    registration_widget,
+):
+    """Test that checkerboard checkbox can be enabled after registration."""
+    # Before registration, checkbox should be disabled
+    assert not registration_widget.checkerboard_checkbox.isEnabled()
+
+    # Simulate registration completion by manually enabling the checkbox
+    # (This is what happens after registration completes in
+    # _on_run_button_click)
+    registration_widget.checkerboard_checkbox.setEnabled(True)
+
+    # After registration, checkbox should be enabled
+    assert registration_widget.checkerboard_checkbox.isEnabled()
+
+
+def test_show_checkerboard_no_moving_image(registration_widget, mocker):
+    """Test that showing checkerboard without moving image shows error."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    registration_widget._moving_image = None
+
+    registration_widget.checkerboard_checkbox.setChecked(True)
+
+    mocked_show_error.assert_called_once()
+    assert not registration_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_no_registered_image(registration_widget, mocker):
+    """Test that showing checkerboard without registered image shows error."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    registration_widget._moving_image = registration_widget._viewer.layers[0]
+    # No "Registered Image" layer exists yet
+
+    registration_widget.checkerboard_checkbox.setChecked(True)
+
+    mocked_show_error.assert_called_once()
+    assert not registration_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_shape_mismatch(registration_widget, mocker):
+    """Test that showing checkerboard with shape mismatch shows error."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+
+    # Create images with different shapes
+    moving_image_data = np.ones((100, 100), dtype=np.uint8)
+    registered_image_data = np.ones((100, 101), dtype=np.uint8)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+    registration_widget.checkerboard_checkbox.setChecked(True)
+
+    mocked_show_error.assert_called_once()
+    assert not registration_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_success(registration_widget):
+    """Test successful checkerboard generation and display."""
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+
+    # Initially no checkerboard layer
+    assert registration_widget._checkerboard_layer is None
+
+    # Enable checkerboard
+    registration_widget.checkerboard_checkbox.setChecked(True)
+
+    # Check that checkerboard layer was created
+    assert registration_widget._checkerboard_layer is not None
+    assert registration_widget._checkerboard_layer.name == "Checkerboard"
+
+    # Check that original layers are hidden
+    assert not moving_layer.visible
+    from brainglobe_registration.utils.utils import find_layer_index
+
+    registered_layer_index = find_layer_index(
+        registration_widget._viewer, "Registered Image"
+    )
+    assert not registration_widget._viewer.layers[
+        registered_layer_index
+    ].visible
+
+
+def test_hide_checkerboard(registration_widget):
+    """Test hiding checkerboard restores original layers."""
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+
+    # Enable checkerboard
+    registration_widget.checkerboard_checkbox.setChecked(True)
+    assert registration_widget._checkerboard_layer is not None
+
+    # Disable checkerboard
+    registration_widget.checkerboard_checkbox.setChecked(False)
+
+    # Check that checkerboard layer was removed
+    assert registration_widget._checkerboard_layer is None
+
+    # Check that moving image is visible again
+    assert moving_layer.visible
