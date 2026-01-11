@@ -85,6 +85,7 @@ def generate_checkerboard(
         min_val = checkerboard.min()
         max_val = checkerboard.max()
         if max_val > min_val:
+            #min max normalization
             checkerboard = (checkerboard - min_val) / (max_val - min_val)
         else:
             # Handle case where all values are the same - set to midpoint for visibility
