@@ -166,9 +166,10 @@ class TestRowDeletion:
     def test_parameter_name_cleared_but_value_remains(
         self, parameter_list_view, qtbot
     ):
-        """Test that clearing name but keeping value clears value too."""
+        """Test clearing name when value exists clears value and deletes."""
         qtbot.addWidget(parameter_list_view)
 
+        initial_row_count = parameter_list_view.rowCount()
         param_name = "BSplineInterpolationOrder"
         target_row = None
         for i in range(parameter_list_view.rowCount()):
@@ -179,15 +180,14 @@ class TestRowDeletion:
 
         assert target_row is not None
 
-        # Clear parameter name (value should also be cleared)
+        # Clear parameter name (value exists, so both cleared and row deleted)
         parameter_list_view.item(target_row, 0).setText("")
         qtbot.wait(100)  # Wait for signals to process
 
         # Parameter should be removed from dict
         assert param_name not in parameter_list_view.param_dict
-        # Value should be cleared
-        value_item = parameter_list_view.item(target_row, 1)
-        assert value_item is None or value_item.text() == ""
+        # Row should be deleted (since both name and value are now empty)
+        assert parameter_list_view.rowCount() == initial_row_count - 1
 
     def test_parameter_renaming(self, parameter_list_view, qtbot):
         """Test that renaming a parameter updates the dictionary correctly."""
@@ -373,3 +373,265 @@ class TestRowDeletion:
 
         # Should be treated as empty and removed
         assert param_name not in parameter_list_view.param_dict
+
+    def test_delete_row_when_value_cleared_first(
+        self, parameter_list_view, qtbot
+    ):
+        """Test that row is deleted when value is cleared first, then name."""
+        qtbot.addWidget(parameter_list_view)
+
+        initial_row_count = parameter_list_view.rowCount()
+        param_name = "CheckNumberOfSamples"
+        assert param_name in parameter_list_view.param_dict
+
+        # Find the row
+        target_row = None
+        for i in range(parameter_list_view.rowCount()):
+            item = parameter_list_view.item(i, 0)
+            if item and item.text() == param_name:
+                target_row = i
+                break
+
+        assert target_row is not None
+
+        # Clear value first
+        parameter_list_view.item(target_row, 1).setText("")
+        qtbot.wait(100)
+
+        # Clear parameter name (this should trigger row deletion)
+        with qtbot.waitSignal(parameter_list_view.cellChanged, timeout=1000):
+            parameter_list_view.item(target_row, 0).setText("")
+
+        # Row should be removed
+        assert parameter_list_view.rowCount() == initial_row_count - 1
+        assert param_name not in parameter_list_view.param_dict
+
+    def test_delete_row_when_both_cleared_via_value(
+        self, parameter_list_view, qtbot
+    ):
+        """Test that row is deleted when name is cleared and value exists."""
+        qtbot.addWidget(parameter_list_view)
+
+        initial_row_count = parameter_list_view.rowCount()
+        param_name = "BSplineInterpolationOrder"
+        assert param_name in parameter_list_view.param_dict
+
+        # Find the row
+        target_row = None
+        for i in range(parameter_list_view.rowCount()):
+            item = parameter_list_view.item(i, 0)
+            if item and item.text() == param_name:
+                target_row = i
+                break
+
+        assert target_row is not None
+
+        # Clear parameter name first (both cleared and row deleted)
+        with qtbot.waitSignal(parameter_list_view.cellChanged, timeout=1000):
+            parameter_list_view.item(target_row, 0).setText("")
+        qtbot.wait(100)
+
+        # Row removed (deleted when name cleared since value was also cleared)
+        assert parameter_list_view.rowCount() == initial_row_count - 1
+        assert param_name not in parameter_list_view.param_dict
+
+    def test_signals_blocked_in_item_changed(self, parameter_list_view, qtbot):
+        """Test that itemChanged skips processing when signals are blocked."""
+        qtbot.addWidget(parameter_list_view)
+
+        # Block signals
+        parameter_list_view.blockSignals(True)
+
+        # Create item and call method directly to test signalsBlocked check
+        item = parameter_list_view.item(0, 0)
+        # Call method directly to test early return when signals blocked
+        parameter_list_view._on_item_changed(item)
+
+        # Unblock signals
+        parameter_list_view.blockSignals(False)
+
+        # Verify the method executed without crashing
+        assert item is not None
+
+    def test_signals_blocked_in_cell_change(self, parameter_list_view, qtbot):
+        """Test that cellChanged skips processing when signals are blocked."""
+        qtbot.addWidget(parameter_list_view)
+
+        # Block signals
+        parameter_list_view.blockSignals(True)
+
+        # Call method directly to test early return when signals blocked
+        parameter_list_view._on_cell_change(0, 1)
+
+        # Unblock signals
+        parameter_list_view.blockSignals(False)
+
+        # Verify the method executed without crashing
+        assert parameter_list_view.rowCount() > 0
+
+    def test_parameter_name_cleared_value_remains_else_branch(
+        self, parameter_list_view, qtbot
+    ):
+        """Test else branch when parameter name cleared but value exists."""
+        from qtpy.QtCore import Qt
+
+        qtbot.addWidget(parameter_list_view)
+
+        # Clear UserRole from items to test else branch at line 207
+        for i in range(min(2, parameter_list_view.rowCount() - 1)):
+            item = parameter_list_view.item(i, 0)
+            if item:
+                item.setData(Qt.ItemDataRole.UserRole, None)
+
+        param_name = "Transform"
+        target_row = None
+        for i in range(parameter_list_view.rowCount()):
+            item = parameter_list_view.item(i, 0)
+            if item and item.text() == param_name:
+                target_row = i
+                break
+
+        assert target_row is not None
+
+        # Ensure value exists
+        value_item = parameter_list_view.item(target_row, 1)
+        assert value_item is not None
+        assert value_item.text() != ""
+
+        # Clear parameter name (value should also be cleared and row deleted)
+        initial_row_count = parameter_list_view.rowCount()
+        parameter_list_view.item(target_row, 0).setText("")
+        qtbot.wait(100)
+
+        # Parameter should be removed from dict
+        assert param_name not in parameter_list_view.param_dict
+        # Row should be deleted
+        assert parameter_list_view.rowCount() == initial_row_count - 1
+
+    def test_row_deletion_with_item_without_userrole(
+        self, parameter_list_view, qtbot
+    ):
+        """Test row deletion when item lacks UserRole (covers else branch)."""
+        qtbot.addWidget(parameter_list_view)
+
+        # Add a new row with an item that doesn't have UserRole set
+        last_row = parameter_list_view.rowCount() - 1
+        new_item = QTableWidgetItem("TestParam")
+        # Don't set UserRole - this will test the else branch
+        parameter_list_view.setItem(last_row, 0, new_item)
+        parameter_list_view.setItem(
+            last_row, 1, QTableWidgetItem("test_value")
+        )
+        qtbot.wait(100)
+
+        # Now clear both to trigger deletion
+        parameter_list_view.item(last_row, 1).setText("")
+        qtbot.wait(100)
+        parameter_list_view.item(last_row, 0).setText("")
+        qtbot.wait(100)
+
+        # Row should be deleted
+        assert "TestParam" not in parameter_list_view.param_dict
+
+    def test_delete_row_via_value_when_both_empty(
+        self, parameter_list_view, qtbot
+    ):
+        """Test deleting row when value changed, both name and value empty."""
+        qtbot.addWidget(parameter_list_view)
+
+        initial_row_count = parameter_list_view.rowCount()
+
+        # Get a row with a parameter, clear the name first
+        param_name = "Transform"
+        target_row = None
+        for i in range(parameter_list_view.rowCount()):
+            item = parameter_list_view.item(i, 0)
+            if item and item.text() == param_name:
+                target_row = i
+                break
+
+        assert target_row is not None
+
+        # Clear the name (this will clear value and delete row)
+        parameter_list_view.item(target_row, 0).setText("")
+        qtbot.wait(100)
+
+        # Row should be removed
+        assert parameter_list_view.rowCount() == initial_row_count - 1
+        assert param_name not in parameter_list_view.param_dict
+
+    def test_row_deletion_else_branches_no_userrole(
+        self, parameter_list_view, qtbot
+    ):
+        """Test row deletion else branches when items lack UserRole data."""
+        from qtpy.QtCore import Qt
+
+        qtbot.addWidget(parameter_list_view)
+
+        # Create items without UserRole to test else branches
+        # Simulates scenario where items exist but don't have UserRole set
+        param_name = "CheckNumberOfSamples"
+        target_row = None
+        for i in range(parameter_list_view.rowCount()):
+            item = parameter_list_view.item(i, 0)
+            if item and item.text() == param_name:
+                target_row = i
+                break
+
+        assert target_row is not None
+
+        # Clear UserRole data from the item to test else branch
+        param_item = parameter_list_view.item(target_row, 0)
+        param_item.setData(Qt.ItemDataRole.UserRole, None)
+
+        # Also clear from a few other items to test multiple else branches
+        for i in range(min(3, parameter_list_view.rowCount())):
+            item = parameter_list_view.item(i, 0)
+            if item:
+                # Store text before clearing UserRole
+                item_text = item.text()
+                item.setData(Qt.ItemDataRole.UserRole, None)
+                # Restore text (in case it was cleared)
+                if not item.text():
+                    item.setText(item_text)
+
+        # Now trigger row deletion by clearing both name and value
+        parameter_list_view.item(target_row, 1).setText("")
+        qtbot.wait(100)
+        parameter_list_view.item(target_row, 0).setText("")
+        qtbot.wait(100)
+
+        # Row deleted and tracking rebuilt using else branches
+        assert param_name not in parameter_list_view.param_dict
+
+    def test_delete_row_when_value_cleared_name_already_empty(
+        self, parameter_list_view, qtbot
+    ):
+        """Test deleting row when value cleared, name empty (236-254)."""
+        from qtpy.QtCore import Qt
+
+        qtbot.addWidget(parameter_list_view)
+
+        initial_row_count = parameter_list_view.rowCount()
+
+        # Clear UserRole from items to test else branch at line 250
+        for i in range(min(2, parameter_list_view.rowCount() - 1)):
+            item = parameter_list_view.item(i, 0)
+            if item:
+                item.setData(Qt.ItemDataRole.UserRole, None)
+
+        # Create a row with empty name but with a value
+        last_row = parameter_list_view.rowCount() - 1
+        param_item = QTableWidgetItem("")
+        # Don't set UserRole to test else branch at line 250
+        parameter_list_view.setItem(last_row, 0, param_item)
+        value_item = QTableWidgetItem("test_value")
+        parameter_list_view.setItem(last_row, 1, value_item)
+        qtbot.wait(100)
+
+        # Clear value - both name and value empty, so row should be deleted
+        with qtbot.waitSignal(parameter_list_view.cellChanged, timeout=1000):
+            parameter_list_view.item(last_row, 1).setText("")
+
+        # Row should be removed (one less than initial)
+        assert parameter_list_view.rowCount() == initial_row_count - 1

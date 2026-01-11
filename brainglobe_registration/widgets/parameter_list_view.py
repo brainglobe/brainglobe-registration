@@ -192,10 +192,24 @@ class RegistrationParameterListView(QTableWidget):
                     try:
                         if value_item:
                             value_item.setText("")
+                        # After clearing value, both are now empty - delete row
+                        self.removeRow(row)
+
+                        # Update tracking dictionary for remaining rows
+                        self._old_param_names = {}
+                        for i in range(self.rowCount()):
+                            item = self.item(i, 0)
+                            if item is not None:
+                                stored_name = item.data(
+                                    Qt.ItemDataRole.UserRole
+                                )
+                                if stored_name:
+                                    self._old_param_names[i] = stored_name
+                                else:
+                                    self._old_param_names[i] = item.text()
                     finally:
                         self.blockSignals(False)
-                    # Update stored name to empty
-                    self._old_param_names[row] = ""
+                    return
 
             # If parameter name was changed (not cleared), update tracking
             elif new_param_name and new_param_name != old_param_name:
@@ -214,10 +228,34 @@ class RegistrationParameterListView(QTableWidget):
                     )
 
         # Handle value changes (column 1)
-        elif column == 1 and param_item:
-            parameter = param_item.text().strip()
+        elif column == 1:
+            parameter = param_item.text().strip() if param_item else ""
+            value_text = value_item.text().strip() if value_item else ""
+
+            # Check if both name and value are empty - delete row
+            if not parameter and not value_text:
+                # Block signals temporarily to avoid recursion
+                self.blockSignals(True)
+                try:
+                    # Remove the row
+                    self.removeRow(row)
+
+                    # Update tracking dictionary for remaining rows
+                    self._old_param_names = {}
+                    for i in range(self.rowCount()):
+                        item = self.item(i, 0)
+                        if item is not None:
+                            stored_name = item.data(Qt.ItemDataRole.UserRole)
+                            if stored_name:
+                                self._old_param_names[i] = stored_name
+                            else:
+                                self._old_param_names[i] = item.text()
+                finally:
+                    # Always unblock signals, even if there's an error
+                    self.blockSignals(False)
+                return
+
             if parameter:
-                value_text = value_item.text() if value_item else ""
                 value = value_text.split(", ") if value_text else [""]
                 # Filter out empty strings from split
                 value = [v.strip() for v in value if v.strip()]
