@@ -1,5 +1,6 @@
 from pathlib import Path, PurePath
 
+import napari
 import numpy as np
 from brainglobe_atlasapi import BrainGlobeAtlas
 
@@ -57,8 +58,6 @@ def test_open_parameter_file_with_comment_and_paren():
 
 def test_serialize_registration_widget(mocker):
     """Test serialize_registration_widget for different object types."""
-    import napari
-
     # Test with napari layer
     mock_layer = mocker.MagicMock(spec=napari.layers.Layer)
     mock_layer.name = "test_layer"
