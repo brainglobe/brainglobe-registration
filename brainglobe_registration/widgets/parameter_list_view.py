@@ -65,6 +65,22 @@ class RegistrationParameterListView(QTableWidget):
         # This helps us capture the old parameter name
         self._editing_item = None
 
+    def _rebuild_old_param_names_tracking(self):
+        """
+        Rebuild the _old_param_names tracking dictionary after row changes.
+
+        Avoids duplication:)
+        """
+        self._old_param_names = {}
+        for i in range(self.rowCount()):
+            item = self.item(i, 0)
+            if item is not None:
+                stored_name = item.data(Qt.ItemDataRole.UserRole)
+                if stored_name:
+                    self._old_param_names[i] = stored_name
+                else:
+                    self._old_param_names[i] = item.text()
+
     def set_data(self, param_dict):
         """
         Sets the data in the table from the parameter dictionary.
@@ -170,17 +186,7 @@ class RegistrationParameterListView(QTableWidget):
                         self.removeRow(row)
 
                         # Update tracking dictionary for remaining rows
-                        self._old_param_names = {}
-                        for i in range(self.rowCount()):
-                            item = self.item(i, 0)
-                            if item is not None:
-                                stored_name = item.data(
-                                    Qt.ItemDataRole.UserRole
-                                )
-                                if stored_name:
-                                    self._old_param_names[i] = stored_name
-                                else:
-                                    self._old_param_names[i] = item.text()
+                        self._rebuild_old_param_names_tracking()
                     finally:
                         # Always unblock signals, even if there's an error
                         self.blockSignals(False)
@@ -196,17 +202,7 @@ class RegistrationParameterListView(QTableWidget):
                         self.removeRow(row)
 
                         # Update tracking dictionary for remaining rows
-                        self._old_param_names = {}
-                        for i in range(self.rowCount()):
-                            item = self.item(i, 0)
-                            if item is not None:
-                                stored_name = item.data(
-                                    Qt.ItemDataRole.UserRole
-                                )
-                                if stored_name:
-                                    self._old_param_names[i] = stored_name
-                                else:
-                                    self._old_param_names[i] = item.text()
+                        self._rebuild_old_param_names_tracking()
                     finally:
                         self.blockSignals(False)
                     return
@@ -237,19 +233,18 @@ class RegistrationParameterListView(QTableWidget):
                 # Block signals temporarily to avoid recursion
                 self.blockSignals(True)
                 try:
+                    # Check if this is the last row before removal
+                    was_last_row = row == self.rowCount() - 1
+
                     # Remove the row
                     self.removeRow(row)
 
                     # Update tracking dictionary for remaining rows
-                    self._old_param_names = {}
-                    for i in range(self.rowCount()):
-                        item = self.item(i, 0)
-                        if item is not None:
-                            stored_name = item.data(Qt.ItemDataRole.UserRole)
-                            if stored_name:
-                                self._old_param_names[i] = stored_name
-                            else:
-                                self._old_param_names[i] = item.text()
+                    self._rebuild_old_param_names_tracking()
+
+                    # If we deleted the last row, append a new empty row
+                    if was_last_row:
+                        self.setRowCount(self.rowCount() + 1)
                 finally:
                     # Always unblock signals, even if there's an error
                     self.blockSignals(False)
