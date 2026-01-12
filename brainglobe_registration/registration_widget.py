@@ -53,22 +53,24 @@ import brainglobe_registration
 from brainglobe_registration.automated_target_selection import (
     run_bayesian_generator,
 )
+from brainglobe_registration.utils.atlas import calculate_region_size
+from brainglobe_registration.utils.file import (
+    open_parameter_file,
+    serialize_registration_widget,
+)
 from brainglobe_registration.utils.logging import (
     StripANSIColorFilter,
     get_auto_slice_logging_args,
 )
-from brainglobe_registration.utils.transforms import (
-    create_rotation_matrix,
-    rotate_volume,
-)
-from brainglobe_registration.utils.utils import (
-    calculate_region_size,
+from brainglobe_registration.utils.napari import (
     check_atlas_installed,
     find_layer_index,
     get_data_from_napari_layer,
     get_image_layer_names,
-    open_parameter_file,
-    serialize_registration_widget,
+)
+from brainglobe_registration.utils.transforms import (
+    create_rotation_matrix,
+    rotate_volume,
 )
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,

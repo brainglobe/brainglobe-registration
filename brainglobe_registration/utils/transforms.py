@@ -3,12 +3,9 @@ from typing import Tuple
 import dask.array as da
 import dask_image.ndinterp as ndi
 import numpy as np
+import numpy.typing as npt
 from pytransform3d.rotations import active_matrix_from_angle
 from skimage.transform import rescale
-
-from brainglobe_registration.utils.utils import (
-    calculate_rotated_bounding_box,
-)
 
 
 def create_rotation_matrix(
@@ -165,3 +162,50 @@ def scale_moving_image(
     ).astype(moving_image.dtype)
 
     return scaled
+
+
+def calculate_rotated_bounding_box(
+    image_shape: Tuple[int, int, int], rotation_matrix: npt.NDArray
+) -> Tuple[int, int, int]:
+    """
+    Calculates the bounding box of the rotated image.
+
+    This function calculates the bounding box of the rotated image given the
+    image shape and rotation matrix. The bounding box is calculated by
+    transforming the corners of the image and finding the minimum and maximum
+    values of the transformed corners.
+
+    Parameters
+    ------------
+    image_shape : Tuple[int, int, int]
+        The shape of the image.
+    rotation_matrix : npt.NDArray
+        The rotation matrix.
+
+    Returns
+    --------
+    Tuple[int, int, int]
+        The bounding box of the rotated image.
+    """
+    corners = np.array(
+        [
+            [0, 0, 0, 1],
+            [image_shape[0], 0, 0, 1],
+            [0, image_shape[1], 0, 1],
+            [0, 0, image_shape[2], 1],
+            [image_shape[0], image_shape[1], 0, 1],
+            [image_shape[0], 0, image_shape[2], 1],
+            [0, image_shape[1], image_shape[2], 1],
+            [image_shape[0], image_shape[1], image_shape[2], 1],
+        ]
+    )
+
+    transformed_corners = np.dot(rotation_matrix, corners.T)
+    min_corner = np.min(transformed_corners, axis=1)
+    max_corner = np.max(transformed_corners, axis=1)
+
+    return (
+        int(np.round(max_corner[0] - min_corner[0])),
+        int(np.round(max_corner[1] - min_corner[1])),
+        int(np.round(max_corner[2] - min_corner[2])),
+    )
