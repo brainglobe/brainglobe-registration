@@ -110,7 +110,7 @@ ignore = [
 
 [tool.ruff]
 line-length = 79
-exclude = ["__init__.py","build",".eggs",".git"]
+exclude = ["__init__.py","build",".eggs"]
 fix = true
 
 [tool.ruff.lint]
