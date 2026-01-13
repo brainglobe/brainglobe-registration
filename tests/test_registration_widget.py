@@ -858,8 +858,8 @@ def test_set_optimal_rotation_params_sets_gui_values(
 
 def test_checkerboard_checkbox_initial_state(registration_widget):
     """Test that checkerboard checkbox is initially disabled."""
-    assert not registration_widget.checkerboard_checkbox.isChecked()
-    assert not registration_widget.checkerboard_checkbox.isEnabled()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
 
 
 def test_checkerboard_checkbox_enabled_after_registration(
@@ -867,15 +867,15 @@ def test_checkerboard_checkbox_enabled_after_registration(
 ):
     """Test that checkerboard checkbox can be enabled after registration."""
     # Before registration, checkbox should be disabled
-    assert not registration_widget.checkerboard_checkbox.isEnabled()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
 
-    # Simulate registration completion by manually enabling the checkbox
+    # Simulate registration completion by manually enabling the QC widget
     # (This is what happens after registration completes in
     # _on_run_button_click)
-    registration_widget.checkerboard_checkbox.setEnabled(True)
+    registration_widget.qc_widget.set_enabled(True)
 
     # After registration, checkbox should be enabled
-    assert registration_widget.checkerboard_checkbox.isEnabled()
+    assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
 
 
 def test_show_checkerboard_no_moving_image(registration_widget, mocker):
@@ -885,10 +885,10 @@ def test_show_checkerboard_no_moving_image(registration_widget, mocker):
     )
     registration_widget._moving_image = None
 
-    registration_widget.checkerboard_checkbox.setChecked(True)
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
 
     mocked_show_error.assert_called_once()
-    assert not registration_widget.checkerboard_checkbox.isChecked()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
 
 
 def test_show_checkerboard_no_registered_image(registration_widget, mocker):
@@ -899,10 +899,10 @@ def test_show_checkerboard_no_registered_image(registration_widget, mocker):
     registration_widget._moving_image = registration_widget._viewer.layers[0]
     # No "Registered Image" layer exists yet
 
-    registration_widget.checkerboard_checkbox.setChecked(True)
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
 
     mocked_show_error.assert_called_once()
-    assert not registration_widget.checkerboard_checkbox.isChecked()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
 
 
 def test_show_checkerboard_shape_mismatch(registration_widget, mocker):
@@ -923,10 +923,10 @@ def test_show_checkerboard_shape_mismatch(registration_widget, mocker):
     )
 
     registration_widget._moving_image = moving_layer
-    registration_widget.checkerboard_checkbox.setChecked(True)
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
 
     mocked_show_error.assert_called_once()
-    assert not registration_widget.checkerboard_checkbox.isChecked()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
 
 
 def test_show_checkerboard_success(registration_widget):
@@ -948,7 +948,7 @@ def test_show_checkerboard_success(registration_widget):
     assert registration_widget._checkerboard_layer is None
 
     # Enable checkerboard
-    registration_widget.checkerboard_checkbox.setChecked(True)
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
 
     # Check that checkerboard layer was created
     assert registration_widget._checkerboard_layer is not None
@@ -956,7 +956,7 @@ def test_show_checkerboard_success(registration_widget):
 
     # Check that original layers are hidden
     assert not moving_layer.visible
-    from brainglobe_registration.utils.utils import find_layer_index
+    from brainglobe_registration.utils.napari import find_layer_index
 
     registered_layer_index = find_layer_index(
         registration_widget._viewer, "Registered Image"
@@ -982,11 +982,11 @@ def test_hide_checkerboard(registration_widget):
     registration_widget._moving_image = moving_layer
 
     # Enable checkerboard
-    registration_widget.checkerboard_checkbox.setChecked(True)
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
     assert registration_widget._checkerboard_layer is not None
 
     # Disable checkerboard
-    registration_widget.checkerboard_checkbox.setChecked(False)
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(False)
 
     # Check that checkerboard layer was removed
     assert registration_widget._checkerboard_layer is None

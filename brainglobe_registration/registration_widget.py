@@ -79,6 +79,7 @@ from brainglobe_registration.widgets.adjust_moving_image_view import (
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
+from brainglobe_registration.widgets.qc_widget import QCWidget
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
 from brainglobe_registration.widgets.target_selection_widget import (
     AutoSliceDialog,
@@ -186,10 +187,9 @@ class RegistrationWidget(QScrollArea):
         self.filter_checkbox = QCheckBox("Filter Images")
         self.filter_checkbox.setChecked(False)
 
-        self.checkerboard_checkbox = QCheckBox("Show Checkerboard")
-        self.checkerboard_checkbox.setChecked(False)
-        self.checkerboard_checkbox.setEnabled(False)
-        self.checkerboard_checkbox.toggled.connect(
+        # QC widget for quality control visualizations
+        self.qc_widget = QCWidget(parent=self)
+        self.qc_widget.checkerboard_checkbox.toggled.connect(
             self._on_checkerboard_toggled
         )
 
@@ -248,8 +248,10 @@ class RegistrationWidget(QScrollArea):
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
 
+        # Add QC widget after Advanced Settings
+        self._widget.add_widget(self.qc_widget, widget_title="Quality Control")
+
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
-        self._widget.add_widget(self.checkerboard_checkbox, collapsible=False)
 
         self._widget.add_widget(QLabel("Output Directory"), collapsible=False)
         self._widget.add_widget(
@@ -642,8 +644,8 @@ class RegistrationWidget(QScrollArea):
         self._atlas_data_layer.visible = False
         self._viewer.grid.enabled = False
 
-        # Enable checkerboard checkbox now that registration is complete
-        self.checkerboard_checkbox.setEnabled(True)
+        # Enable QC widget now that registration is complete
+        self.qc_widget.set_enabled(True)
 
         print("Saving outputs")
         imwrite(self.output_directory / "downsampled.tiff", moving_image)
@@ -674,7 +676,7 @@ class RegistrationWidget(QScrollArea):
                 "No moving image available. "
                 "Please select a moving image first."
             )
-            self.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
             return
 
         # Find the "Registered Image" layer
@@ -686,7 +688,7 @@ class RegistrationWidget(QScrollArea):
                 "Registered Image layer not found. "
                 "Please run registration first."
             )
-            self.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
             return
 
         registered_layer = self._viewer.layers[registered_layer_index]
@@ -709,7 +711,7 @@ class RegistrationWidget(QScrollArea):
                 f"Moving image is 3D {moving_data.shape} but "
                 f"Registered image is 2D {registered_data.shape}"
             )
-            self.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
             return
 
         # Ensure images have the same shape after dimension matching
@@ -719,7 +721,7 @@ class RegistrationWidget(QScrollArea):
                 f"Moving image: {moving_data.shape}, "
                 f"Registered image: {registered_data.shape}"
             )
-            self.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
             return
 
         # Generate checkerboard pattern
@@ -755,7 +757,7 @@ class RegistrationWidget(QScrollArea):
 
         except Exception as e:
             show_error(f"Error generating checkerboard: {str(e)}")
-            self.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
 
     def _hide_checkerboard(self):
         """Hide the checkerboard visualization and restore original images."""

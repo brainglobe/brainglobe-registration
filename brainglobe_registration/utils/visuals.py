@@ -5,8 +5,6 @@ This module contains functions for generating visualization overlays
 such as checkerboard patterns for comparing registered images.
 """
 
-from typing import Optional, Tuple
-
 import numpy as np
 import numpy.typing as npt
 
@@ -63,15 +61,11 @@ def generate_checkerboard(
 
     if ndim == 2:
         # 2D case: create checkerboard pattern in (y, x)
-        checkerboard = _generate_2d_checkerboard(
-            image1, image2, square_size
-        )
+        checkerboard = _generate_2d_checkerboard(image1, image2, square_size)
     elif ndim == 3:
         # 3D case: create checkerboard pattern in each slice (z, y, x)
         # The pattern is the same for all z-slices
-        checkerboard = _generate_3d_checkerboard(
-            image1, image2, square_size
-        )
+        checkerboard = _generate_3d_checkerboard(image1, image2, square_size)
     else:
         raise ValueError(
             f"Unsupported image dimensionality: {ndim}. "
@@ -85,7 +79,7 @@ def generate_checkerboard(
         min_val = checkerboard.min()
         max_val = checkerboard.max()
         if max_val > min_val:
-            #min max normalization
+            # min max normalization
             checkerboard = (checkerboard - min_val) / (max_val - min_val)
         else:
             # Handle case where all values are the same - set to midpoint for visibility

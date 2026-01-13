@@ -69,9 +69,7 @@ def test_generate_checkerboard_unsupported_dimension():
     image1 = np.ones((10, 10, 10, 10), dtype=np.uint8)  # 4D
     image2 = np.ones((10, 10, 10, 10), dtype=np.uint8)
 
-    with pytest.raises(
-        ValueError, match="Unsupported image dimensionality"
-    ):
+    with pytest.raises(ValueError, match="Unsupported image dimensionality"):
         generate_checkerboard(image1, image2)
 
 
