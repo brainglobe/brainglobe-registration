@@ -1033,7 +1033,7 @@ def test_show_checkerboard_2d_moving_3d_registered(
 def test_show_checkerboard_3d_moving_2d_registered(
     registration_widget, mocker
 ):
-    """Test checkerboard with 3D moving image and 2D registered (error)."""
+    """Test checkerboard with 3D moving and 2D registered image."""
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
     )
