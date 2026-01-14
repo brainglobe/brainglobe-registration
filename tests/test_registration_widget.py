@@ -996,3 +996,129 @@ def test_hide_checkerboard(registration_widget):
 
     # Check that moving image is visible again
     assert moving_layer.visible
+
+
+def test_show_checkerboard_2d_moving_3d_registered(registration_widget, mocker):
+    """Test checkerboard with 2D moving image and 3D registered image."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+
+    # Create 2D moving image
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._moving_image = moving_layer
+
+    # Create 3D registered image
+    registered_image_data = np.random.rand(50, 100, 100).astype(np.float32)
+    registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    # Set current slice
+    registration_widget._viewer.dims.set_current_step(0, 25)
+
+    # Enable checkerboard - should extract slice from 3D registered image
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+
+    # Should succeed - no error
+    mocked_show_error.assert_not_called()
+    assert registration_widget._checkerboard_layer is not None
+
+
+def test_show_checkerboard_3d_moving_2d_registered(registration_widget, mocker):
+    """Test checkerboard with 3D moving image and 2D registered image (error)."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+
+    # Create 3D moving image
+    moving_image_data = np.random.rand(50, 100, 100).astype(np.float32)
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._moving_image = moving_layer
+
+    # Create 2D registered image
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+    registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    # Enable checkerboard - should show error
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+
+    mocked_show_error.assert_called_once()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_existing_layer_removal(registration_widget):
+    """Test that existing checkerboard layer is removed before adding new one."""
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+
+    # Count layers before
+    initial_layer_count = len(registration_widget._viewer.layers)
+
+    # Enable checkerboard first time
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    first_checkerboard_layer = registration_widget._checkerboard_layer
+    assert first_checkerboard_layer is not None
+    assert first_checkerboard_layer in registration_widget._viewer.layers
+
+    # Enable checkerboard again - should remove old layer and create new one
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    second_checkerboard_layer = registration_widget._checkerboard_layer
+    assert second_checkerboard_layer is not None
+    # New layer should be in viewer
+    assert second_checkerboard_layer in registration_widget._viewer.layers
+    # Should only have one checkerboard layer
+    checkerboard_layers = [
+        layer
+        for layer in registration_widget._viewer.layers
+        if layer.name == "Checkerboard"
+    ]
+    assert len(checkerboard_layers) == 1
+
+
+def test_show_checkerboard_exception_handling(registration_widget, mocker):
+    """Test exception handling in checkerboard generation."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mocked_generate_checkerboard = mocker.patch(
+        "brainglobe_registration.registration_widget.generate_checkerboard",
+        side_effect=Exception("Test error"),
+    )
+
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+
+    # Enable checkerboard - should catch exception
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+
+    mocked_show_error.assert_called_once()
+    assert "Error generating checkerboard" in str(mocked_show_error.call_args)
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
