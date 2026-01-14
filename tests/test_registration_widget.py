@@ -998,7 +998,9 @@ def test_hide_checkerboard(registration_widget):
     assert moving_layer.visible
 
 
-def test_show_checkerboard_2d_moving_3d_registered(registration_widget, mocker):
+def test_show_checkerboard_2d_moving_3d_registered(
+    registration_widget, mocker
+):
     """Test checkerboard with 2D moving image and 3D registered image."""
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
@@ -1028,8 +1030,10 @@ def test_show_checkerboard_2d_moving_3d_registered(registration_widget, mocker):
     assert registration_widget._checkerboard_layer is not None
 
 
-def test_show_checkerboard_3d_moving_2d_registered(registration_widget, mocker):
-    """Test checkerboard with 3D moving image and 2D registered image (error)."""
+def test_show_checkerboard_3d_moving_2d_registered(
+    registration_widget, mocker
+):
+    """Test checkerboard with 3D moving image and 2D registered (error)."""
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
     )
@@ -1055,7 +1059,7 @@ def test_show_checkerboard_3d_moving_2d_registered(registration_widget, mocker):
 
 
 def test_show_checkerboard_existing_layer_removal(registration_widget):
-    """Test that existing checkerboard layer is removed before adding new one."""
+    """Test that existing checkerboard layer is removed before adding new."""
     # Create matching images
     moving_image_data = np.random.rand(100, 100).astype(np.float32)
     registered_image_data = np.random.rand(100, 100).astype(np.float32)
@@ -1068,9 +1072,6 @@ def test_show_checkerboard_existing_layer_removal(registration_widget):
     )
 
     registration_widget._moving_image = moving_layer
-
-    # Count layers before
-    initial_layer_count = len(registration_widget._viewer.layers)
 
     # Enable checkerboard first time
     registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
@@ -1098,7 +1099,7 @@ def test_show_checkerboard_exception_handling(registration_widget, mocker):
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
     )
-    mocked_generate_checkerboard = mocker.patch(
+    mocker.patch(
         "brainglobe_registration.registration_widget.generate_checkerboard",
         side_effect=Exception("Test error"),
     )
