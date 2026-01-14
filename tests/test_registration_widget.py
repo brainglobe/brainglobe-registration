@@ -11,6 +11,7 @@ from brainglobe_registration.registration_widget import RegistrationWidget
 from brainglobe_registration.utils.logging import (
     StripANSIColorFilter,
 )
+from brainglobe_registration.utils.napari import find_layer_index
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
 )
@@ -956,7 +957,6 @@ def test_show_checkerboard_success(registration_widget):
 
     # Check that original layers are hidden
     assert not moving_layer.visible
-    from brainglobe_registration.utils.napari import find_layer_index
 
     registered_layer_index = find_layer_index(
         registration_widget._viewer, "Registered Image"

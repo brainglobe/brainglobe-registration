@@ -18,22 +18,25 @@ def generate_checkerboard(
     """
     Generate a checkerboard pattern by alternating between two images.
 
-    This function creates a checkerboard visualization where alternating squares
-    show either image1 or image2. This is useful for comparing registered images
-    to assess registration quality.
+    This function creates a checkerboard visualization where alternating
+    squares show either image1 or image2. This is useful for comparing
+    registered images to assess registration quality.
 
     Parameters
     ----------
     image1 : npt.NDArray
-        First image to display in checkerboard pattern (typically the original image).
+        First image to display in checkerboard pattern (typically the
+        original image).
     image2 : npt.NDArray
-        Second image to display in checkerboard pattern (typically the registered image).
+        Second image to display in checkerboard pattern (typically the
+        registered image).
     square_size : int, optional
         Size of each checkerboard square in pixels, by default 32.
         For 3D images, this applies to the last two dimensions (y, x).
     normalize : bool, optional
         Whether to normalize the output to [0, 1] range, by default True.
-        If False, output will be in the same dtype and range as the input images.
+        If False, output will be in the same dtype and range as the input
+        images.
 
     Returns
     -------
@@ -82,7 +85,8 @@ def generate_checkerboard(
             # min max normalization
             checkerboard = (checkerboard - min_val) / (max_val - min_val)
         else:
-            # Handle case where all values are the same - set to midpoint for visibility
+            # Handle case where all values are the same - set to midpoint
+            # for visibility
             checkerboard.fill(0.5)
 
     return checkerboard
@@ -113,7 +117,7 @@ def _generate_2d_checkerboard(
 def _generate_3d_checkerboard(
     image1: npt.NDArray, image2: npt.NDArray, square_size: int
 ) -> npt.NDArray:
-    """Generate a 3D checkerboard pattern (pattern is the same for all z-slices)."""
+    """Generate a 3D checkerboard pattern (same for all z-slices)."""
     d, h, w = image1.shape
     checkerboard = np.zeros_like(image1, dtype=np.float64)
 

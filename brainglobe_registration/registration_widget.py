@@ -53,6 +53,13 @@ import brainglobe_registration
 from brainglobe_registration.automated_target_selection import (
     run_bayesian_generator,
 )
+from brainglobe_registration.elastix.register import (
+    calculate_deformation_field,
+    invert_transformation,
+    run_registration,
+    transform_annotation_image,
+    transform_image,
+)
 from brainglobe_registration.utils.atlas import calculate_region_size
 from brainglobe_registration.utils.file import (
     open_parameter_file,
@@ -440,14 +447,6 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        from brainglobe_registration.elastix.register import (
-            calculate_deformation_field,
-            invert_transformation,
-            run_registration,
-            transform_annotation_image,
-            transform_image,
-        )
-
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.uint16
         )
@@ -697,8 +696,8 @@ class RegistrationWidget(QScrollArea):
         moving_data = get_data_from_napari_layer(self._moving_image)
         registered_data = get_data_from_napari_layer(registered_layer)
 
-        # Handle dimension mismatch: if moving image is 2D but registered is 3D,
-        # extract the current slice from the registered image
+        # Handle dimension mismatch: if moving image is 2D but registered is
+        # 3D, extract the current slice from the registered image
         if moving_data.ndim == 2 and registered_data.ndim == 3:
             # Get current slice position from viewer
             current_slice = self._viewer.dims.current_step[0]
