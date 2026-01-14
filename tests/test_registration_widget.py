@@ -556,6 +556,9 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
     assert (tmp_path / "downsampled.tiff").exists()
     assert (tmp_path / "brainglobe-registration.json").exists()
 
+    # Check that QC widget is enabled after registration
+    assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
 
 def test_open_auto_slice_dialog_no_atlas(registration_widget, mocker):
     mocked_display_info = mocker.patch(
