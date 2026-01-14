@@ -998,7 +998,9 @@ def test_hide_checkerboard(registration_widget):
     assert moving_layer.visible
 
 
-def test_show_checkerboard_2d_moving_3d_registered(registration_widget, mocker):
+def test_show_checkerboard_2d_moving_3d_registered(
+    registration_widget, mocker
+):
     """Test checkerboard with 2D moving image and 3D registered image."""
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
@@ -1028,7 +1030,9 @@ def test_show_checkerboard_2d_moving_3d_registered(registration_widget, mocker):
     assert registration_widget._checkerboard_layer is not None
 
 
-def test_show_checkerboard_3d_moving_2d_registered(registration_widget, mocker):
+def test_show_checkerboard_3d_moving_2d_registered(
+    registration_widget, mocker
+):
     """Test checkerboard with 3D moving image and 2D registered image (error)."""
     mocked_show_error = mocker.patch(
         "brainglobe_registration.registration_widget.show_error"
