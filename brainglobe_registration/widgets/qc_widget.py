@@ -6,7 +6,14 @@ registration quality, including checkerboard visualization and future features
 such as intensity maps and Jacobian analysis.
 """
 
-from qtpy.QtWidgets import QCheckBox, QVBoxLayout, QWidget
+from qtpy.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class QCWidget(QWidget):
@@ -20,8 +27,8 @@ class QCWidget(QWidget):
 
     Attributes
     ----------
-    checkerboard_checkbox : QCheckBox
-        Checkbox to toggle checkerboard visualization.
+    checkerboard_button : QPushButton
+        Button to toggle checkerboard visualization.
 
     Methods
     -------
@@ -43,11 +50,38 @@ class QCWidget(QWidget):
         self.setLayout(QVBoxLayout())
         self.layout().setContentsMargins(0, 0, 0, 0)
 
-        # Checkerboard visualization checkbox
-        self.checkerboard_checkbox = QCheckBox("Show Checkerboard")
-        self.checkerboard_checkbox.setChecked(False)
-        self.checkerboard_checkbox.setEnabled(False)
-        self.layout().addWidget(self.checkerboard_checkbox)
+        # Checkerboard visualization button
+        self.checkerboard_button = QPushButton("Show Checkerboard")
+        self.checkerboard_button.setEnabled(False)
+        self.checkerboard_button.setCheckable(True)
+        self.checkerboard_button.setChecked(False)
+        self.layout().addWidget(self.checkerboard_button)
+
+        # Checkerboard square size parameter
+        square_size_layout = QHBoxLayout()
+        square_size_layout.setContentsMargins(0, 0, 0, 0)
+        square_size_label = QLabel("Square size:")
+        self.square_size_spinbox = QSpinBox()
+        self.square_size_spinbox.setRange(4, 512)
+        self.square_size_spinbox.setValue(32)  # Default value
+        self.square_size_spinbox.setSingleStep(4)
+        self.square_size_spinbox.setEnabled(False)
+        self.square_size_spinbox.setToolTip(
+            "Size of each checkerboard square in pixels. "
+            "Larger values create bigger squares."
+        )
+        square_size_layout.addWidget(square_size_label)
+        square_size_layout.addWidget(self.square_size_spinbox)
+        square_size_layout.addStretch()
+        self.layout().addLayout(square_size_layout)
+
+        # Clear QC images button
+        self.clear_qc_button = QPushButton("Clear QC Images")
+        self.clear_qc_button.setEnabled(False)
+        self.clear_qc_button.setToolTip(
+            "Remove all QC visualization layers (checkerboard, etc.)"
+        )
+        self.layout().addWidget(self.clear_qc_button)
 
         # Future QC features will be added here (intensity map, etc.)
 
@@ -60,4 +94,6 @@ class QCWidget(QWidget):
         enabled : bool
             Whether to enable the QC controls.
         """
-        self.checkerboard_checkbox.setEnabled(enabled)
+        self.checkerboard_button.setEnabled(enabled)
+        self.square_size_spinbox.setEnabled(enabled)
+        self.clear_qc_button.setEnabled(enabled)

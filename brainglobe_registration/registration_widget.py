@@ -34,6 +34,7 @@ from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from qt_niu.collapsible_widget import CollapsibleWidgetContainer
 from qt_niu.dialog import display_info
+from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -52,13 +53,6 @@ from tifffile import imwrite
 import brainglobe_registration
 from brainglobe_registration.automated_target_selection import (
     run_bayesian_generator,
-)
-from brainglobe_registration.elastix.register import (
-    calculate_deformation_field,
-    invert_transformation,
-    run_registration,
-    transform_annotation_image,
-    transform_image,
 )
 from brainglobe_registration.utils.atlas import calculate_region_size
 from brainglobe_registration.utils.file import (
@@ -112,8 +106,14 @@ class RegistrationWidget(QScrollArea):
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
+        # Registered image layer reference (saved after registration)
+        self._registered_image: Optional[napari.layers.Image] = None
         # Checkerboard visualization
         self._checkerboard_layer: Optional[napari.layers.Image] = None
+        # Timer for debouncing square size changes
+        self._square_size_timer = QTimer()
+        self._square_size_timer.setSingleShot(True)
+        self._square_size_timer.timeout.connect(self._on_square_size_changed)
 
         self.transform_params: dict[str, dict] = {
             "affine": {},
@@ -196,8 +196,18 @@ class RegistrationWidget(QScrollArea):
 
         # QC widget for quality control visualizations
         self.qc_widget = QCWidget(parent=self)
-        self.qc_widget.checkerboard_checkbox.toggled.connect(
+        self.qc_widget.checkerboard_button.toggled.connect(
             self._on_checkerboard_toggled
+        )
+        # Regenerate checkerboard when square size changes (if visible)
+        # Use valueChanged with debounce timer for responsive updates
+        # Timer waits 300ms after last change before regenerating
+        self.qc_widget.square_size_spinbox.valueChanged.connect(
+            self._on_square_size_value_changed
+        )
+        # Clear QC images button
+        self.qc_widget.clear_qc_button.clicked.connect(
+            self._on_clear_qc_images
         )
 
         self.output_directory_widget = QWidget()
@@ -505,6 +515,15 @@ class RegistrationWidget(QScrollArea):
                     str(self._moving_image.data.ndim)
                 ]
 
+        # Import elastix functions locally to avoid slow widget loading
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            invert_transformation,
+            run_registration,
+            transform_annotation_image,
+            transform_image,
+        )
+
         print("Running registration")
         parameters = run_registration(
             atlas_image,
@@ -518,7 +537,8 @@ class RegistrationWidget(QScrollArea):
             transform_image(atlas_image, parameters)
         )
 
-        self._viewer.add_image(
+        # Save reference to registered image layer for QC visualizations
+        self._registered_image = self._viewer.add_image(
             atlas_in_data_space, name="Registered Image", visible=False
         )
 
@@ -646,6 +666,15 @@ class RegistrationWidget(QScrollArea):
         # Enable QC widget now that registration is complete
         self.qc_widget.set_enabled(True)
 
+        # Set default square size based on image dimensions if not
+        # user-modified (adaptive: roughly 1/16th of smallest dimension,
+        # minimum 8 pixels)
+        min_dimension = min(moving_image.shape[-2:])
+        default_square_size = max(8, min_dimension // 16)
+        # Only update if still at default value (32)
+        if self.qc_widget.square_size_spinbox.value() == 32:
+            self.qc_widget.square_size_spinbox.setValue(default_square_size)
+
         print("Saving outputs")
         imwrite(self.output_directory / "downsampled.tiff", moving_image)
 
@@ -656,17 +685,41 @@ class RegistrationWidget(QScrollArea):
 
     def _on_checkerboard_toggled(self, checked: bool):
         """
-        Handle checkerboard checkbox toggle.
+        Handle checkerboard button toggle.
 
         Parameters
         ----------
         checked : bool
-            Whether the checkbox is checked.
+            Whether the button is checked (Show/Hide).
         """
         if checked:
             self._show_checkerboard()
+            self.qc_widget.checkerboard_button.setText("Hide Checkerboard")
         else:
-            self._hide_checkerboard()
+            self._remove_checkerboard()
+            self.qc_widget.checkerboard_button.setText("Show Checkerboard")
+
+    def _on_square_size_value_changed(self):
+        """
+        Handle square size parameter change (debounced).
+
+        Restarts the debounce timer. When timer expires, regenerates the
+        checkerboard. This allows the number to update immediately while
+        only regenerating when user stops changing the value.
+        """
+        # Restart the timer (debounce)
+        self._square_size_timer.stop()
+        self._square_size_timer.start(300)  # 300ms delay
+
+    def _on_square_size_changed(self):
+        """
+        Regenerate checkerboard after debounce delay.
+
+        Called by the timer when user stops changing square size.
+        """
+        # Only regenerate if checkerboard is currently visible
+        if self.qc_widget.checkerboard_button.isChecked():
+            self._show_checkerboard()
 
     def _show_checkerboard(self):
         """Generate and display the checkerboard visualization."""
@@ -675,22 +728,19 @@ class RegistrationWidget(QScrollArea):
                 "No moving image available. "
                 "Please select a moving image first."
             )
-            self.qc_widget.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_button.setChecked(False)
             return
 
-        # Find the "Registered Image" layer
-        registered_layer_index = find_layer_index(
-            self._viewer, "Registered Image"
-        )
-        if registered_layer_index == -1:
+        # Use saved reference to registered image layer
+        if self._registered_image is None:
             show_error(
                 "Registered Image layer not found. "
                 "Please run registration first."
             )
-            self.qc_widget.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_button.setChecked(False)
             return
 
-        registered_layer = self._viewer.layers[registered_layer_index]
+        registered_layer = self._registered_image
 
         # Get the data from both images
         moving_data = get_data_from_napari_layer(self._moving_image)
@@ -710,25 +760,14 @@ class RegistrationWidget(QScrollArea):
                 f"Moving image is 3D {moving_data.shape} but "
                 f"Registered image is 2D {registered_data.shape}"
             )
-            self.qc_widget.checkerboard_checkbox.setChecked(False)
-            return
-
-        # Ensure images have the same shape after dimension matching
-        if moving_data.shape != registered_data.shape:
-            show_error(
-                f"Cannot create checkerboard: images have different shapes. "
-                f"Moving image: {moving_data.shape}, "
-                f"Registered image: {registered_data.shape}"
-            )
-            self.qc_widget.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_button.setChecked(False)
             return
 
         # Generate checkerboard pattern
-        # Use a square size based on image dimensions
-        # (roughly 1/16th of smallest dimension)
-        min_dimension = min(moving_data.shape[-2:])
-        # At least 8 pixels, but adaptive
-        square_size = max(8, min_dimension // 16)
+        # Note: generate_checkerboard() handles shape mismatches automatically
+        # by cropping to the overlapping region
+        # Use square size from QC widget (user-configurable)
+        square_size = self.qc_widget.square_size_spinbox.value()
 
         try:
             checkerboard_data = generate_checkerboard(
@@ -756,10 +795,12 @@ class RegistrationWidget(QScrollArea):
 
         except Exception as e:
             show_error(f"Error generating checkerboard: {str(e)}")
-            self.qc_widget.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_button.setChecked(False)
 
-    def _hide_checkerboard(self):
-        """Hide the checkerboard visualization and restore original images."""
+    def _remove_checkerboard(self):
+        """
+        Remove the checkerboard visualization and restore original images.
+        """
         if self._checkerboard_layer is not None:
             if self._checkerboard_layer in self._viewer.layers:
                 self._viewer.layers.remove(self._checkerboard_layer)
@@ -769,11 +810,29 @@ class RegistrationWidget(QScrollArea):
         if self._moving_image is not None:
             self._moving_image.visible = True
 
-        registered_layer_index = find_layer_index(
-            self._viewer, "Registered Image"
+        if self._registered_image is not None:
+            self._registered_image.visible = False
+
+    def _on_clear_qc_images(self):
+        """Remove all QC visualization layers."""
+        # Temporarily disconnect toggled signal to avoid recursive calls
+        self.qc_widget.checkerboard_button.toggled.disconnect(
+            self._on_checkerboard_toggled
         )
-        if registered_layer_index != -1:
-            self._viewer.layers[registered_layer_index].visible = False
+
+        # Remove checkerboard if it exists
+        self._remove_checkerboard()
+
+        # Reset checkerboard button state (without triggering toggled signal)
+        self.qc_widget.checkerboard_button.setChecked(False)
+        self.qc_widget.checkerboard_button.setText("Show Checkerboard")
+
+        # Reconnect the signal
+        self.qc_widget.checkerboard_button.toggled.connect(
+            self._on_checkerboard_toggled
+        )
+
+        # Future QC features will be cleared here
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
