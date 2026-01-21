@@ -7,6 +7,7 @@ such as intensity maps and Jacobian analysis.
 """
 
 from qtpy.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -27,8 +28,12 @@ class QCWidget(QWidget):
 
     Attributes
     ----------
-    checkerboard_button : QPushButton
-        Button to toggle checkerboard visualization.
+    checkerboard_checkbox : QCheckBox
+        Checkbox to select checkerboard visualization.
+    plot_qc_button : QPushButton
+        Button to generate selected QC plots.
+    clear_qc_button : QPushButton
+        Button to clear all QC visualizations.
 
     Methods
     -------
@@ -50,12 +55,14 @@ class QCWidget(QWidget):
         self.setLayout(QVBoxLayout())
         self.layout().setContentsMargins(0, 0, 0, 0)
 
-        # Checkerboard visualization button
-        self.checkerboard_button = QPushButton("Show Checkerboard")
-        self.checkerboard_button.setEnabled(False)
-        self.checkerboard_button.setCheckable(True)
-        self.checkerboard_button.setChecked(False)
-        self.layout().addWidget(self.checkerboard_button)
+        # Checkerboard visualization checkbox (selection, not immediate action)
+        self.checkerboard_checkbox = QCheckBox("Checkerboard")
+        self.checkerboard_checkbox.setEnabled(False)
+        self.checkerboard_checkbox.setChecked(False)
+        self.checkerboard_checkbox.setToolTip(
+            "Select to generate checkerboard visualization"
+        )
+        self.layout().addWidget(self.checkerboard_checkbox)
 
         # Checkerboard square size parameter
         square_size_layout = QHBoxLayout()
@@ -74,6 +81,14 @@ class QCWidget(QWidget):
         square_size_layout.addWidget(self.square_size_spinbox)
         square_size_layout.addStretch()
         self.layout().addLayout(square_size_layout)
+
+        # Plot QC button - generates all selected QC plots
+        self.plot_qc_button = QPushButton("Plot QC")
+        self.plot_qc_button.setEnabled(False)
+        self.plot_qc_button.setToolTip(
+            "Generate all selected QC visualizations"
+        )
+        self.layout().addWidget(self.plot_qc_button)
 
         # Clear QC images button
         self.clear_qc_button = QPushButton("Clear QC Images")
@@ -94,6 +109,7 @@ class QCWidget(QWidget):
         enabled : bool
             Whether to enable the QC controls.
         """
-        self.checkerboard_button.setEnabled(enabled)
+        self.checkerboard_checkbox.setEnabled(enabled)
         self.square_size_spinbox.setEnabled(enabled)
+        self.plot_qc_button.setEnabled(enabled)
         self.clear_qc_button.setEnabled(enabled)

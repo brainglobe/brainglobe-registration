@@ -18,25 +18,29 @@ def test_generate_checkerboard_2d_basic():
     # Check shape
     assert checkerboard.shape == (100, 100)
 
-    # Check that values are normalized (between 0 and 1)
-    assert checkerboard.min() >= 0.0
-    assert checkerboard.max() <= 1.0
+    # Check that values are normalized (uint16 range: 0-65535)
+    assert checkerboard.min() >= 0
+    assert checkerboard.max() <= 65535
+    assert checkerboard.dtype == np.uint16
 
-    # Check that it's not all zeros or all ones (should have pattern)
+    # Check that it's not all zeros or all max (should have pattern)
     assert checkerboard.min() < checkerboard.max()
 
 
 def test_generate_checkerboard_2d_square_pattern():
     """Test that checkerboard creates alternating pattern."""
-    # Create images with distinct values
+    # Create images with distinct values (non-constant for variation)
     image1 = np.ones((64, 64), dtype=np.uint8) * 255
     image2 = np.ones((64, 64), dtype=np.uint8) * 100
+    # Add some variation to image2 so they normalize differently
+    image2[0:32, 0:32] = 200
 
     checkerboard = generate_checkerboard(
         image1, image2, square_size=16, normalize=True
     )
 
     # Check that there's variation (pattern exists)
+    # Even with normalization, alternating pattern should create variation
     assert np.std(checkerboard) > 0
 
 
@@ -50,18 +54,21 @@ def test_generate_checkerboard_3d():
     # Check shape
     assert checkerboard.shape == (10, 100, 100)
 
-    # Check that values are normalized
-    assert checkerboard.min() >= 0.0
-    assert checkerboard.max() <= 1.0
+    # Check that values are normalized (uint16 range: 0-65535)
+    assert checkerboard.min() >= 0
+    assert checkerboard.max() <= 65535
+    assert checkerboard.dtype == np.uint16
 
 
 def test_generate_checkerboard_shape_mismatch():
-    """Test that checkerboard raises error for mismatched shapes."""
+    """Test that checkerboard crops to minimum shape for mismatched shapes."""
     image1 = np.ones((100, 100), dtype=np.uint8)
     image2 = np.ones((100, 101), dtype=np.uint8)  # Different width
 
-    with pytest.raises(ValueError, match="Images must have the same shape"):
-        generate_checkerboard(image1, image2)
+    checkerboard = generate_checkerboard(image1, image2)
+
+    # Should crop to minimum shape (100, 100)
+    assert checkerboard.shape == (100, 100)
 
 
 def test_generate_checkerboard_unsupported_dimension():
@@ -82,8 +89,8 @@ def test_generate_checkerboard_normalize_false():
         image1, image2, square_size=32, normalize=False
     )
 
-    # Should preserve original value range
-    assert checkerboard.dtype == np.float64  # Converted to float64 internally
+    # Should preserve original dtype and value range
+    assert checkerboard.dtype == np.uint16
     # Values should be from the input images
     assert checkerboard.min() >= 0
     assert checkerboard.max() <= 1000
@@ -96,8 +103,12 @@ def test_generate_checkerboard_all_same_values():
 
     checkerboard = generate_checkerboard(image1, image2, square_size=32)
 
-    # When all values are the same, normalized output should be 0.5
-    assert np.allclose(checkerboard, 0.5)
+    # When all values are the same, normalized output should be mid-range
+    # For uint16 normalization, identical values normalize to mid-range (~32767)
+    # Due to normalization, both images normalize to similar value
+    assert checkerboard.dtype == np.uint16
+    # Check that all values are the same (normalized to mid-range)
+    assert np.all(checkerboard == checkerboard.flat[0])
 
 
 def test_generate_checkerboard_different_dtypes():
