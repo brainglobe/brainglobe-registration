@@ -1263,26 +1263,22 @@ def test_show_checkerboard_exception_handling(registration_widget, mocker):
     registration_widget._cached_registered_data = registered_image_data
 
     # Mock worker to simulate error
-    mock_worker = mocker.Mock()
     test_error = Exception("Test error")
 
-    def connect_error_callback():
-        for call in mock_worker.errored.connect.call_args_list:
-            callback = call[0][0]
+    def mock_create_worker(*args, **kwargs):
+        mock_worker = mocker.Mock()
+
+        def connect_error(callback):
+            # Immediately trigger error callback to simulate error
             callback(test_error)
 
-    mock_worker.errored.connect = mocker.Mock(
-        side_effect=connect_error_callback
-    )
+        mock_worker.errored.connect = connect_error
+        mock_worker.returned.connect = mocker.Mock()
+        return mock_worker
+
     mocker.patch(
         "brainglobe_registration.registration_widget.create_worker",
-        return_value=mock_worker,
-    )
-
-    # Mock generate_checkerboard to raise exception in worker thread
-    mocker.patch(
-        "brainglobe_registration.registration_widget.generate_checkerboard",
-        side_effect=test_error,
+        side_effect=mock_create_worker,
     )
 
     # Select checkerboard and click Plot QC - should catch exception
@@ -1292,5 +1288,5 @@ def test_show_checkerboard_exception_handling(registration_widget, mocker):
 
     mocked_show_error.assert_called_once()
     assert "Error generating checkerboard" in str(mocked_show_error.call_args)
-    # Checkbox remains checked (user selection preserved)
-    assert registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+    # Checkbox is unchecked when error occurs (error handler unchecks it)
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
