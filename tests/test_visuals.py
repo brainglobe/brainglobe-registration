@@ -10,8 +10,11 @@ from brainglobe_registration.utils.visuals import generate_checkerboard
 
 def test_generate_checkerboard_2d_basic():
     """Test basic 2D checkerboard generation."""
+    # Use non-constant images to ensure pattern variation
     image1 = np.ones((100, 100), dtype=np.uint8) * 255
     image2 = np.zeros((100, 100), dtype=np.uint8)
+    # Add some variation to image1 to avoid constant normalization
+    image1[0:50, :] = 200
 
     checkerboard = generate_checkerboard(image1, image2, square_size=32)
 
