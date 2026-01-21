@@ -104,8 +104,8 @@ def test_generate_checkerboard_all_same_values():
     checkerboard = generate_checkerboard(image1, image2, square_size=32)
 
     # When all values are the same, normalized output should be mid-range
-    # For uint16 normalization, identical values normalize to mid-range (~32767)
-    # Due to normalization, both images normalize to similar value
+    # For uint16 normalization, identical values normalize to mid-range
+    # (~32767). Due to normalization, both images normalize to similar value
     assert checkerboard.dtype == np.uint16
     # Check that all values are the same (normalized to mid-range)
     assert np.all(checkerboard == checkerboard.flat[0])
