@@ -205,7 +205,7 @@ class RegistrationWidget(QScrollArea):
         self.qc_widget.clear_qc_button.clicked.connect(
             self._on_clear_qc_images
         )
-        # Square size spinbox - real-time updates when checkerboard is displayed
+        # Square size spinbox - real-time updates when checkerboard displayed
         self.qc_widget.square_size_spinbox.valueChanged.connect(
             self._on_square_size_value_changed
         )
@@ -887,9 +887,10 @@ class RegistrationWidget(QScrollArea):
         """
         Handle square size spinbox value changes with debouncing.
 
-        This method restarts a timer. When the timer fires, if the checkerboard
-        is currently displayed, it will be regenerated with the new square size.
-        This provides real-time updates while avoiding excessive recomputation
+        This method restarts a timer. When the timer fires, if the
+        checkerboard is currently displayed, it will be regenerated with the
+        new square size. This provides real-time updates while avoiding
+        excessive recomputation
         when the user holds the arrow button.
 
         Parameters
