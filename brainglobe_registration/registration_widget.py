@@ -34,6 +34,7 @@ from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from qt_niu.collapsible_widget import CollapsibleWidgetContainer
 from qt_niu.dialog import display_info
+from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -112,6 +113,10 @@ class RegistrationWidget(QScrollArea):
         # Cached image data for QC (avoids repeated layer queries)
         self._cached_moving_data: Optional[npt.NDArray] = None
         self._cached_registered_data: Optional[npt.NDArray] = None
+        # Timer for debouncing square size changes (real-time updates)
+        self._square_size_timer = QTimer()
+        self._square_size_timer.setSingleShot(True)
+        self._square_size_timer.timeout.connect(self._on_square_size_changed)
 
         self.transform_params: dict[str, dict] = {
             "affine": {},
@@ -199,6 +204,10 @@ class RegistrationWidget(QScrollArea):
         # Clear QC images button
         self.qc_widget.clear_qc_button.clicked.connect(
             self._on_clear_qc_images
+        )
+        # Square size spinbox - real-time updates when checkerboard is displayed
+        self.qc_widget.square_size_spinbox.valueChanged.connect(
+            self._on_square_size_value_changed
         )
 
         self.output_directory_widget = QWidget()
@@ -864,12 +873,50 @@ class RegistrationWidget(QScrollArea):
                 self._viewer.layers.remove(self._checkerboard_layer)
             self._checkerboard_layer = None
 
+        # Stop any pending square size updates
+        self._square_size_timer.stop()
+
         # Restore visibility of original images
         if self._moving_image is not None:
             self._moving_image.visible = True
 
         if self._registered_image is not None:
             self._registered_image.visible = False
+
+    def _on_square_size_value_changed(self, value: int):
+        """
+        Handle square size spinbox value changes with debouncing.
+
+        This method restarts a timer. When the timer fires, if the checkerboard
+        is currently displayed, it will be regenerated with the new square size.
+        This provides real-time updates while avoiding excessive recomputation
+        when the user holds the arrow button.
+
+        Parameters
+        ----------
+        value : int
+            The new square size value (unused, but required by signal).
+        """
+        # Restart the timer (debounce: wait 300ms after last change)
+        self._square_size_timer.stop()
+        self._square_size_timer.start(300)  # 300ms delay
+
+    def _on_square_size_changed(self):
+        """
+        Regenerate checkerboard with new square size if currently displayed.
+
+        This method is called by the debounce timer after the user stops
+        changing the square size. It checks if the checkerboard is currently
+        displayed and regenerates it with the new square size value.
+        """
+        # Only regenerate if checkerboard is currently displayed
+        if (
+            self._checkerboard_layer is not None
+            and self._checkerboard_layer in self._viewer.layers
+            and self.qc_widget.checkerboard_checkbox.isChecked()
+        ):
+            # Regenerate checkerboard with new square size
+            self._show_checkerboard()
 
     def _on_clear_qc_images(self):
         """Remove all QC visualization layers."""
