@@ -256,9 +256,7 @@ class RegistrationWidget(QScrollArea):
             self.save_parameters_button
         )
 
-        self._widget.add_widget(
-            self.parameter_file_buttons, collapsible=False
-        )
+        self._widget.add_widget(self.parameter_file_buttons, collapsible=False)
 
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
@@ -773,7 +771,9 @@ class RegistrationWidget(QScrollArea):
         if save_path.suffix == "":
             save_path = save_path.with_suffix(".txt")
 
-        param_dict = self.parameter_setting_tabs_lists[current_index].param_dict
+        param_dict = self.parameter_setting_tabs_lists[
+            current_index
+        ].param_dict
         write_parameter_file(save_path, param_dict)
 
     def _on_sample_popup_about_to_show(self):
