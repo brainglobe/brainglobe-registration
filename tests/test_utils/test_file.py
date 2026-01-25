@@ -118,3 +118,13 @@ def test_write_parameter_file_quotes_strings(tmp_path: Path):
     contents = file_path.read_text()
     assert '(Transform "AffineTransform")' in contents
     assert "(DefaultPixelValue 0)" in contents
+
+
+def test_write_parameter_file_empty_values(tmp_path: Path):
+    param_dict: dict[str, list[str]] = {"Spacing": []}
+    file_path = tmp_path / "params.txt"
+
+    write_parameter_file(file_path, param_dict)
+
+    contents = file_path.read_text()
+    assert "(Spacing)\n" in contents

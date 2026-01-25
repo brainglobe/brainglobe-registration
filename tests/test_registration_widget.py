@@ -499,6 +499,38 @@ def test_on_save_parameter_file_clicked_writes_file(
     assert "(DefaultPixelValue 0)" in written
 
 
+def test_on_save_parameter_file_clicked_cancelled(registration_widget, mocker):
+    mock_save = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getSaveFileName",
+        return_value=("", ""),
+    )
+    mock_write = mocker.patch(
+        "brainglobe_registration.registration_widget.write_parameter_file"
+    )
+
+    registration_widget._on_save_parameter_file_clicked()
+
+    mock_save.assert_called_once()
+    mock_write.assert_not_called()
+
+
+def test_on_save_parameter_file_clicked_no_tab(registration_widget, mocker):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mocker.patch.object(
+        registration_widget.parameters_tab, "currentIndex", return_value=-1
+    )
+    mock_save = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getSaveFileName"
+    )
+
+    registration_widget._on_save_parameter_file_clicked()
+
+    mocked_show_error.assert_called_once_with("No parameter tab selected.")
+    mock_save.assert_not_called()
+
+
 def test_on_open_file_dialog_clicked(registration_widget, mocker):
     mocked_open_dialog = mocker.patch(
         "brainglobe_registration.registration_widget.QFileDialog.getExistingDirectory"
