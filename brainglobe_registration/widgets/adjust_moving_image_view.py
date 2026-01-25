@@ -43,6 +43,7 @@ class AdjustMovingImageView(QWidget):
     scale_image_signal = Signal(float, float, float, str)
     atlas_rotation_signal = Signal(float, float, float)
     reset_atlas_signal = Signal()
+    reset_moving_image_signal = Signal()
 
     def __init__(self, parent=None, auto_slice_callback=None):
         """
@@ -81,6 +82,11 @@ class AdjustMovingImageView(QWidget):
         self.scale_moving_image_button.setText("Scale Moving Image")
         self.scale_moving_image_button.clicked.connect(
             self._on_scale_image_button_click
+        )
+        self.reset_moving_image_button = QPushButton()
+        self.reset_moving_image_button.setText("Reset Moving Image")
+        self.reset_moving_image_button.clicked.connect(
+            self._on_moving_image_reset
         )
 
         self.adjust_atlas_pitch = QDoubleSpinBox(parent=self)
@@ -132,6 +138,7 @@ class AdjustMovingImageView(QWidget):
         )
 
         self.layout().addRow(self.scale_moving_image_button)
+        self.layout().addRow(self.reset_moving_image_button)
 
         self.set_is_3d(False)
 
@@ -208,6 +215,12 @@ class AdjustMovingImageView(QWidget):
         self.adjust_atlas_roll.setValue(0)
 
         self.reset_atlas_signal.emit()
+
+    def _on_moving_image_reset(self):
+        """
+        Emit the reset_moving_image_signal to restore moving image data.
+        """
+        self.reset_moving_image_signal.emit()
 
     def __dict__(self):
         return {
