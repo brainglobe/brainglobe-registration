@@ -421,6 +421,54 @@ def test_on_atlas_reset_no_atlas(registration_widget, mocker):
     )
 
 
+def test_on_moving_image_reset_no_sample_image(registration_widget, mocker):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    moving_image_backup = registration_widget._moving_image
+    registration_widget._moving_image = None
+
+    registration_widget._on_moving_image_reset()
+
+    mocked_show_error.assert_called_once_with(
+        "Sample image not selected. "
+        "Please select a sample image before resetting"
+    )
+    registration_widget._moving_image = moving_image_backup
+
+
+def test_on_moving_image_reset_no_backup(registration_widget, mocker):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    data_backup = registration_widget._moving_image_data_backup
+    registration_widget._moving_image_data_backup = None
+
+    registration_widget._on_moving_image_reset()
+
+    mocked_show_error.assert_called_once_with(
+        "No backup available to reset the moving image."
+    )
+    registration_widget._moving_image_data_backup = data_backup
+
+
+def test_on_moving_image_reset_restores_data(registration_widget):
+    moving_image = registration_widget._moving_image
+    registration_widget._moving_image_data_backup = moving_image.data.copy()
+    registration_widget.moving_anatomical_space = AnatomicalSpace(
+        origin="ras", resolution=(1.0, 1.0, 1.0)
+    )
+
+    moving_image.data = np.zeros_like(moving_image.data)
+
+    registration_widget._on_moving_image_reset()
+
+    assert np.array_equal(
+        moving_image.data, registration_widget._moving_image_data_backup
+    )
+    assert registration_widget.moving_anatomical_space is None
+
+
 def test_on_output_directory_text_edited(registration_widget):
     registration_widget.output_directory_text_field.setText(str(Path.home()))
 
