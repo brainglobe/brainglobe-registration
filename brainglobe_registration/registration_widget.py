@@ -210,8 +210,9 @@ class RegistrationWidget(QScrollArea):
                 "Registration with Elastix",
                 github_repo_name="brainglobe-registration",
             ),
-            collapsible=False,
+            widget_title="brainglobe-registration",
         )
+        self._widget.collapsible_widgets[-1].expand(animate=False)
         self._widget.add_widget(
             self.get_atlas_widget, widget_title="Select Images"
         )
