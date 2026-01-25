@@ -7,6 +7,7 @@ from brainglobe_atlasapi import BrainGlobeAtlas
 from brainglobe_registration.utils.file import (
     open_parameter_file,
     serialize_registration_widget,
+    write_parameter_file,
 )
 
 
@@ -92,3 +93,28 @@ def test_serialize_registration_widget(mocker):
 
     test_obj = TestObj()
     assert serialize_registration_widget(test_obj) == {"key": "value"}
+
+
+def test_write_parameter_file_round_trip(tmp_path: Path):
+    param_dict = {
+        "Interpolator": ["LinearInterpolator"],
+        "NumberOfHistogramBins": ["32"],
+        "MixedValues": ["foo", "1.25"],
+    }
+    file_path = tmp_path / "params.txt"
+
+    write_parameter_file(file_path, param_dict)
+
+    loaded = open_parameter_file(file_path)
+    assert loaded == param_dict
+
+
+def test_write_parameter_file_quotes_strings(tmp_path: Path):
+    param_dict = {"Transform": ["AffineTransform"], "DefaultPixelValue": ["0"]}
+    file_path = tmp_path / "params.txt"
+
+    write_parameter_file(file_path, param_dict)
+
+    contents = file_path.read_text()
+    assert '(Transform "AffineTransform")' in contents
+    assert "(DefaultPixelValue 0)" in contents
