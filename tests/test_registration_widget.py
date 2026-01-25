@@ -454,9 +454,7 @@ def test_on_moving_image_reset_no_backup(registration_widget, mocker):
 
 def test_on_moving_image_reset_restores_data(registration_widget):
     moving_image = registration_widget._moving_image
-    registration_widget._moving_image_data_backup = (
-        moving_image.data.copy()
-    )
+    registration_widget._moving_image_data_backup = moving_image.data.copy()
     registration_widget.moving_anatomical_space = AnatomicalSpace(
         origin="ras", resolution=(1.0, 1.0, 1.0)
     )
