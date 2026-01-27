@@ -72,12 +72,16 @@ from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
     rotate_volume,
 )
+from brainglobe_registration.utils.visuals import (
+    generate_intensity_difference_map,
+)
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
 )
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
+from brainglobe_registration.widgets.qc_widget import QCWidget
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
 from brainglobe_registration.widgets.target_selection_widget import (
     AutoSliceDialog,
@@ -100,6 +104,10 @@ class RegistrationWidget(QScrollArea):
         self._atlas_transform_matrix: Optional[npt.NDArray] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
+        self._registered_image: Optional[napari.layers.Image] = None
+        self._intensity_map_layer: Optional[napari.layers.Image] = None
+        self._cached_moving_data: Optional[npt.NDArray] = None
+        self._cached_registered_data: Optional[npt.NDArray] = None
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
@@ -246,6 +254,16 @@ class RegistrationWidget(QScrollArea):
         )
         self._widget.add_widget(self.run_button, collapsible=False)
 
+        self.qc_widget = QCWidget()
+        self.qc_widget.set_enabled(False)
+        self._widget.add_widget(
+            self.qc_widget, widget_title="Quality Control (QC)"
+        )
+        self.qc_widget.plot_qc_button.clicked.connect(self._on_plot_qc_clicked)
+        self.qc_widget.clear_qc_button.clicked.connect(
+            self._on_clear_qc_clicked
+        )
+
         self._widget.layout().itemAt(1).widget().collapse(animate=False)
 
         check_atlas_installed(self)
@@ -274,6 +292,19 @@ class RegistrationWidget(QScrollArea):
             self._moving_image = None
             self._moving_image_data_backup = None
             self._update_dropdowns()
+
+        if self._registered_image == deleted_layer:
+            self._registered_image = None
+            self._cached_moving_data = None
+            self._cached_registered_data = None
+            self.qc_widget.set_enabled(False)
+            self.qc_widget.intensity_map_checkbox.blockSignals(True)
+            self.qc_widget.intensity_map_checkbox.setChecked(False)
+            self.qc_widget.intensity_map_checkbox.blockSignals(False)
+            if self._intensity_map_layer is not None:
+                if self._intensity_map_layer in self._viewer.layers:
+                    self._viewer.layers.remove(self._intensity_map_layer)
+                self._intensity_map_layer = None
 
         # Check if deleted layer is the atlas reference / atlas annotations
         if (
@@ -506,7 +537,7 @@ class RegistrationWidget(QScrollArea):
             transform_image(atlas_image, parameters)
         )
 
-        self._viewer.add_image(
+        self._registered_image = self._viewer.add_image(
             atlas_in_data_space, name="Registered Image", visible=False
         )
 
@@ -631,6 +662,14 @@ class RegistrationWidget(QScrollArea):
         self._atlas_data_layer.visible = False
         self._viewer.grid.enabled = False
 
+        self._cached_moving_data = get_data_from_napari_layer(
+            self._moving_image
+        )
+        self._cached_registered_data = get_data_from_napari_layer(
+            self._registered_image
+        )
+        self.qc_widget.set_enabled(True)
+
         print("Saving outputs")
         imwrite(self.output_directory / "downsampled.tiff", moving_image)
 
@@ -638,6 +677,114 @@ class RegistrationWidget(QScrollArea):
             self.output_directory / "brainglobe-registration.json", "w"
         ) as f:
             json.dump(self, f, default=serialize_registration_widget, indent=4)
+
+    def _on_plot_qc_clicked(self) -> None:
+        """Apply selected QC visualizations (Plot QC button)."""
+        if self.qc_widget.intensity_map_checkbox.isChecked():
+            self._show_intensity_map()
+
+    def _on_clear_qc_clicked(self) -> None:
+        """Remove QC layers and clear selection."""
+        self._remove_intensity_map()
+        self.qc_widget.intensity_map_checkbox.blockSignals(True)
+        self.qc_widget.intensity_map_checkbox.setChecked(False)
+        self.qc_widget.intensity_map_checkbox.blockSignals(False)
+
+    def _show_intensity_map(self) -> None:
+        """Build intensity-difference map in a worker thread and display it."""
+        if self._registered_image is None or self._moving_image is None:
+            show_error(
+                "Registered Image or Moving image not found. "
+                "Please run registration first."
+            )
+            self.qc_widget.intensity_map_checkbox.setChecked(False)
+            return
+        if self._registered_image not in self._viewer.layers:
+            show_error(
+                "Registered Image layer was removed. "
+                "Please run registration again."
+            )
+            self.qc_widget.intensity_map_checkbox.setChecked(False)
+            return
+        if self._moving_image not in self._viewer.layers:
+            show_error(
+                "Moving image layer was removed. "
+                "Please run registration again."
+            )
+            self.qc_widget.intensity_map_checkbox.setChecked(False)
+            return
+
+        moving_data = self._cached_moving_data
+        registered_data = self._cached_registered_data
+        if moving_data is None or registered_data is None:
+            moving_data = get_data_from_napari_layer(self._moving_image)
+            registered_data = get_data_from_napari_layer(
+                self._registered_image
+            )
+
+        if moving_data.ndim == 2 and registered_data.ndim == 3:
+            current_slice = self._viewer.dims.current_step[0]
+            registered_data = registered_data[current_slice, :, :]
+        elif moving_data.ndim == 3 and registered_data.ndim == 2:
+            show_error(
+                "Dimension mismatch: moving is 3D but registered is 2D."
+            )
+            self.qc_widget.intensity_map_checkbox.setChecked(False)
+            return
+
+        worker = create_worker(
+            self._generate_intensity_map_thread,
+            moving_data,
+            registered_data,
+        )
+        worker.returned.connect(self._update_intensity_map_layer)
+        worker.errored.connect(self._on_intensity_map_error)
+        worker.start()
+
+    def _generate_intensity_map_thread(
+        self,
+        moving_data: npt.NDArray,
+        registered_data: npt.NDArray,
+    ) -> npt.NDArray:
+        """Compute intensity difference map (runs in background thread)."""
+        return generate_intensity_difference_map(
+            registered_data,
+            moving_data,
+            normalize=True,
+        )
+
+    def _update_intensity_map_layer(self, diff_map: npt.NDArray) -> None:
+        """Add or update intensity map layer (main thread)."""
+        try:
+            if self._intensity_map_layer is not None:
+                if self._intensity_map_layer in self._viewer.layers:
+                    self._intensity_map_layer.data = diff_map
+                    self._intensity_map_layer.visible = True
+                else:
+                    self._intensity_map_layer = None
+            if self._intensity_map_layer is None:
+                self._intensity_map_layer = self._viewer.add_image(
+                    diff_map,
+                    name="Intensity Difference Map",
+                    colormap="gray",
+                    blending="translucent",
+                    opacity=0.7,
+                )
+        except Exception as e:
+            show_error(f"Error updating intensity map: {e}")
+            self.qc_widget.intensity_map_checkbox.setChecked(False)
+
+    def _on_intensity_map_error(self, exc: Exception) -> None:
+        """Handle errors from intensity map worker."""
+        show_error(f"Intensity map failed: {exc}")
+        self.qc_widget.intensity_map_checkbox.setChecked(False)
+
+    def _remove_intensity_map(self) -> None:
+        """Remove the intensity difference map layer."""
+        if self._intensity_map_layer is not None:
+            if self._intensity_map_layer in self._viewer.layers:
+                self._viewer.layers.remove(self._intensity_map_layer)
+            self._intensity_map_layer = None
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int

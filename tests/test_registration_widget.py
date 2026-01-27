@@ -854,3 +854,139 @@ def test_set_optimal_rotation_params_sets_gui_values(
     adjust_widget_mock.adjust_atlas_roll.setValue.assert_called_once_with(-2)
     adjust_widget_mock.progress_bar.reset.assert_called_once()
     adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
+
+
+def test_qc_widget_exists(registration_widget):
+    """QC widget is present and has intensity map checkbox and buttons."""
+    assert hasattr(registration_widget, "qc_widget")
+    assert registration_widget.qc_widget.intensity_map_checkbox is not None
+    assert registration_widget.qc_widget.plot_qc_button is not None
+    assert registration_widget.qc_widget.clear_qc_button is not None
+    assert (
+        "Intensity Difference Map"
+        in registration_widget.qc_widget.intensity_map_checkbox.text()
+    )
+
+
+def test_qc_widget_initially_disabled(registration_widget):
+    """QC controls are disabled until registration has been run."""
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isEnabled()
+    assert not registration_widget.qc_widget.plot_qc_button.isEnabled()
+    assert not registration_widget.qc_widget.clear_qc_button.isEnabled()
+
+
+def test_on_plot_qc_clicked_no_registered_image_shows_error(
+    registration_widget, mocker
+):
+    """Plot QC with no registered image shows error and unchecks."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    registration_widget._registered_image = None
+    registration_widget._moving_image = registration_widget._viewer.layers[0]
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+    registration_widget._on_plot_qc_clicked()
+    mocked_show_error.assert_called_once()
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isChecked()
+
+
+def test_show_intensity_map_success(registration_widget, mocker):
+    """Plot QC with registered image adds intensity map layer via worker."""
+    moving_data = np.random.rand(50, 50).astype(np.float32)
+    registered_data = np.random.rand(50, 50).astype(np.float32)
+    moving_layer = registration_widget._viewer.add_image(
+        moving_data, name="moving"
+    )
+    registered_layer = registration_widget._viewer.add_image(
+        registered_data, name="Registered Image"
+    )
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = registered_layer
+    registration_widget._cached_moving_data = moving_data
+    registration_widget._cached_registered_data = registered_data
+
+    mock_diff = np.zeros((50, 50), dtype=np.float32)
+    mock_worker = mocker.Mock()
+
+    def run_returned_callback(cb):
+        cb(mock_diff)
+
+    mock_worker.returned.connect = mocker.Mock(
+        side_effect=run_returned_callback
+    )
+    mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        return_value=mock_worker,
+    )
+
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+    registration_widget._on_plot_qc_clicked()
+
+    assert registration_widget._intensity_map_layer is not None
+    assert (
+        registration_widget._intensity_map_layer
+        in registration_widget._viewer.layers
+    )
+    np.testing.assert_array_equal(
+        registration_widget._intensity_map_layer.data, mock_diff
+    )
+
+
+def test_on_clear_qc_clicked_removes_layer_and_unchecks(
+    registration_widget, mocker
+):
+    """Clear QC removes intensity map layer and unchecks checkbox."""
+    moving_data = np.random.rand(40, 40).astype(np.float32)
+    registered_data = np.random.rand(40, 40).astype(np.float32)
+    registration_widget._viewer.add_image(moving_data, name="moving")
+    reg_layer = registration_widget._viewer.add_image(
+        registered_data, name="Registered Image"
+    )
+    registration_widget._moving_image = registration_widget._viewer.layers[0]
+    registration_widget._registered_image = reg_layer
+    registration_widget._intensity_map_layer = (
+        registration_widget._viewer.add_image(
+            np.zeros((40, 40), dtype=np.float32),
+            name="Intensity Difference Map",
+        )
+    )
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+
+    registration_widget._on_clear_qc_clicked()
+
+    assert registration_widget._intensity_map_layer is None
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isChecked()
+    names = [lyr.name for lyr in registration_widget._viewer.layers]
+    assert "Intensity Difference Map" not in names
+
+
+def test_handle_layer_deletion_registered_image_disables_qc(
+    registration_widget, mocker
+):
+    """Deleting Registered Image layer disables QC and clears intensity map."""
+    moving_layer = registration_widget._viewer.layers[0]
+    reg_layer = registration_widget._viewer.add_image(
+        np.ones((20, 20)), name="Registered Image"
+    )
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = reg_layer
+    registration_widget._cached_moving_data = np.ones((20, 20))
+    registration_widget._cached_registered_data = np.ones((20, 20))
+    registration_widget.qc_widget.set_enabled(True)
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+    registration_widget._intensity_map_layer = (
+        registration_widget._viewer.add_image(
+            np.zeros((20, 20)), name="Intensity Difference Map"
+        )
+    )
+
+    event = mocker.Mock()
+    event.value = reg_layer
+    registration_widget._handle_layer_deletion(event)
+
+    assert registration_widget._registered_image is None
+    assert registration_widget._cached_moving_data is None
+    assert registration_widget._cached_registered_data is None
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isChecked()
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isEnabled()
+    assert registration_widget._intensity_map_layer is None
