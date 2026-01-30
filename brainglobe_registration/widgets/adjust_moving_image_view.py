@@ -227,6 +227,8 @@ class AdjustMovingImageView(QWidget):
         self.adjust_moving_image_pixel_size_z.setValue(0)
         self.data_orientation_field.setText("")
 
+        Emit the reset_moving_image_signal to restore moving image data.
+        """
         self.reset_moving_image_signal.emit()
 
     def __dict__(self):
