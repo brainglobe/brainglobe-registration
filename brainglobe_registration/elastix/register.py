@@ -18,6 +18,8 @@ def run_registration(
     parameter_lists: List[Tuple[str, dict]],
     output_directory: Optional[Path] = None,
     filter_images: bool = True,
+    atlas_mask: Optional[npt.NDArray] = None,
+    moving_mask: Optional[npt.NDArray] = None,
 ) -> itk.ParameterObject:
     """
     Run the registration process on the given images.
@@ -52,10 +54,20 @@ def run_registration(
     elastix_object = itk.ElastixRegistrationMethod.New(
         moving_image, atlas_image
     )
+    # elastix_object.LogToConsoleOn()
 
     parameter_object = setup_parameter_object(parameter_lists=parameter_lists)
 
     elastix_object.SetParameterObject(parameter_object)
+
+    if atlas_mask is not None:
+        atlas_mask = itk.GetImageViewFromArray(atlas_mask)
+        elastix_object.SetMovingMask(atlas_mask)
+
+    if moving_mask is not None:
+        moving_mask = itk.GetImageViewFromArray(moving_mask)
+        elastix_object.SetFixedMask(moving_mask)
+
     elastix_object.UpdateLargestPossibleRegion()
 
     # get results
