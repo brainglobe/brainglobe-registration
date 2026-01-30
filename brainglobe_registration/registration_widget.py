@@ -165,6 +165,9 @@ class RegistrationWidget(QScrollArea):
         self.adjust_moving_image_widget.reset_atlas_signal.connect(
             self._on_atlas_reset
         )
+        self.adjust_moving_image_widget.reset_moving_image_signal.connect(
+            self._on_moving_image_reset
+        )
 
         self.transform_select_view = TransformSelectView()
         self.transform_select_view.transform_type_added_signal.connect(
@@ -794,6 +797,25 @@ class RegistrationWidget(QScrollArea):
 
         print(f"Scaled image shape: {self._moving_image.data.shape}")
         print("---")
+
+    def _on_moving_image_reset(self) -> None:
+        if not self._moving_image:
+            show_error(
+                "Sample image not selected. "
+                "Please select a sample image before resetting"
+            )
+            return
+
+        if self._moving_image_data_backup is None:
+            show_error("No backup available to reset the moving image.")
+            return
+
+        self._moving_image.data = self._moving_image_data_backup.copy()
+        self.moving_anatomical_space = None
+
+        # Resets the viewer grid to update the grid to the original image
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
