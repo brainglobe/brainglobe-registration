@@ -98,8 +98,6 @@ class QCWidget(QWidget):
         )
         self.layout().addWidget(self.clear_qc_button)
 
-        # Future QC features will be added here (intensity map, etc.)
-
     def set_enabled(self, enabled: bool):
         """
         Enable or disable all QC controls.

@@ -704,11 +704,6 @@ class RegistrationWidget(QScrollArea):
         if self.qc_widget.checkerboard_checkbox.isChecked():
             self._show_checkerboard()
 
-        # Future QC features will be checked here and generated if selected
-        # Example:
-        # if self.qc_widget.intensity_map_checkbox.isChecked():
-        #     self._show_intensity_map()
-
     def _show_checkerboard(self):
         """
         Generate and display checkerboard using a background thread.
@@ -732,16 +727,20 @@ class RegistrationWidget(QScrollArea):
             return
 
         # Use cached data if available (set after registration),
-        # otherwise fetch from layers (fallback)
+        # otherwise fetch from layers and cache (fallback)
         if self._cached_moving_data is not None:
             moving_data = self._cached_moving_data
             registered_data = self._cached_registered_data
         else:
             # Fallback if cache is empty (shouldn't happen normally)
-            moving_data = get_data_from_napari_layer(self._moving_image)
-            registered_data = get_data_from_napari_layer(
+            self._cached_moving_data = get_data_from_napari_layer(
+                self._moving_image
+            )
+            self._cached_registered_data = get_data_from_napari_layer(
                 self._registered_image
             )
+            moving_data = self._cached_moving_data
+            registered_data = self._cached_registered_data
 
         # Handle dimension mismatch: if moving image is 2D but registered is
         # 3D, extract the current slice from the registered image
@@ -926,8 +925,6 @@ class RegistrationWidget(QScrollArea):
 
         # Uncheck all QC checkboxes
         self.qc_widget.checkerboard_checkbox.setChecked(False)
-
-        # Future QC features will be cleared and unchecked here
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
