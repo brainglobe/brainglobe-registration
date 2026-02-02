@@ -17,7 +17,7 @@ def adjust_moving_image_view() -> AdjustMovingImageView:
 def test_init(qtbot, adjust_moving_image_view):
     qtbot.addWidget(adjust_moving_image_view)
 
-    assert adjust_moving_image_view.layout().rowCount() == 14
+    assert adjust_moving_image_view.layout().rowCount() == 15
 
 
 @pytest.mark.parametrize(
@@ -90,6 +90,15 @@ def test_atlas_reset_button_click(
         and adjust_moving_image_view.adjust_atlas_yaw.value() == 0
         and adjust_moving_image_view.adjust_atlas_roll.value() == 0
     )
+
+
+def test_moving_image_reset_button_click(qtbot, adjust_moving_image_view):
+    qtbot.addWidget(adjust_moving_image_view)
+
+    with qtbot.waitSignal(
+        adjust_moving_image_view.reset_moving_image_signal, timeout=1000
+    ):
+        adjust_moving_image_view.reset_moving_image_button.click()
 
 
 @pytest.mark.parametrize("is_3d", [True, False])
