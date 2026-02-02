@@ -34,6 +34,7 @@ from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from qt_niu.collapsible_widget import CollapsibleWidgetContainer
 from qt_niu.dialog import display_info
+from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -72,12 +73,14 @@ from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
     rotate_volume,
 )
+from brainglobe_registration.utils.visuals import generate_checkerboard
 from brainglobe_registration.widgets.adjust_moving_image_view import (
     AdjustMovingImageView,
 )
 from brainglobe_registration.widgets.parameter_list_view import (
     RegistrationParameterListView,
 )
+from brainglobe_registration.widgets.qc_widget import QCWidget
 from brainglobe_registration.widgets.select_images_view import SelectImagesView
 from brainglobe_registration.widgets.target_selection_widget import (
     AutoSliceDialog,
@@ -103,6 +106,17 @@ class RegistrationWidget(QScrollArea):
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
+        # Registered image layer reference (saved after registration)
+        self._registered_image: Optional[napari.layers.Image] = None
+        # Checkerboard visualization
+        self._checkerboard_layer: Optional[napari.layers.Image] = None
+        # Cached image data for QC (avoids repeated layer queries)
+        self._cached_moving_data: Optional[npt.NDArray] = None
+        self._cached_registered_data: Optional[npt.NDArray] = None
+        # Timer for debouncing square size changes (real-time updates)
+        self._square_size_timer = QTimer()
+        self._square_size_timer.setSingleShot(True)
+        self._square_size_timer.timeout.connect(self._on_square_size_changed)
 
         self.transform_params: dict[str, dict] = {
             "affine": {},
@@ -186,6 +200,19 @@ class RegistrationWidget(QScrollArea):
         self.filter_checkbox = QCheckBox("Filter Images")
         self.filter_checkbox.setChecked(False)
 
+        # QC widget for quality control visualizations
+        self.qc_widget = QCWidget(parent=self)
+        # Plot QC button - generates all selected QC plots
+        self.qc_widget.plot_qc_button.clicked.connect(self._on_plot_qc_clicked)
+        # Clear QC images button
+        self.qc_widget.clear_qc_button.clicked.connect(
+            self._on_clear_qc_images
+        )
+        # Square size spinbox - real-time updates when checkerboard displayed
+        self.qc_widget.square_size_spinbox.valueChanged.connect(
+            self._on_square_size_value_changed
+        )
+
         self.output_directory_widget = QWidget()
         self.output_directory_widget.setLayout(QHBoxLayout())
 
@@ -240,6 +267,9 @@ class RegistrationWidget(QScrollArea):
         self._widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
+
+        # Add QC widget after Advanced Settings
+        self._widget.add_widget(self.qc_widget, widget_title="Quality Control")
 
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
@@ -430,14 +460,6 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        from brainglobe_registration.elastix.register import (
-            calculate_deformation_field,
-            invert_transformation,
-            run_registration,
-            transform_annotation_image,
-            transform_image,
-        )
-
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.uint16
         )
@@ -496,6 +518,15 @@ class RegistrationWidget(QScrollArea):
                     str(self._moving_image.data.ndim)
                 ]
 
+        # Import elastix functions locally to avoid slow widget loading
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            invert_transformation,
+            run_registration,
+            transform_annotation_image,
+            transform_image,
+        )
+
         print("Running registration")
         parameters = run_registration(
             atlas_image,
@@ -509,7 +540,8 @@ class RegistrationWidget(QScrollArea):
             transform_image(atlas_image, parameters)
         )
 
-        self._viewer.add_image(
+        # Save reference to registered image layer for QC visualizations
+        self._registered_image = self._viewer.add_image(
             atlas_in_data_space, name="Registered Image", visible=False
         )
 
@@ -634,6 +666,28 @@ class RegistrationWidget(QScrollArea):
         self._atlas_data_layer.visible = False
         self._viewer.grid.enabled = False
 
+        # Cache image data for QC (avoids repeated layer queries)
+        # Improves performance: get_data_from_napari_layer can be slow
+        # with Dask arrays or large images
+        self._cached_moving_data = get_data_from_napari_layer(
+            self._moving_image
+        )
+        self._cached_registered_data = get_data_from_napari_layer(
+            self._registered_image
+        )
+
+        # Enable QC widget now that registration is complete
+        self.qc_widget.set_enabled(True)
+
+        # Set default square size based on image dimensions if not
+        # user-modified (adaptive: roughly 1/16th of smallest dimension,
+        # minimum 8 pixels)
+        min_dimension = min(moving_image.shape[-2:])
+        default_square_size = max(8, min_dimension // 16)
+        # Only update if still at default value (32)
+        if self.qc_widget.square_size_spinbox.value() == 32:
+            self.qc_widget.square_size_spinbox.setValue(default_square_size)
+
         print("Saving outputs")
         imwrite(self.output_directory / "downsampled.tiff", moving_image)
 
@@ -641,6 +695,239 @@ class RegistrationWidget(QScrollArea):
             self.output_directory / "brainglobe-registration.json", "w"
         ) as f:
             json.dump(self, f, default=serialize_registration_widget, indent=4)
+
+    def _on_plot_qc_clicked(self):
+        """
+        Generate all selected QC visualizations.
+
+        Checks which QC plots are selected and generates them.
+        This prevents accidental computation from checkbox toggles.
+        """
+        # Check which QC plots are selected
+        if self.qc_widget.checkerboard_checkbox.isChecked():
+            self._show_checkerboard()
+
+    def _show_checkerboard(self):
+        """
+        Generate and display checkerboard using a background thread.
+
+        This method uses threading to keep the UI responsive during
+        checkerboard generation, especially important for large 3D images.
+        """
+        if not self._moving_image:
+            show_error(
+                "No moving image available. "
+                "Please select a moving image first."
+            )
+            return
+
+        # Use saved reference to registered image layer
+        if self._registered_image is None:
+            show_error(
+                "Registered Image layer not found. "
+                "Please run registration first."
+            )
+            return
+
+        # Use cached data if available (set after registration),
+        # otherwise fetch from layers and cache (fallback)
+        if self._cached_moving_data is not None:
+            moving_data = self._cached_moving_data
+            registered_data = self._cached_registered_data
+        else:
+            # Fallback if cache is empty (shouldn't happen normally)
+            self._cached_moving_data = get_data_from_napari_layer(
+                self._moving_image
+            )
+            self._cached_registered_data = get_data_from_napari_layer(
+                self._registered_image
+            )
+            moving_data = self._cached_moving_data
+            registered_data = self._cached_registered_data
+
+        # Handle dimension mismatch: if moving image is 2D but registered is
+        # 3D, extract the current slice from the registered image
+        if moving_data.ndim == 2 and registered_data.ndim == 3:
+            # Get current slice position from viewer
+            current_slice = self._viewer.dims.current_step[0]
+            # Extract the corresponding slice
+            registered_data = registered_data[current_slice, :, :]
+        elif moving_data.ndim == 3 and registered_data.ndim == 2:
+            # If moving is 3D but registered is 2D, we can't match them
+            show_error(
+                f"Cannot create checkerboard: dimension mismatch. "
+                f"Moving image is 3D {moving_data.shape} but "
+                f"Registered image is 2D {registered_data.shape}"
+            )
+            return
+
+        # Get square size from QC widget (user-configurable)
+        square_size = self.qc_widget.square_size_spinbox.value()
+
+        # Create worker to generate checkerboard in background thread
+        # This keeps the UI responsive during computation
+        worker = create_worker(
+            self._generate_checkerboard_thread,
+            moving_data,
+            registered_data,
+            square_size,
+        )
+
+        # When worker finishes, update the layer on main thread
+        worker.returned.connect(self._update_checkerboard_layer)
+        worker.errored.connect(self._on_checkerboard_error)
+        worker.start()
+
+    def _on_checkerboard_error(self, error: Exception):
+        """
+        Handle errors from checkerboard generation worker.
+
+        Parameters
+        ----------
+        error : Exception
+            The error that occurred during checkerboard generation.
+        """
+        show_error(f"Error generating checkerboard: {error}")
+        self.qc_widget.checkerboard_checkbox.setChecked(False)
+
+    def _generate_checkerboard_thread(
+        self,
+        moving_data: npt.NDArray,
+        registered_data: npt.NDArray,
+        square_size: int,
+    ) -> npt.NDArray:
+        """
+        Generate checkerboard pattern in background thread.
+
+        This function runs in a background thread and does NOT freeze the UI.
+        The heavy computation (normalization, pattern generation) happens here.
+
+        Parameters
+        ----------
+        moving_data : npt.NDArray
+            The moving image data.
+        registered_data : npt.NDArray
+            The registered image data.
+        square_size : int
+            Size of checkerboard squares in pixels.
+
+        Returns
+        -------
+        npt.NDArray
+            The generated checkerboard pattern.
+        """
+        # Note: generate_checkerboard() handles shape mismatches automatically
+        # by cropping to the overlapping region
+        return generate_checkerboard(
+            moving_data, registered_data, square_size=square_size
+        )
+
+    def _update_checkerboard_layer(self, checkerboard_data: npt.NDArray):
+        """
+        Update the checkerboard layer in Napari viewer (main thread).
+
+        This method runs when the background computation is complete.
+        It updates the layer on the main thread (required for Qt operations).
+
+        Parameters
+        ----------
+        checkerboard_data : npt.NDArray
+            The computed checkerboard pattern to display.
+        """
+        try:
+            # Update existing layer if it exists (faster than remove/add)
+            if self._checkerboard_layer is not None:
+                if self._checkerboard_layer in self._viewer.layers:
+                    # OPTIMIZATION: Update data in place instead of removing
+                    # and re-adding the layer. This is much faster for Napari.
+                    self._checkerboard_layer.data = checkerboard_data
+                    self._checkerboard_layer.visible = True
+                else:
+                    # Layer was deleted manually, reset reference
+                    self._checkerboard_layer = None
+
+            # If layer doesn't exist (first run or was deleted), create it
+            if self._checkerboard_layer is None:
+                self._checkerboard_layer = self._viewer.add_image(
+                    checkerboard_data,
+                    name="Checkerboard",
+                    colormap="gray",
+                    blending="opaque",
+                    visible=True,
+                )
+
+            # Hide original images for better visualization
+            if self._moving_image is not None:
+                self._moving_image.visible = False
+            if self._registered_image is not None:
+                self._registered_image.visible = False
+
+        except Exception as e:
+            show_error(f"Error updating checkerboard layer: {str(e)}")
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
+
+    def _remove_checkerboard(self):
+        """
+        Remove the checkerboard visualization and restore original images.
+        """
+        if self._checkerboard_layer is not None:
+            if self._checkerboard_layer in self._viewer.layers:
+                self._viewer.layers.remove(self._checkerboard_layer)
+            self._checkerboard_layer = None
+
+        # Stop any pending square size updates
+        self._square_size_timer.stop()
+
+        # Restore visibility of original images
+        if self._moving_image is not None:
+            self._moving_image.visible = True
+
+        if self._registered_image is not None:
+            self._registered_image.visible = False
+
+    def _on_square_size_value_changed(self, value: int):
+        """
+        Handle square size spinbox value changes with debouncing.
+
+        This method restarts a timer. When the timer fires, if the
+        checkerboard is currently displayed, it will be regenerated with the
+        new square size. This provides real-time updates while avoiding
+        excessive recomputation
+        when the user holds the arrow button.
+
+        Parameters
+        ----------
+        value : int
+            The new square size value (unused, but required by signal).
+        """
+        # Restart the timer (debounce: wait 300ms after last change)
+        self._square_size_timer.stop()
+        self._square_size_timer.start(300)  # 300ms delay
+
+    def _on_square_size_changed(self):
+        """
+        Regenerate checkerboard with new square size if currently displayed.
+
+        This method is called by the debounce timer after the user stops
+        changing the square size. It checks if the checkerboard is currently
+        displayed and regenerates it with the new square size value.
+        """
+        # Only regenerate if checkerboard is currently displayed
+        if (
+            self._checkerboard_layer is not None
+            and self._checkerboard_layer in self._viewer.layers
+            and self.qc_widget.checkerboard_checkbox.isChecked()
+        ):
+            # Regenerate checkerboard with new square size
+            self._show_checkerboard()
+
+    def _on_clear_qc_images(self):
+        """Remove all QC visualization layers."""
+        # Remove checkerboard if it exists
+        self._remove_checkerboard()
+
+        # Uncheck all QC checkboxes
+        self.qc_widget.checkerboard_checkbox.setChecked(False)
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
