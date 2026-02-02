@@ -778,7 +778,7 @@ def test_run_auto_slice_thread_logs_and_yields_results(
     # Spy on logging.info
     info_spy = mocker.spy(logging, "info")
 
-    expected_result = {
+    final_result = {
         "best_pitch": 1,
         "best_yaw": 2,
         "best_roll": 3,
@@ -786,9 +786,9 @@ def test_run_auto_slice_thread_logs_and_yields_results(
     }
 
     def mock_generator(*args, **kwargs):
-        yield
-        yield
-        return expected_result
+        yield  # 1st progress
+        yield  # 2nd progress
+        return final_result
 
     mocker.patch(
         "brainglobe_registration.registration_widget.run_bayesian_generator",
@@ -856,6 +856,201 @@ def test_run_auto_slice_thread_logs_and_yields_results(
     logger.handlers = original_handlers
 
 
+@pytest.mark.parametrize(
+    "final_first, final_last, slab_shape, expected_case",
+    [
+        # Case 1: target_depth < num_slices (expand outward)
+        (
+            {
+                "best_pitch": 0,
+                "best_yaw": 0,
+                "best_roll": 0,
+                "best_z_slice": 2,
+            },
+            {
+                "best_pitch": 1,
+                "best_yaw": 1,
+                "best_roll": 1,
+                "best_z_slice": 4,
+            },
+            (6, 10, 10),  # 3 z-slices in atlas range, 6 in slab
+            1,
+        ),
+        # Case 2: target_depth == num_slices (exact match)
+        (
+            {
+                "best_pitch": 0,
+                "best_yaw": 0,
+                "best_roll": 0,
+                "best_z_slice": 2,
+            },
+            {
+                "best_pitch": 1,
+                "best_yaw": 1,
+                "best_roll": 1,
+                "best_z_slice": 7,
+            },
+            (6, 10, 10),  # 6 z-slices in atlas range, 6 in slab
+            2,
+        ),
+        # Case 3: target_depth > num_slices (subsampling)
+        (
+            {
+                "best_pitch": 0,
+                "best_yaw": 0,
+                "best_roll": 0,
+                "best_z_slice": 2,
+            },
+            {
+                "best_pitch": 1,
+                "best_yaw": 1,
+                "best_roll": 1,
+                "best_z_slice": 12,
+            },
+            (6, 10, 10),  # 11 z-slices in atlas range, 6 in slab
+            3,
+        ),
+    ],
+)
+def test_run_auto_slab_thread_all_cases(
+    mocker,
+    registration_widget,
+    final_first,
+    final_last,
+    slab_shape,
+    expected_case,
+):
+    # Fake atlas and slab images
+    atlas_image = np.ones((20, 10, 10))
+    slab_image = np.ones(slab_shape)
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget."
+        "get_data_from_napari_layer",
+        side_effect=[atlas_image, slab_image],
+    )
+
+    logging_dir = Path("/tmp/fake_logging_dir_slab")
+    mocker.patch(
+        "brainglobe_registration.registration_widget.get_brainglobe_dir",
+        return_value=logging_dir,
+    )
+
+    mock_args_namedtuple = mocker.Mock()
+    mocker.patch(
+        "brainglobe_registration.registration_widget."
+        "get_auto_slice_logging_args",
+        return_value=mock_args_namedtuple,
+    )
+
+    mock_start_logging = mocker.patch(
+        "brainglobe_registration.registration_widget.fancylog.start_logging"
+    )
+
+    # Patch logger handlers
+    handler_1 = mocker.Mock()
+    handler_2 = mocker.Mock()
+    logger = logging.getLogger()
+    original_handlers = logger.handlers
+    logger.handlers = [handler_1, handler_2]
+
+    info_spy = mocker.spy(logging, "info")
+
+    def mock_generator_first(*args, **kwargs):
+        yield
+        return final_first
+
+    def mock_generator_last(*args, **kwargs):
+        yield
+        return final_last
+
+    mock_run_bayes = mocker.patch(
+        "brainglobe_registration.registration_widget.run_bayesian_generator",
+        side_effect=[mock_generator_first(), mock_generator_last()],
+    )
+
+    params = {
+        "z_range": (0, 15),
+        "pitch_bounds": (-10, 10),
+        "yaw_bounds": (-10, 10),
+        "roll_bounds": (-10, 10),
+        "init_points": 1,
+        "n_iter": 1,
+        "metric": "mi",
+        "weights": [1.0, 0.0, 0.0],
+    }
+
+    gen = registration_widget.run_auto_slab_thread(params)
+    progress = []
+    try:
+        while True:
+            progress.append(next(gen))
+    except StopIteration as stop:
+        final_result = stop.value
+
+    expected_output_dir = str(logging_dir / "brainglobe_registration_logs")
+    mock_start_logging.assert_called_once_with(
+        output_dir=expected_output_dir,
+        package=mocker.ANY,
+        filename="auto_slab_log",
+        variables=mock_args_namedtuple,
+        log_header="AUTO SLAB DETECTION LOG",
+        verbose=True,
+        write_git=False,
+    )
+
+    handler_1.addFilter.assert_called_once()
+    handler_2.addFilter.assert_called_once()
+
+    info_spy.assert_any_call(
+        "\nBayesian slice detection for the first slice in the slab..."
+    )
+    info_spy.assert_any_call(
+        "\nBayesian slice detection for the last slice in the slab..."
+    )
+
+    assert mock_run_bayes.call_count == 2
+    assert progress == [{"progress": 1}, {"progress": 2}]
+
+    assert final_result["done"] is True
+    per_slice = final_result["per_slice_params"]
+    assert isinstance(per_slice, list)
+    assert all(
+        set(p.keys()) == {"pitch", "yaw", "roll", "z_slice"} for p in per_slice
+    )
+
+    logger.handlers = original_handlers
+
+    # Verify expected case behaviour
+    z_slices = [p["z_slice"] for p in per_slice]
+
+    if expected_case == 1:
+        # Expanded range to match num_slices
+        assert len(z_slices) == slab_shape[0]
+        assert z_slices[0] <= min(
+            final_first["best_z_slice"], final_last["best_z_slice"]
+        )
+        assert z_slices[-1] >= max(
+            final_first["best_z_slice"], final_last["best_z_slice"]
+        )
+
+    elif expected_case == 2:
+        # Exact match
+        assert z_slices[0] == min(
+            final_first["best_z_slice"], final_last["best_z_slice"]
+        )
+        assert z_slices[-1] == max(
+            final_first["best_z_slice"], final_last["best_z_slice"]
+        )
+
+    elif expected_case == 3:
+        # Subsampled across wider range
+        assert len(z_slices) == slab_shape[0]
+        assert max(z_slices) <= max(
+            final_first["best_z_slice"], final_last["best_z_slice"]
+        )
+
+
 def test_set_optimal_rotation_params_sets_gui_values(
     registration_widget, mocker
 ):
@@ -902,3 +1097,102 @@ def test_set_optimal_rotation_params_sets_gui_values(
     adjust_widget_mock.adjust_atlas_roll.setValue.assert_called_once_with(-2)
     adjust_widget_mock.progress_bar.reset.assert_called_once()
     adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
+
+
+def test_set_optimal_rotation_params_for_slab_updates_viewer_and_spinboxes(
+    mocker, registration_widget
+):
+    atlas_volume = np.zeros((15, 30, 40), dtype=np.uint8)
+    slab = np.ones((3, 10, 15), dtype=np.int16)
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget."
+        "get_data_from_napari_layer",
+        side_effect=[atlas_volume, slab],
+    )
+
+    per_slice_params = [
+        {"pitch": 1, "yaw": 2, "roll": 3, "z_slice": 5},
+        {"pitch": 4, "yaw": 5, "roll": 6, "z_slice": 6},
+        {"pitch": 7, "yaw": 8, "roll": 9, "z_slice": 7},
+    ]
+    result = {"per_slice_params": per_slice_params}
+
+    # Mock moving image layer
+    mock_layer = mocker.Mock()
+    mock_layer.name = "moving_image"
+
+    # Mock layers object
+    layers_mock = mocker.Mock()
+    layers_mock.__contains__ = mocker.Mock(return_value=True)
+    layers_mock.__iter__ = mocker.Mock(return_value=iter([mock_layer]))
+    layers_mock.remove = mocker.Mock()
+
+    # Mock viewer
+    viewer_mock = mocker.Mock()
+    viewer_mock.layers = layers_mock
+    viewer_mock.dims.point = [per_slice_params[0]["z_slice"]]
+    viewer_mock.dims.set_point = mocker.Mock()
+    viewer_mock.add_image = mocker.Mock(return_value=mock_layer)
+    viewer_mock.dims.events.point.connect = mocker.Mock()
+
+    # Mock adjust widget
+    adjust_widget_mock = mocker.Mock()
+    adjust_widget_mock.adjust_atlas_pitch.setValue = mocker.Mock()
+    adjust_widget_mock.adjust_atlas_yaw.setValue = mocker.Mock()
+    adjust_widget_mock.adjust_atlas_roll.setValue = mocker.Mock()
+    adjust_widget_mock.progress_bar.reset = mocker.Mock()
+    adjust_widget_mock.progress_bar.setVisible = mocker.Mock()
+
+    # Assign mocks to registration_widget
+    registration_widget._viewer = viewer_mock
+    registration_widget._moving_image = mock_layer
+    registration_widget._sample_images = ["moving_image"]
+    registration_widget.adjust_moving_image_widget = adjust_widget_mock
+    registration_widget.get_atlas_widget.update_sample_image_names = (
+        mocker.Mock()
+    )
+    registration_widget._on_sample_dropdown_index_changed = mocker.Mock()
+    registration_widget._on_adjust_atlas_rotation = mocker.Mock()
+
+    registration_widget.set_optimal_rotation_params_for_slab(result)
+
+    layers_mock.remove.assert_called_once_with("moving_image")
+    viewer_mock.add_image.assert_called_once()
+    registration_widget._on_adjust_atlas_rotation.assert_any_call(1, 2, 3)
+    adjust_widget_mock.adjust_atlas_pitch.setValue.assert_any_call(1)
+    adjust_widget_mock.adjust_atlas_yaw.setValue.assert_any_call(2)
+    adjust_widget_mock.adjust_atlas_roll.setValue.assert_any_call(3)
+    adjust_widget_mock.progress_bar.reset.assert_called_once()
+    adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
+
+    # Extract the connected callback
+    update_callback = viewer_mock.dims.events.point.connect.call_args[0][0]
+
+    # Simulate moving to slice z=6
+    viewer_mock.dims.point = [6]
+    update_callback()
+
+    registration_widget._on_adjust_atlas_rotation.assert_any_call(4, 5, 6)
+    adjust_widget_mock.adjust_atlas_pitch.setValue.assert_any_call(4)
+    adjust_widget_mock.adjust_atlas_yaw.setValue.assert_any_call(5)
+    adjust_widget_mock.adjust_atlas_roll.setValue.assert_any_call(6)
+
+    # Simulate moving to a slice with no params (z=10)
+    viewer_mock.dims.point = [10]
+    update_callback()
+
+
+def test_handle_auto_slice_progress_updates_progress_bar(
+    mocker, registration_widget
+):
+    progress_bar_mock = mocker.Mock()
+    registration_widget.adjust_moving_image_widget = mocker.Mock()
+    registration_widget.adjust_moving_image_widget.progress_bar = (
+        progress_bar_mock
+    )
+
+    update = {"progress": 42}
+    registration_widget.handle_auto_slice_progress(update)
+
+    progress_bar_mock.setValue.assert_called_once_with(42)

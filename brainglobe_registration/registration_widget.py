@@ -928,20 +928,30 @@ class RegistrationWidget(QScrollArea):
         dialog.exec_()
 
     def _on_auto_slice_parameters_confirmed(self, params: dict):
-        total = 2 * (params["init_points"] + params["n_iter"])
+        moving_data = get_data_from_napari_layer(self._moving_image)
+        is_slab = moving_data.ndim == 3
+
+        if is_slab:
+            total = 4 * (params["init_points"] + params["n_iter"])
+            run_method = self.run_auto_slab_thread
+            callback = self.set_optimal_rotation_params_for_slab
+        else:
+            total = 2 * (params["init_points"] + params["n_iter"])
+            run_method = self.run_auto_slice_thread
+            callback = self.set_optimal_rotation_params
 
         self.adjust_moving_image_widget.progress_bar.setVisible(True)
         self.adjust_moving_image_widget.progress_bar.setValue(0)
         self.adjust_moving_image_widget.progress_bar.setRange(0, total)
 
         worker = create_worker(
-            self.run_auto_slice_thread,
+            run_method,
             params,
             _progress={"total": total, "desc": "Optimising..."},
         )
 
         worker.yielded.connect(self.handle_auto_slice_progress)
-        worker.returned.connect(self.set_optimal_rotation_params)
+        worker.returned.connect(callback)
         worker.start()
 
     def run_auto_slice_thread(self, params: dict):
@@ -1006,6 +1016,163 @@ class RegistrationWidget(QScrollArea):
             "best_z_slice": final_result["best_z_slice"],
         }
 
+    def run_auto_slab_thread(self, params: dict):
+        atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
+        slab = get_data_from_napari_layer(self._moving_image).astype(np.int16)
+
+        # Define a logging output directory
+        logging_dir = get_brainglobe_dir() / "brainglobe_registration_logs"
+        logging_dir.mkdir(parents=True, exist_ok=True)
+
+        args_namedtuple = get_auto_slice_logging_args(params)
+
+        fancylog.start_logging(
+            output_dir=str(logging_dir),
+            package=brainglobe_registration,
+            filename="auto_slab_log",
+            variables=args_namedtuple,
+            log_header="AUTO SLAB DETECTION LOG",
+            verbose=True,
+            write_git=False,
+        )
+
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(StripANSIColorFilter())
+
+        logging.info(
+            "\nBayesian slice detection for the first slice in the slab..."
+        )
+
+        first_slice = slab[0]
+        last_slice = slab[-1]
+
+        progress_i = 0
+        result_first = run_bayesian_generator(
+            atlas_image,
+            first_slice,
+            params["z_range"],
+            params["pitch_bounds"],
+            params["yaw_bounds"],
+            params["roll_bounds"],
+            params["init_points"],
+            params["n_iter"],
+            params["metric"],
+            params["weights"],
+        )
+
+        try:
+            while True:
+                next(result_first)
+                progress_i += 1
+                yield {"progress": progress_i}
+        except StopIteration as stop:
+            final_first = stop.value
+
+        logging.info(
+            "\nBayesian slice detection for the last slice in the slab..."
+        )
+
+        result_last = run_bayesian_generator(
+            atlas_image,
+            last_slice,
+            params["z_range"],
+            params["pitch_bounds"],
+            params["yaw_bounds"],
+            params["roll_bounds"],
+            params["init_points"],
+            params["n_iter"],
+            params["metric"],
+            params["weights"],
+        )
+
+        try:
+            while True:
+                next(result_last)
+                progress_i += 1
+                yield {"progress": progress_i}
+        except StopIteration as stop:
+            final_last = stop.value
+
+        logging.info(
+            "\nFirst and last slices have been matched to the atlas."
+            "Finding slices in between..."
+        )
+
+        # --- Z slice calculation ---
+        z1 = final_first["best_z_slice"]
+        z2 = final_last["best_z_slice"]
+        num_slices = slab.shape[0]
+        z_min = min(z1, z2)
+        z_max = max(z1, z2)
+        target_depth = z_max - z_min + 1
+
+        if target_depth < num_slices:
+            logging.info(
+                "Case 1: Expanding outward to match number of slab slices"
+            )
+            current_first = z_min
+            current_last = z_max
+            while (current_last - current_first + 1) < num_slices:
+                if current_first > 0:
+                    current_first -= 1
+                if (
+                    current_last < atlas_image.shape[0] - 1
+                    and (current_last - current_first + 1) < num_slices
+                ):
+                    current_last += 1
+            target_z_indices = list(range(current_first, current_last + 1))
+        elif target_depth == num_slices:
+            logging.info("Case 2: Exact match between slab and atlas z-slices")
+            target_z_indices = list(range(z_min, z_max + 1))
+        else:
+            logging.info("Case 3: Subsampling across wider atlas z-range")
+            target_z_indices = (
+                np.linspace(z_min, z_max, num_slices).astype(int).tolist()
+            )
+
+        # Interpolate pitch/yaw/roll across the number of slices
+        num_slices = slab.shape[0]
+        pitches = np.linspace(
+            final_first["best_pitch"], final_last["best_pitch"], num_slices
+        )
+        yaws = np.linspace(
+            final_first["best_yaw"], final_last["best_yaw"], num_slices
+        )
+        rolls = np.linspace(
+            final_first["best_roll"], final_last["best_roll"], num_slices
+        )
+
+        per_slice_params = []
+        for i in range(num_slices):
+            per_slice_params.append(
+                {
+                    "pitch": float(pitches[i]),
+                    "yaw": float(yaws[i]),
+                    "roll": float(rolls[i]),
+                    "z_slice": target_z_indices[i],
+                }
+            )
+
+        logging.info(
+            "Optimal parameters for each slice in the slab:\n"
+            + "\n".join(
+                f"Slice {i}: pitch={p['pitch']:.3f}, "
+                f"yaw={p['yaw']:.3f}, roll={p['roll']:.3f}, "
+                f"z_slice={p['z_slice']}"
+                for i, p in enumerate(per_slice_params)
+            )
+        )
+
+        root_logger = logging.getLogger()
+        if root_logger.hasHandlers():
+            for handler in root_logger.handlers[:]:
+                root_logger.removeHandler(handler)
+
+        return {
+            "done": True,
+            "per_slice_params": per_slice_params,
+        }
+
     def handle_auto_slice_progress(self, update: dict):
         if isinstance(update, dict) and "progress" in update:
             self.adjust_moving_image_widget.progress_bar.setValue(
@@ -1014,6 +1181,11 @@ class RegistrationWidget(QScrollArea):
 
     def set_optimal_rotation_params(self, result):
         if result.get("done"):
+
+            if "z_indices" in result:
+                self.set_optimal_rotation_params_for_slab(result)
+                return
+
             pitch = result["best_pitch"]
             yaw = result["best_yaw"]
             roll = result["best_roll"]
@@ -1030,6 +1202,122 @@ class RegistrationWidget(QScrollArea):
 
             self.adjust_moving_image_widget.progress_bar.reset()
             self.adjust_moving_image_widget.progress_bar.setVisible(False)
+
+    def set_optimal_rotation_params_for_slab(self, result):
+        atlas_volume = get_data_from_napari_layer(self._atlas_data_layer)
+        slab = get_data_from_napari_layer(self._moving_image).astype(np.int16)
+
+        per_slice_params = result["per_slice_params"]
+        self._per_slice_rotation_params = per_slice_params
+
+        # 1: Create blank volume and fill it with rotated slices at target Z
+        blank_volume = np.zeros_like(atlas_volume)
+        for i, entry in enumerate(per_slice_params):
+            slab_idx = i
+            atlas_z = entry["z_slice"]
+            if not (0 <= slab_idx < slab.shape[0]):
+                continue
+            if not (0 <= atlas_z < blank_volume.shape[0]):
+                continue
+
+            slice_data = slab[slab_idx]
+            y_offset = (atlas_volume.shape[1] - slice_data.shape[0]) // 2
+            x_offset = (atlas_volume.shape[2] - slice_data.shape[1]) // 2
+
+            y_start = max(0, y_offset)
+            x_start = max(0, x_offset)
+            y_end = min(y_start + slice_data.shape[0], atlas_volume.shape[1])
+            x_end = min(x_start + slice_data.shape[1], atlas_volume.shape[2])
+
+            y_slice_end = y_end - y_start
+            x_slice_end = x_end - x_start
+
+            blank_volume[atlas_z, y_start:y_end, x_start:x_end] = slice_data[
+                :y_slice_end, :x_slice_end
+            ]
+
+        # 2: Replace existing moving image layer
+        moving_image_name = self._moving_image.name
+        if moving_image_name in self._viewer.layers:
+            self._viewer.layers.remove(moving_image_name)
+
+        new_layer = self._viewer.add_image(
+            blank_volume, name=moving_image_name
+        )
+        self._moving_image = new_layer
+
+        # 3: Update sample image list
+        new_layer_name = new_layer.name
+        for i, name in enumerate(self._sample_images):
+            if name == moving_image_name or name == self._moving_image.name:
+                self._sample_images[i] = new_layer_name
+                break
+        else:
+            self._sample_images.append(new_layer_name)
+
+        self.get_atlas_widget.update_sample_image_names(self._sample_images)
+        dropdown_index = self._sample_images.index(new_layer_name)
+        self._on_sample_dropdown_index_changed(dropdown_index)
+
+        # 4: Jump viewer to first Z
+        if per_slice_params:
+            first_z = per_slice_params[0]["z_slice"]
+            self._viewer.dims.set_point(0, first_z)
+
+        # 5: Set initial spinbox values from first slice
+        self._on_adjust_atlas_rotation(
+            per_slice_params[0]["pitch"],
+            per_slice_params[0]["yaw"],
+            per_slice_params[0]["roll"],
+        )
+        self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(
+            per_slice_params[0]["pitch"]
+        )
+        self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(
+            per_slice_params[0]["yaw"]
+        )
+        self.adjust_moving_image_widget.adjust_atlas_roll.setValue(
+            per_slice_params[0]["roll"]
+        )
+
+        # 6: Dynamic update of spinboxes based on Z
+        def _update_spinboxes_from_slice(event=None):
+            # Only update if event is for axis 0 or if event is None
+            if event is not None and getattr(event, "axis", 0) != 0:
+                return
+
+            current_z = int(self._viewer.dims.point[0])
+            for entry in self._per_slice_rotation_params:
+
+                if entry["z_slice"] == current_z:
+                    self._on_adjust_atlas_rotation(
+                        entry["pitch"],
+                        entry["yaw"],
+                        entry["roll"],
+                    )
+
+                    (
+                        self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(
+                            entry["pitch"]
+                        )
+                    )
+                    (
+                        self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(
+                            entry["yaw"]
+                        )
+                    )
+                    (
+                        self.adjust_moving_image_widget.adjust_atlas_roll.setValue(
+                            entry["roll"]
+                        )
+                    )
+                    break
+
+        self._viewer.dims.events.point.connect(_update_spinboxes_from_slice)
+
+        # 7: Hide progress bar
+        self.adjust_moving_image_widget.progress_bar.reset()
+        self.adjust_moving_image_widget.progress_bar.setVisible(False)
 
     def save_outputs(
         self,
