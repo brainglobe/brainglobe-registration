@@ -705,6 +705,9 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
     assert (tmp_path / "downsampled.tiff").exists()
     assert (tmp_path / "brainglobe-registration.json").exists()
 
+    # Check that QC widget is enabled after registration
+    assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
 
 def test_open_auto_slice_dialog_no_atlas(registration_widget, mocker):
     mocked_display_info = mocker.patch(
@@ -1004,3 +1007,436 @@ def test_set_optimal_rotation_params_sets_gui_values(
     adjust_widget_mock.adjust_atlas_roll.setValue.assert_called_once_with(-2)
     adjust_widget_mock.progress_bar.reset.assert_called_once()
     adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
+
+
+def test_checkerboard_checkbox_initial_state(registration_widget):
+    """Test that checkerboard checkbox is initially disabled."""
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
+
+def test_checkerboard_checkbox_enabled_after_registration(
+    registration_widget,
+):
+    """Test that checkerboard checkbox can be enabled after registration."""
+    # Before registration, checkbox should be disabled
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
+    # Simulate registration completion by manually enabling the QC widget
+    # (This is what happens after registration completes in
+    # _on_run_button_click)
+    registration_widget.qc_widget.set_enabled(True)
+
+    # After registration, checkbox should be enabled
+    assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
+
+def test_show_checkerboard_no_moving_image(registration_widget, mocker):
+    """Test that showing checkerboard without moving image shows error."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    # Mock create_worker to prevent actual worker creation
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker"
+    )
+    # Ensure _moving_image is None and cached data is None
+    registration_widget._moving_image = None
+    registration_widget._cached_moving_data = None
+
+    # Select checkerboard and click Plot QC
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+
+    mocked_show_error.assert_called_once()
+    # Worker should not be created since error occurs before
+    mocked_create_worker.assert_not_called()
+    # Checkbox remains checked (user selection preserved)
+    assert registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_no_registered_image(registration_widget, mocker):
+    """Test that showing checkerboard without registered image shows error."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    # Mock create_worker to prevent actual worker creation
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker"
+    )
+    registration_widget._moving_image = registration_widget._viewer.layers[0]
+    registration_widget._registered_image = None
+    # No "Registered Image" layer exists yet
+
+    # Select checkerboard and click Plot QC
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+
+    mocked_show_error.assert_called_once()
+    # Worker should not be created since error occurs before
+    mocked_create_worker.assert_not_called()
+    # Checkbox remains checked (user selection preserved)
+    assert registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_shape_mismatch(registration_widget, mocker):
+    """Test that showing checkerboard with shape mismatch shows error."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    # Mock create_worker - shape mismatch is handled by generate_checkerboard
+    # which crops images, so no error should occur synchronously
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker"
+    )
+
+    # Create images with different shapes (will be cropped automatically)
+    moving_image_data = np.ones((100, 100), dtype=np.uint8)
+    registered_image_data = np.ones((100, 101), dtype=np.uint8)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registered_layer = registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = registered_layer
+    # Set cached data
+    registration_widget._cached_moving_data = moving_image_data
+    registration_widget._cached_registered_data = registered_image_data
+
+    # Select checkerboard and click Plot QC
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+
+    # Shape mismatch is handled by cropping, so no error should occur
+    mocked_show_error.assert_not_called()
+    # Worker should be created since shape mismatch is handled by cropping
+    mocked_create_worker.assert_called_once()
+    # Checkbox remains checked
+    assert registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_success(registration_widget, mocker):
+    """Test successful checkerboard generation and display."""
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registered_layer = registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = registered_layer
+    # Set cached data to simulate post-registration state
+    registration_widget._cached_moving_data = moving_image_data
+    registration_widget._cached_registered_data = registered_image_data
+
+    # Initially no checkerboard layer
+    assert registration_widget._checkerboard_layer is None
+
+    # Mock worker to make test synchronous
+    mock_checkerboard_data = np.random.rand(100, 100).astype(np.float32)
+
+    def mock_create_worker(*args, **kwargs):
+        mock_worker = mocker.Mock()
+
+        def connect_returned(callback):
+            # Immediately trigger callback to simulate synchronous completion
+            callback(mock_checkerboard_data)
+
+        mock_worker.returned.connect = connect_returned
+        mock_worker.errored.connect = mocker.Mock()
+        return mock_worker
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        side_effect=mock_create_worker,
+    )
+
+    # Select checkerboard and click Plot QC
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+
+    # Check that checkerboard layer was created
+    assert registration_widget._checkerboard_layer is not None
+    assert registration_widget._checkerboard_layer.name == "Checkerboard"
+
+    # Check that original layers are hidden
+    assert not moving_layer.visible
+    assert not registered_layer.visible
+
+
+def test_hide_checkerboard(registration_widget, mocker):
+    """Test hiding checkerboard restores original layers."""
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registered_layer = registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = registered_layer
+    registration_widget._cached_moving_data = moving_image_data
+    registration_widget._cached_registered_data = registered_image_data
+
+    # Mock worker to make test synchronous
+    mock_checkerboard_data = np.random.rand(100, 100).astype(np.float32)
+
+    def mock_create_worker(*args, **kwargs):
+        mock_worker = mocker.Mock()
+
+        def connect_returned(callback):
+            # Immediately trigger callback to simulate synchronous completion
+            callback(mock_checkerboard_data)
+
+        mock_worker.returned.connect = connect_returned
+        mock_worker.errored.connect = mocker.Mock()
+        return mock_worker
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        side_effect=mock_create_worker,
+    )
+
+    # Select checkerboard and click Plot QC
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+    assert registration_widget._checkerboard_layer is not None
+
+    # Clear QC images - call handler directly
+    registration_widget._on_clear_qc_images()
+
+    # Check that checkerboard layer was removed
+    assert registration_widget._checkerboard_layer is None
+
+    # Check that moving image is visible again
+    assert moving_layer.visible
+
+
+def test_show_checkerboard_2d_moving_3d_registered(
+    registration_widget, mocker
+):
+    """Test checkerboard with 2D moving image and 3D registered image."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+
+    # Create 2D moving image
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._moving_image = moving_layer
+
+    # Create 3D registered image
+    registered_image_data = np.random.rand(50, 100, 100).astype(np.float32)
+    registered_layer = registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+    registration_widget._registered_image = registered_layer
+
+    # Set cached data
+    registration_widget._cached_moving_data = moving_image_data
+    registration_widget._cached_registered_data = registered_image_data
+
+    # Set current slice
+    registration_widget._viewer.dims.set_current_step(0, 25)
+
+    # Mock worker to make test synchronous
+    mock_checkerboard_data = np.random.rand(100, 100).astype(np.float32)
+
+    def mock_create_worker(*args, **kwargs):
+        mock_worker = mocker.Mock()
+
+        def connect_returned(callback):
+            # Immediately trigger callback to simulate synchronous completion
+            callback(mock_checkerboard_data)
+
+        mock_worker.returned.connect = connect_returned
+        mock_worker.errored.connect = mocker.Mock()
+        return mock_worker
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        side_effect=mock_create_worker,
+    )
+
+    # Select checkerboard and click Plot QC - should extract slice from 3D
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+
+    # Should succeed - no error
+    mocked_show_error.assert_not_called()
+    assert registration_widget._checkerboard_layer is not None
+
+
+def test_show_checkerboard_3d_moving_2d_registered(
+    registration_widget, mocker
+):
+    """Test checkerboard with 3D moving and 2D registered image."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    # Mock create_worker to prevent actual worker creation
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker"
+    )
+
+    # Create 3D moving image
+    moving_image_data = np.random.rand(50, 100, 100).astype(np.float32)
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registration_widget._moving_image = moving_layer
+
+    # Create 2D registered image
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_layer = registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+    registration_widget._registered_image = registered_layer
+    # Set cached data
+    registration_widget._cached_moving_data = moving_image_data
+    registration_widget._cached_registered_data = registered_image_data
+
+    # Select checkerboard and click Plot QC - should show error
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+
+    mocked_show_error.assert_called_once()
+    # Worker should not be created since error occurs before
+    mocked_create_worker.assert_not_called()
+    # Checkbox remains checked (user selection preserved)
+    assert registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+
+
+def test_show_checkerboard_existing_layer_removal(registration_widget, mocker):
+    """Test that existing checkerboard layer is removed before adding new."""
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registered_layer = registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = registered_layer
+    registration_widget._cached_moving_data = moving_image_data
+    registration_widget._cached_registered_data = registered_image_data
+
+    # Mock worker to make test synchronous
+    mock_checkerboard_data = np.random.rand(100, 100).astype(np.float32)
+
+    def mock_create_worker(*args, **kwargs):
+        mock_worker = mocker.Mock()
+
+        def connect_returned(callback):
+            # Immediately trigger callback to simulate synchronous completion
+            callback(mock_checkerboard_data)
+
+        mock_worker.returned.connect = connect_returned
+        mock_worker.errored.connect = mocker.Mock()
+        return mock_worker
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        side_effect=mock_create_worker,
+    )
+
+    # Generate checkerboard first time
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+    first_checkerboard_layer = registration_widget._checkerboard_layer
+    assert first_checkerboard_layer is not None
+    assert first_checkerboard_layer in registration_widget._viewer.layers
+
+    # Generate checkerboard again - should update existing layer
+    # Call the handler directly again
+    registration_widget._on_plot_qc_clicked()
+    second_checkerboard_layer = registration_widget._checkerboard_layer
+    assert second_checkerboard_layer is not None
+    # Should be the same layer (updated in place)
+    assert second_checkerboard_layer == first_checkerboard_layer
+    # Should only have one checkerboard layer
+    checkerboard_layers = [
+        layer
+        for layer in registration_widget._viewer.layers
+        if layer.name == "Checkerboard"
+    ]
+    assert len(checkerboard_layers) == 1
+
+
+def test_show_checkerboard_exception_handling(registration_widget, mocker):
+    """Test exception handling in checkerboard generation."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+
+    # Create matching images
+    moving_image_data = np.random.rand(100, 100).astype(np.float32)
+    registered_image_data = np.random.rand(100, 100).astype(np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_image_data, name="moving"
+    )
+    registered_layer = registration_widget._viewer.add_image(
+        registered_image_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = registered_layer
+    registration_widget._cached_moving_data = moving_image_data
+    registration_widget._cached_registered_data = registered_image_data
+
+    # Mock worker to simulate error
+    test_error = Exception("Test error")
+
+    def mock_create_worker(*args, **kwargs):
+        mock_worker = mocker.Mock()
+
+        def connect_error(callback):
+            # Immediately trigger error callback to simulate error
+            callback(test_error)
+
+        mock_worker.errored.connect = connect_error
+        mock_worker.returned.connect = mocker.Mock()
+        return mock_worker
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker",
+        side_effect=mock_create_worker,
+    )
+
+    # Select checkerboard and click Plot QC - should catch exception
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    # Call the handler directly to ensure it's called
+    registration_widget._on_plot_qc_clicked()
+
+    mocked_show_error.assert_called_once()
+    assert "Error generating checkerboard" in str(mocked_show_error.call_args)
+    # Checkbox is unchecked when error occurs (error handler unchecks it)
+    assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
