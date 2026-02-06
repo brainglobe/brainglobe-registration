@@ -509,37 +509,32 @@ class RegistrationWidget(QScrollArea):
                     transform_selection[1]["MovingInternalImagePixelType"] = [
                         "float"
                     ]
-            #
-            # slice_corners = np.array(
-            #     [
-            #         [self._atlas_2d_slice_index, 0, 0, 1],
-            #         [
-            #             self._atlas_2d_slice_index,
-            #             0,
-            #             self._atlas_data_layer.data.shape[2],
-            #             1,
-            #         ],
-            #         [
-            #             self._atlas_2d_slice_index,
-            #             self._atlas_data_layer.data.shape[1],
-            #             0,
-            #             1,
-            #         ],
-            #         [
-            #             self._atlas_2d_slice_index,
-            #             self._atlas_data_layer.data.shape[1],
-            #             self._atlas_data_layer.data.shape[2],
-            #             1,
-            #         ],
-            #     ]
-            # )
-            # mod_matrix = self._atlas_transform_matrix_inv
-            # mod_matrix[:-1, -1] = 0
-            #
-            # self._atlas_2d_slice_corners = np.dot(
-            # mod_matrix, slice_corners.T)[
-            #     :3
-            # ].T
+
+            rotated_shape = np.array(self._atlas_data_layer.data.shape)
+            original_shape = np.array(self._atlas.shape)
+
+            atlas_corners = [
+                [self._atlas_2d_slice_index, 0, 0],
+                [self._atlas_2d_slice_index, 0, atlas_image.shape[1]],
+                [self._atlas_2d_slice_index, atlas_image.shape[0], 0],
+                [
+                    self._atlas_2d_slice_index,
+                    atlas_image.shape[0],
+                    atlas_image.shape[1],
+                ],
+            ]
+
+            # Centers
+            rotated_center = rotated_shape / 2.0
+            original_center = original_shape / 2.0
+
+            # Inverse transform: rotated -> original
+            rot_matrix = self._atlas_matrix_inv
+            original_corners = (
+                rot_matrix.T @ (atlas_corners - rotated_center).T
+            ).T + original_center
+
+            self._atlas_2d_slice_corners = original_corners
 
         else:
             atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
@@ -1155,7 +1150,7 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        transform_matrix, bounding_box = create_rotation_matrix(
+        transform_matrix, offset, bounding_box = create_rotation_matrix(
             roll,
             yaw,
             pitch,
@@ -1168,6 +1163,7 @@ class RegistrationWidget(QScrollArea):
             final_transform=transform_matrix,
             bounding_box=bounding_box,
             interpolation_order=2,
+            offset=offset,
         )
 
         rotated_annotations = rotate_volume(
@@ -1176,10 +1172,12 @@ class RegistrationWidget(QScrollArea):
             final_transform=transform_matrix,
             bounding_box=bounding_box,
             interpolation_order=0,
+            offset=offset,
         )
 
         self._atlas_transform_matrix = transform_matrix
         self._atlas_matrix_inv = np.linalg.inv(transform_matrix)
+        self._atlas_offset = offset
         self._atlas_data_layer.data = rotated_reference
         self._atlas_annotations_layer.data = rotated_annotations
 
@@ -1427,6 +1425,7 @@ class RegistrationWidget(QScrollArea):
             "atlas": self._atlas,
             "atlas_transform_matrix": self._atlas_transform_matrix.tolist(),
             "atlas_inverse_transform_matrix": self._atlas_matrix_inv.tolist(),
+            "atlas_offset": self._atlas_offset.tolist(),
             "atlas_2d_slice_index": self._atlas_2d_slice_index,
             "atlas_slice_corners": self._atlas_2d_slice_corners.tolist(),
             "atlas_data_layer": self._atlas_data_layer,
