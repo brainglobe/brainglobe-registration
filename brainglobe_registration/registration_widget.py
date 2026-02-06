@@ -100,9 +100,13 @@ class RegistrationWidget(QScrollArea):
         self._atlas: Optional[BrainGlobeAtlas] = None
         self._atlas_data_layer: Optional[napari.layers.Image] = None
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
-        self._atlas_transform_matrix: Optional[npt.NDArray] = None
+        self._atlas_transform_matrix: npt.NDArray = np.eye(4)
+        self._atlas_matrix_inv: npt.NDArray = np.eye(4)
+        self._atlas_2d_slice_index: Optional[int] = None
+        self._atlas_2d_slice_corners: Optional[np.ndarray] = None
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
+
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
@@ -329,7 +333,8 @@ class RegistrationWidget(QScrollArea):
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
-        self._atlas_transform_matrix = None
+        self._atlas_transform_matrix = np.eye(4)
+        self._atlas_transform_matrix = np.eye(4)
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
 
@@ -463,11 +468,13 @@ class RegistrationWidget(QScrollArea):
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.uint16
         )
-        current_atlas_slice = self._viewer.dims.current_step[0]
+        self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
 
         if self._moving_image.data.ndim == 2:
             atlas_selection = (
-                slice(current_atlas_slice, current_atlas_slice + 1),
+                slice(
+                    self._atlas_2d_slice_index, self._atlas_2d_slice_index + 1
+                ),
             )
             atlas_image = get_data_from_napari_layer(
                 self._atlas_data_layer, atlas_selection
@@ -502,6 +509,38 @@ class RegistrationWidget(QScrollArea):
                     transform_selection[1]["MovingInternalImagePixelType"] = [
                         "float"
                     ]
+            #
+            # slice_corners = np.array(
+            #     [
+            #         [self._atlas_2d_slice_index, 0, 0, 1],
+            #         [
+            #             self._atlas_2d_slice_index,
+            #             0,
+            #             self._atlas_data_layer.data.shape[2],
+            #             1,
+            #         ],
+            #         [
+            #             self._atlas_2d_slice_index,
+            #             self._atlas_data_layer.data.shape[1],
+            #             0,
+            #             1,
+            #         ],
+            #         [
+            #             self._atlas_2d_slice_index,
+            #             self._atlas_data_layer.data.shape[1],
+            #             self._atlas_data_layer.data.shape[2],
+            #             1,
+            #         ],
+            #     ]
+            # )
+            # mod_matrix = self._atlas_transform_matrix_inv
+            # mod_matrix[:-1, -1] = 0
+            #
+            # self._atlas_2d_slice_corners = np.dot(
+            # mod_matrix, slice_corners.T)[
+            #     :3
+            # ].T
+
         else:
             atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
             annotation_image = get_data_from_napari_layer(
@@ -594,7 +633,9 @@ class RegistrationWidget(QScrollArea):
             )
 
         if self._moving_image.ndim == 2:
-            hemispheres_image = hemispheres_image[current_atlas_slice, :, :]
+            hemispheres_image = hemispheres_image[
+                self._atlas_2d_slice_index, :, :
+            ]
 
         if isinstance(hemispheres_image, da.Array):
             hemispheres_image = hemispheres_image.compute()
@@ -1138,6 +1179,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         self._atlas_transform_matrix = transform_matrix
+        self._atlas_matrix_inv = np.linalg.inv(transform_matrix)
         self._atlas_data_layer.data = rotated_reference
         self._atlas_annotations_layer.data = rotated_annotations
 
@@ -1175,6 +1217,8 @@ class RegistrationWidget(QScrollArea):
 
         self._atlas_data_layer.data = self._atlas.reference
         self._atlas_annotations_layer.data = self._atlas.annotation
+        self._atlas_matrix_inv = np.eye(4)
+        self._atlas_transform_matrix = np.eye(4)
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
 
@@ -1381,6 +1425,10 @@ class RegistrationWidget(QScrollArea):
     def __dict__(self):
         return {
             "atlas": self._atlas,
+            "atlas_transform_matrix": self._atlas_transform_matrix.tolist(),
+            "atlas_inverse_transform_matrix": self._atlas_matrix_inv.tolist(),
+            "atlas_2d_slice_index": self._atlas_2d_slice_index,
+            "atlas_slice_corners": self._atlas_2d_slice_corners.tolist(),
             "atlas_data_layer": self._atlas_data_layer,
             "atlas_annotations_layer": self._atlas_annotations_layer,
             "moving_image": self._moving_image,
