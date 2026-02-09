@@ -14,10 +14,10 @@ def create_rotation_matrix(
     """
     Creates a 3D affine transformation matrix from roll, yaw, and pitch angles.
 
-    Builds a composite 4×4 rotation matrix from roll (X-axis), yaw (Y-axis),
+    Builds a composite 3x3 rotation matrix from roll (X-axis), yaw (Y-axis),
     and pitch (Z-axis) angles in degrees. Rotation is applied about the centre
-    of the input volume. Output includes a translation to fit rotated volume
-    into a new bounding box.
+    of the input volume using an offset. Output includes a translation to fit
+    rotated volume into a new bounding box.
 
     Parameters:
     ----------
@@ -40,16 +40,10 @@ def create_rotation_matrix(
     bounding_box : Tuple[int, int, int]
         Shape of the rotated volume that fully contains the transformed data.
     """
-    # Create the rotation matrix
-    # roll_matrix = active_matrix_from_angle(0, np.deg2rad(roll))
-    # yaw_matrix = active_matrix_from_angle(1, np.deg2rad(yaw))
-    # pitch_matrix = active_matrix_from_angle(2, np.deg2rad(pitch))
-    #
-    # # Combine rotation matrices
-    # rotation_matrix = yaw_matrix @ pitch_matrix @ roll_matrix
-
+    # Create rotation matrix from Euler angles
+    # Use extrinsic rotations in ZYX order (roll, then yaw, then pitch)
     rotation_matrix = Rotation.from_euler(
-        "xyz", [roll, yaw, pitch], degrees=True
+        "XYZ", [roll, yaw, pitch], degrees=True
     ).as_matrix()
 
     inv_rot = rotation_matrix.T
@@ -87,27 +81,6 @@ def create_rotation_matrix(
 
     # Offset: map output coords to input coords
     offset = input_center - inv_rot @ output_center
-
-    # # Translate the origin to the center of the image
-    # origin = np.asarray(img_shape) / 2
-
-    # translate_to_center = np.eye(4)
-    # translate_to_center[:3, -1] = -origin
-    #
-    # bounding_box = calculate_rotated_bounding_box(img_shape, full_matrix)
-    # new_translation = np.asarray(bounding_box) / 2
-    #
-    # post_rotate_translation = np.eye(4)
-    # post_rotate_translation[:3, -1] = new_translation
-    #
-    # # Combine the matrices. The order of operations is:
-    # # 1. Translate the origin to the center of the image
-    # # 2. Rotate the image
-    # # 3. Translate the origin back to the top left corner
-    #
-    # final_transform = np.linalg.inv(
-    #     post_rotate_translation @ full_matrix @ translate_to_center
-    # )
 
     return inv_rot, offset, output_shape
 

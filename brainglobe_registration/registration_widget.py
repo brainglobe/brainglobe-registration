@@ -530,11 +530,14 @@ class RegistrationWidget(QScrollArea):
 
             # Inverse transform: rotated -> original
             rot_matrix = self._atlas_matrix_inv
-            original_corners = (
-                rot_matrix.T @ (atlas_corners - rotated_center).T
-            ).T + original_center
+            original_corners = np.trunc(
+                (rot_matrix.T @ (atlas_corners - rotated_center).T).T
+                + original_center
+            )
 
-            self._atlas_2d_slice_corners = original_corners
+            self._atlas_2d_slice_corners = (
+                original_corners * self._atlas.resolution
+            )
 
         else:
             atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
