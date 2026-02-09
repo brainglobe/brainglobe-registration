@@ -114,6 +114,9 @@ def rotate_volume(
     transformed : np.ndarray
         Transformed 3D volume resampled into the new bounding box.
     """
+    if offset is None:
+        offset = np.zeros(3)
+
     transformed = ndi.affine_transform(
         da.from_array(
             data, chunks=(2, reference_shape[1], reference_shape[2])

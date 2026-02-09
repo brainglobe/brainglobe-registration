@@ -20,11 +20,11 @@ def test_create_rotation_matrix_identity(dummy_volume):
     Test that identity rotation gives a transform close to identity matrix.
     """
     shape = dummy_volume.shape
-    transform, bbox = create_rotation_matrix(0, 0, 0, shape)
+    transform, offset, bbox = create_rotation_matrix(0, 0, 0, shape)
 
-    expected = np.eye(4)
+    expected = np.eye(3)
     assert_array_almost_equal(transform, expected, decimal=3)
-    assert bbox == shape
+    assert (bbox == shape).all()
 
 
 @pytest.mark.parametrize(
@@ -73,7 +73,7 @@ def test_create_rotation_matrix_single_axis(
     matrix (ignoring translation) for 30° rotation about one axis.
     """
     shape = dummy_volume.shape
-    transform, _ = create_rotation_matrix(*angles, shape)
+    transform, _, _ = create_rotation_matrix(*angles, shape)
 
     # Extract rotation part
     rot_actual = transform[:3, :3]
@@ -84,14 +84,12 @@ def test_create_rotation_matrix_single_axis(
 def test_create_rotation_matrix_nonzero(dummy_volume):
     """Test non-zero rotations yield valid affine matrix and bounding box."""
     shape = dummy_volume.shape
-    transform, bbox = create_rotation_matrix(15, -10, 30, shape)
+    transform, offset, bbox = create_rotation_matrix(15, -10, 30, shape)
 
-    assert transform.shape == (4, 4), "Expected 4x4 affine matrix"
-    assert all(
-        isinstance(b, int) and b > 0 for b in bbox
-    ), "Bounding box must be positive ints"
+    assert transform.shape == (3, 3), "Expected 4x4 affine matrix"
+    assert all(b > 0 for b in bbox), "Bounding box must be positive ints"
     assert not np.allclose(
-        transform, np.eye(4)
+        transform, np.eye(3)
     ), "Rotation matrix should differ from identity"
 
 
@@ -101,10 +99,14 @@ def test_rotate_volume_output_shape_and_dtype(dummy_volume):
     and values under identity transform.
     """
     shape = dummy_volume.shape
-    transform, bbox = create_rotation_matrix(0, 0, 0, shape)
+    transform, offset, bbox = create_rotation_matrix(0, 0, 0, shape)
 
-    rotated = rotate_volume(dummy_volume, shape, transform, bbox).compute()
-    assert rotated.shape == bbox, "Output shape mismatch with bounding box"
+    rotated = rotate_volume(
+        dummy_volume, shape, transform, bbox, offset=offset
+    ).compute()
+    assert (
+        rotated.shape == bbox
+    ).all(), "Output shape mismatch with bounding box"
     assert rotated.dtype == dummy_volume.dtype, "Dtype mismatch after rotation"
     # Accept approximate similarity due to interpolation
     correlation = np.corrcoef(dummy_volume.flatten(), rotated.flatten())[0, 1]
@@ -118,12 +120,14 @@ def test_rotate_volume_nontrivial_transform(dummy_volume):
     Ensure volume shape changes with non-zero rotation.
     """
     shape = dummy_volume.shape
-    transform, bbox = create_rotation_matrix(20, 10, 5, shape)
-    rotated = rotate_volume(dummy_volume, shape, transform, bbox).compute()
+    transform, offset, bbox = create_rotation_matrix(20, 10, 5, shape)
+    rotated = rotate_volume(
+        dummy_volume, shape, transform, bbox, offset=offset
+    ).compute()
 
     assert (
         rotated.shape == bbox
-    ), "Rotated volume shape must match bounding box"
+    ).all(), "Rotated volume shape must match bounding box"
     assert (
         rotated.shape != shape
     ), "Rotated shape should differ from input for non-zero rotation"

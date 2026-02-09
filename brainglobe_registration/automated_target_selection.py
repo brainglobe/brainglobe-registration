@@ -85,13 +85,17 @@ def registration_objective(
         )
     try:
         # Create rotation matrix
-        rot_matrix, bounding_box = create_rotation_matrix(
+        rot_matrix, offset, bounding_box = create_rotation_matrix(
             0, yaw, pitch, img_shape=atlas_volume.shape
         )
 
         # Rotate atlas
         rotated_volume = rotate_volume(
-            atlas_volume, atlas_volume.shape, rot_matrix, bounding_box
+            atlas_volume,
+            atlas_volume.shape,
+            rot_matrix,
+            bounding_box,
+            offset=offset,
         )
 
         # Convert float z to int index and clip to bounds
@@ -335,11 +339,11 @@ def run_bayesian_generator(
     yaw = round(best_params["yaw"], 2)
     z_slice = round(best_params["z_slice"])
 
-    rot_matrix, out_shape = create_rotation_matrix(
+    rot_matrix, offset, out_shape = create_rotation_matrix(
         0, yaw, pitch, atlas_volume.shape
     )
     transformed_atlas = rotate_volume(
-        atlas_volume, atlas_volume.shape, rot_matrix, out_shape
+        atlas_volume, atlas_volume.shape, rot_matrix, out_shape, offset=offset
     )
     target_slice = transformed_atlas[z_slice].compute()
 

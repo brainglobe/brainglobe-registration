@@ -100,8 +100,9 @@ class RegistrationWidget(QScrollArea):
         self._atlas: Optional[BrainGlobeAtlas] = None
         self._atlas_data_layer: Optional[napari.layers.Image] = None
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
-        self._atlas_transform_matrix: npt.NDArray = np.eye(4)
-        self._atlas_matrix_inv: npt.NDArray = np.eye(4)
+        self._atlas_transform_matrix: npt.NDArray = np.eye(3)
+        self._atlas_matrix_inv: npt.NDArray = np.eye(3)
+        self._atlas_offset = np.zeros(3)
         self._atlas_2d_slice_index: Optional[int] = None
         self._atlas_2d_slice_corners: Optional[np.ndarray] = None
         self._moving_image: Optional[napari.layers.Image] = None
