@@ -104,7 +104,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas_matrix_inv: npt.NDArray = np.eye(3)
         self._atlas_offset = np.zeros(3)
         self._atlas_2d_slice_index: Optional[int] = None
-        self._atlas_2d_slice_corners: Optional[np.ndarray] = None
+        self._atlas_2d_slice_corners: Optional[np.ndarray] = np.zeros((4, 3))
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
 
@@ -334,8 +334,9 @@ class RegistrationWidget(QScrollArea):
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
-        self._atlas_transform_matrix = np.eye(4)
-        self._atlas_transform_matrix = np.eye(4)
+        self._atlas_transform_matrix = np.eye(3)
+        self._atlas_matrix_inv = np.eye(3)
+        self._atlas_offset = np.zeros(3)
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
 
@@ -1219,8 +1220,9 @@ class RegistrationWidget(QScrollArea):
 
         self._atlas_data_layer.data = self._atlas.reference
         self._atlas_annotations_layer.data = self._atlas.annotation
-        self._atlas_matrix_inv = np.eye(4)
-        self._atlas_transform_matrix = np.eye(4)
+        self._atlas_matrix_inv = np.eye(3)
+        self._atlas_transform_matrix = np.eye(3)
+        self._atlas_offset = np.zeros(3)
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
 

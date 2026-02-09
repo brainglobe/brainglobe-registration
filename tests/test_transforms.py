@@ -86,7 +86,7 @@ def test_create_rotation_matrix_nonzero(dummy_volume):
     shape = dummy_volume.shape
     transform, offset, bbox = create_rotation_matrix(15, -10, 30, shape)
 
-    assert transform.shape == (3, 3), "Expected 4x4 affine matrix"
+    assert transform.shape == (3, 3), "Expected 3x3 affine matrix"
     assert all(b > 0 for b in bbox), "Bounding box must be positive ints"
     assert not np.allclose(
         transform, np.eye(3)
