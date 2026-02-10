@@ -101,7 +101,6 @@ class RegistrationWidget(QScrollArea):
         self._atlas_data_layer: Optional[napari.layers.Image] = None
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
         self._atlas_transform_matrix: npt.NDArray = np.eye(3)
-        self._atlas_matrix_inv: npt.NDArray = np.eye(3)
         self._atlas_offset = np.zeros(3)
         self._atlas_2d_slice_index: int = -1
         self._atlas_2d_slice_corners: npt.NDArray = np.zeros((4, 3))
@@ -342,7 +341,6 @@ class RegistrationWidget(QScrollArea):
 
     def _reset_atlas_attributes(self):
         self._atlas_transform_matrix = np.eye(3)
-        self._atlas_matrix_inv = np.eye(3)
         self._atlas_offset = np.zeros(3)
         self._atlas_2d_slice_index = -1
         self._atlas_2d_slice_corners = np.zeros((4, 3))
@@ -1191,7 +1189,6 @@ class RegistrationWidget(QScrollArea):
         )
 
         self._atlas_transform_matrix = transform_matrix
-        self._atlas_matrix_inv = np.linalg.inv(transform_matrix)
         self._atlas_offset = offset
         self._atlas_data_layer.data = rotated_reference
         self._atlas_annotations_layer.data = rotated_annotations
@@ -1440,7 +1437,6 @@ class RegistrationWidget(QScrollArea):
         return {
             "atlas": self._atlas,
             "atlas_transform_matrix": self._atlas_transform_matrix.tolist(),
-            "atlas_inverse_transform_matrix": self._atlas_matrix_inv.tolist(),
             "atlas_offset": self._atlas_offset.tolist(),
             "atlas_2d_slice_index": self._atlas_2d_slice_index,
             "atlas_slice_corners": self._atlas_2d_slice_corners.tolist(),
