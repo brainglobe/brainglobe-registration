@@ -10,7 +10,7 @@ from skimage.transform import rescale
 
 def create_rotation_matrix(
     roll: float, yaw: float, pitch: float, img_shape: Tuple[int, int, int]
-):
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray, npt.NDArray]:
     """
     Creates a 3D affine transformation matrix from roll, yaw, and pitch angles.
 
@@ -32,12 +32,12 @@ def create_rotation_matrix(
 
     Returns:
     -------
-    final_transform : np.ndarray
+    final_transform : npt.NDArray
         3x3 affine transformation matrix.
-    offset : np.ndarray
+    offset : npt.NDArray
         Translation vector to apply after rotation to fit the rotated volume
         into the new bounding box.
-    bounding_box : Tuple[int, int, int]
+    bounding_box : npt.NDArray
         Shape of the rotated volume that fully contains the transformed data.
     """
     # Create rotation matrix from Euler angles
@@ -86,37 +86,36 @@ def create_rotation_matrix(
 
 
 def rotate_volume(
-    data: np.ndarray,
+    data: npt.NDArray,
     reference_shape: Tuple[int, int, int],
-    final_transform: np.ndarray,
+    final_transform: npt.NDArray,
     bounding_box: Tuple[int, int, int],
     interpolation_order: int = 2,
-    offset: np.ndarray = None,
-) -> np.ndarray:
+    offset: npt.NDArray = np.zeros(3),
+) -> npt.NDArray:
     """
     Apply a 3D affine transformation to a volume using a precomputed transform.
 
     Parameters
     ----------
-    data : np.ndarray
+    data : npt.NDArray
         The 3D input volume (Z, Y, X) to be transformed.
     reference_shape : Tuple[int, int, int]
         Shape of the original reference volume.
-    final_transform : np.ndarray
+    final_transform : npt.NDArray
         3x3 affine transformation matrix to apply.
     bounding_box : Tuple[int, int, int]
         Shape of the output (rotated) volume.
     interpolation_order : int, optional
         Spline interpolation order (default is 2).
+    offset : npt.NDArray, optional
+        Translation vector to apply after rotation (default is zero vector).
 
     Returns
     -------
-    transformed : np.ndarray
+    transformed : npt.NDArray
         Transformed 3D volume resampled into the new bounding box.
     """
-    if offset is None:
-        offset = np.zeros(3)
-
     transformed = ndi.affine_transform(
         da.from_array(
             data, chunks=(2, reference_shape[1], reference_shape[2])
@@ -131,7 +130,7 @@ def rotate_volume(
 
 
 def scale_moving_image(
-    moving_image: np.ndarray,
+    moving_image: npt.NDArray,
     atlas_res: Tuple[float, float, float],
     moving_res: Tuple[float, float, float] = (1.0, 1.0, 1.0),
 ):
@@ -140,7 +139,7 @@ def scale_moving_image(
 
     Parameters
     ----------
-    moving_image : np.ndarray
+    moving_image : npt.NDArray
         Image to be scaled.
     atlas_res : Tuple[float, float, float]
         Resolution (z, y, x) of the atlas.
@@ -150,7 +149,7 @@ def scale_moving_image(
 
     Returns
     -------
-    np.ndarray
+    npt.NDArray
         Rescaled image with a shape that reflects conversion from
         `moving_res` to `atlas_res`, preserving physical dimensions.
 
@@ -180,50 +179,3 @@ def scale_moving_image(
     ).astype(moving_image.dtype)
 
     return scaled
-
-
-def calculate_rotated_bounding_box(
-    image_shape: Tuple[int, int, int], rotation_matrix: npt.NDArray
-) -> Tuple[int, int, int]:
-    """
-    Calculates the bounding box of the rotated image.
-
-    This function calculates the bounding box of the rotated image given the
-    image shape and rotation matrix. The bounding box is calculated by
-    transforming the corners of the image and finding the minimum and maximum
-    values of the transformed corners.
-
-    Parameters
-    ------------
-    image_shape : Tuple[int, int, int]
-        The shape of the image.
-    rotation_matrix : npt.NDArray
-        The rotation matrix.
-
-    Returns
-    --------
-    Tuple[int, int, int]
-        The bounding box of the rotated image.
-    """
-    corners = np.array(
-        [
-            [0, 0, 0, 1],
-            [image_shape[0], 0, 0, 1],
-            [0, image_shape[1], 0, 1],
-            [0, 0, image_shape[2], 1],
-            [image_shape[0], image_shape[1], 0, 1],
-            [image_shape[0], 0, image_shape[2], 1],
-            [0, image_shape[1], image_shape[2], 1],
-            [image_shape[0], image_shape[1], image_shape[2], 1],
-        ]
-    )
-
-    transformed_corners = np.dot(rotation_matrix, corners.T)
-    min_corner = np.min(transformed_corners, axis=1)
-    max_corner = np.max(transformed_corners, axis=1)
-
-    return (
-        int(np.round(max_corner[0] - min_corner[0])),
-        int(np.round(max_corner[1] - min_corner[1])),
-        int(np.round(max_corner[2] - min_corner[2])),
-    )
