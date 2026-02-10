@@ -41,7 +41,7 @@ def create_rotation_matrix(
         Shape of the rotated volume that fully contains the transformed data.
     """
     # Create rotation matrix from Euler angles
-    # Use extrinsic rotations in ZYX order (roll, then yaw, then pitch)
+    # Use intrinsic rotations in XYZ order (roll, then yaw, then pitch)
     rotation_matrix = Rotation.from_euler(
         "XYZ", [roll, yaw, pitch], degrees=True
     ).as_matrix()
