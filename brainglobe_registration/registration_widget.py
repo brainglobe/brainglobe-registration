@@ -100,9 +100,13 @@ class RegistrationWidget(QScrollArea):
         self._atlas: Optional[BrainGlobeAtlas] = None
         self._atlas_data_layer: Optional[napari.layers.Image] = None
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
-        self._atlas_transform_matrix: Optional[npt.NDArray] = None
+        self._atlas_transform_matrix: npt.NDArray = np.eye(3)
+        self._atlas_offset = np.zeros(3)
+        self._atlas_2d_slice_index: int = -1
+        self._atlas_2d_slice_corners: npt.NDArray = np.zeros((4, 3))
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
+
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
@@ -329,9 +333,17 @@ class RegistrationWidget(QScrollArea):
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
-        self._atlas_transform_matrix = None
+
+        self._reset_atlas_attributes()
+
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
+
+    def _reset_atlas_attributes(self):
+        self._atlas_transform_matrix = np.eye(3)
+        self._atlas_offset = np.zeros(3)
+        self._atlas_2d_slice_index = -1
+        self._atlas_2d_slice_corners = np.zeros((4, 3))
 
     def _update_dropdowns(self):
         # Extract the names of the remaining layers
@@ -463,11 +475,13 @@ class RegistrationWidget(QScrollArea):
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.uint16
         )
-        current_atlas_slice = self._viewer.dims.current_step[0]
+        self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
 
         if self._moving_image.data.ndim == 2:
             atlas_selection = (
-                slice(current_atlas_slice, current_atlas_slice + 1),
+                slice(
+                    self._atlas_2d_slice_index, self._atlas_2d_slice_index + 1
+                ),
             )
             atlas_image = get_data_from_napari_layer(
                 self._atlas_data_layer, atlas_selection
@@ -502,6 +516,38 @@ class RegistrationWidget(QScrollArea):
                     transform_selection[1]["MovingInternalImagePixelType"] = [
                         "float"
                     ]
+
+            rotated_shape = np.array(self._atlas_data_layer.data.shape)
+            original_shape = np.array(self._atlas.shape)
+
+            atlas_corners = [
+                [self._atlas_2d_slice_index, 0, 0],
+                [self._atlas_2d_slice_index, 0, atlas_image.shape[1]],
+                [self._atlas_2d_slice_index, atlas_image.shape[0], 0],
+                [
+                    self._atlas_2d_slice_index,
+                    atlas_image.shape[0],
+                    atlas_image.shape[1],
+                ],
+            ]
+
+            # Centers
+            rotated_center = rotated_shape / 2.0
+            original_center = original_shape / 2.0
+
+            # Inverse transform: rotated -> original
+            original_corners = np.trunc(
+                (
+                    self._atlas_transform_matrix
+                    @ (atlas_corners - rotated_center).T
+                ).T
+                + original_center
+            )
+
+            self._atlas_2d_slice_corners = (
+                original_corners * self._atlas.resolution
+            )
+
         else:
             atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
             annotation_image = get_data_from_napari_layer(
@@ -585,16 +631,19 @@ class RegistrationWidget(QScrollArea):
         imwrite(registered_annotation_image_path, registered_annotation_image)
         hemispheres_image = self._atlas.hemispheres
 
-        if self._atlas_transform_matrix is not None:
+        if not np.allclose(self._atlas_transform_matrix, np.eye(3)):
             hemispheres_image = dask_affine_transform(
                 self._atlas.hemispheres,
                 self._atlas_transform_matrix,
+                offset=self._atlas_offset,
                 order=0,
                 output_shape=self._atlas_data_layer.data.shape,
             )
 
         if self._moving_image.ndim == 2:
-            hemispheres_image = hemispheres_image[current_atlas_slice, :, :]
+            hemispheres_image = hemispheres_image[
+                self._atlas_2d_slice_index, :, :
+            ]
 
         if isinstance(hemispheres_image, da.Array):
             hemispheres_image = hemispheres_image.compute()
@@ -1114,7 +1163,7 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        transform_matrix, bounding_box = create_rotation_matrix(
+        transform_matrix, offset, bounding_box = create_rotation_matrix(
             roll,
             yaw,
             pitch,
@@ -1127,6 +1176,7 @@ class RegistrationWidget(QScrollArea):
             final_transform=transform_matrix,
             bounding_box=bounding_box,
             interpolation_order=2,
+            offset=offset,
         )
 
         rotated_annotations = rotate_volume(
@@ -1135,9 +1185,11 @@ class RegistrationWidget(QScrollArea):
             final_transform=transform_matrix,
             bounding_box=bounding_box,
             interpolation_order=0,
+            offset=offset,
         )
 
         self._atlas_transform_matrix = transform_matrix
+        self._atlas_offset = offset
         self._atlas_data_layer.data = rotated_reference
         self._atlas_annotations_layer.data = rotated_annotations
 
@@ -1175,6 +1227,9 @@ class RegistrationWidget(QScrollArea):
 
         self._atlas_data_layer.data = self._atlas.reference
         self._atlas_annotations_layer.data = self._atlas.annotation
+
+        self._reset_atlas_attributes()
+
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
 
@@ -1381,6 +1436,10 @@ class RegistrationWidget(QScrollArea):
     def __dict__(self):
         return {
             "atlas": self._atlas,
+            "atlas_transform_matrix": self._atlas_transform_matrix.tolist(),
+            "atlas_offset": self._atlas_offset.tolist(),
+            "atlas_2d_slice_index": self._atlas_2d_slice_index,
+            "atlas_slice_corners": self._atlas_2d_slice_corners.tolist(),
             "atlas_data_layer": self._atlas_data_layer,
             "atlas_annotations_layer": self._atlas_annotations_layer,
             "moving_image": self._moving_image,
