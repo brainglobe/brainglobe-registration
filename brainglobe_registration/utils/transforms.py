@@ -33,7 +33,7 @@ def create_rotation_matrix(
     Returns:
     -------
     final_transform : np.ndarray
-        4×4 affine transformation matrix.
+        3x3 affine transformation matrix.
     offset : np.ndarray
         Translation vector to apply after rotation to fit the rotated volume
         into the new bounding box.
@@ -103,7 +103,7 @@ def rotate_volume(
     reference_shape : Tuple[int, int, int]
         Shape of the original reference volume.
     final_transform : np.ndarray
-        4×4 affine transformation matrix to apply.
+        3x3 affine transformation matrix to apply.
     bounding_box : Tuple[int, int, int]
         Shape of the output (rotated) volume.
     interpolation_order : int, optional
