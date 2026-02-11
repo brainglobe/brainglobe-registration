@@ -5,6 +5,7 @@ from typing import Literal, Optional, Tuple
 
 import numpy as np
 from bayes_opt import BayesianOptimization
+from fancylog import fancylog
 from skimage.transform import rotate
 
 from brainglobe_registration.elastix.register import (
@@ -293,7 +294,8 @@ def run_bayesian_generator(
     optimizer.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
 
     # Initial random points
-    for _ in range(init_points):
+    iteration = 0
+    for _ in range(init_points + n_iter):
         point = optimizer.suggest()
         score = registration_objective(
             **point,
@@ -304,25 +306,37 @@ def run_bayesian_generator(
         )
         optimizer.register(params=point, target=score)
 
-        yield {
-            "stage": "coarse",
+        rounded = {
             "pitch": round(point["pitch"], 2),
             "yaw": round(point["yaw"], 2),
-            "z_slice": round(point["z_slice"]),
-            "score": score,
+            "z": int(round(point["z_slice"])),
         }
 
-    # Iterative Bayesian updates
-    for _ in range(n_iter):
-        point = optimizer.suggest()
-        score = registration_objective(
-            **point,
-            atlas_volume=atlas_volume,
-            sample=sample,
-            metric=metric,
-            weights=weights,
+        # Logging image + data
+        rot_matrix, bbox = create_rotation_matrix(
+            roll=0,
+            yaw=rounded["yaw"],
+            pitch=rounded["pitch"],
+            img_shape=atlas_volume.shape,
         )
-        optimizer.register(params=point, target=score)
+        rotated = rotate_volume(
+            atlas_volume, atlas_volume.shape, rot_matrix, bbox
+        )
+        slice_image = rotated[rounded["z"]].compute()
+
+        subfolder = f"coarse_{iteration:03}"
+        fancylog.log_image(
+            slice_image,
+            name="rotated_slice",
+            subfolder=subfolder,
+            metadata={**rounded, "score": score, "stage": "coarse"},
+        )
+
+        fancylog.log_data_object(
+            rot_matrix.tolist(),
+            name="rotation_matrix",
+            subfolder=subfolder,
+        )
 
         yield {
             "stage": "coarse",
@@ -331,6 +345,8 @@ def run_bayesian_generator(
             "z_slice": round(point["z_slice"]),
             "score": score,
         }
+
+        iteration += 1
 
     best_params = optimizer.max["params"]
     best_score = optimizer.max["target"]
@@ -361,7 +377,8 @@ def run_bayesian_generator(
     opt_roll.set_gp_params(alpha=1e-3, n_restarts_optimizer=5)
 
     # Initial roll points
-    for _ in range(init_points):
+    roll_iteration = 0
+    for _ in range(init_points + n_iter):
         point = opt_roll.suggest()
         score = similarity_only_objective(
             **point,
@@ -372,29 +389,47 @@ def run_bayesian_generator(
         )
         opt_roll.register(params=point, target=score)
 
-        yield {
-            "stage": "fine",
-            "roll": round(point["roll"], 2),
-            "roll_score": score,
-        }
+        rounded_roll = round(point["roll"], 2)
 
-    # Iterative roll tuning
-    for _ in range(n_iter):
-        point = opt_roll.suggest()
-        score = similarity_only_objective(
-            **point,
-            target_slice=target_slice,
-            sample=sample,
-            metric=metric,
-            weights=weights,
+        rot_matrix, bbox = create_rotation_matrix(
+            roll=rounded_roll,
+            yaw=yaw,
+            pitch=pitch,
+            img_shape=atlas_volume.shape,
         )
-        opt_roll.register(params=point, target=score)
+        rotated = rotate_volume(
+            atlas_volume, atlas_volume.shape, rot_matrix, bbox
+        )
+        slice_image = rotated[z_slice].compute()
+
+        subfolder = f"fine_{roll_iteration:03}"
+        fancylog.log_image(
+            slice_image,
+            name="rotated_slice",
+            subfolder=subfolder,
+            metadata={
+                "pitch": pitch,
+                "yaw": yaw,
+                "z": z_slice,
+                "roll": rounded_roll,
+                "score": score,
+                "stage": "fine",
+            },
+        )
+
+        fancylog.log_data_object(
+            rot_matrix.tolist(),
+            name="rotation_matrix",
+            subfolder=subfolder,
+        )
 
         yield {
             "stage": "fine",
             "roll": round(point["roll"], 2),
             "roll_score": score,
         }
+
+        roll_iteration += 1
 
     best_roll = round(opt_roll.max["params"]["roll"], 2)
     best_roll_score = opt_roll.max["target"]

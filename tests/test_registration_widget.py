@@ -781,7 +781,7 @@ def test_run_auto_slice_thread_logs_and_yields_results(
     # Spy on logging.info
     info_spy = mocker.spy(logging, "info")
 
-    expected_result = {
+    final_result = {
         "best_pitch": 1,
         "best_yaw": 2,
         "best_roll": 3,
@@ -789,9 +789,9 @@ def test_run_auto_slice_thread_logs_and_yields_results(
     }
 
     def mock_generator(*args, **kwargs):
-        yield
-        yield
-        return expected_result
+        yield  # 1st progress
+        yield  # 2nd progress
+        return final_result
 
     mocker.patch(
         "brainglobe_registration.registration_widget.run_bayesian_generator",

@@ -29,7 +29,7 @@ dependencies = [
     "brainglobe-utils>=0.4.3",
     "dask",
     "dask-image",
-    "fancylog",
+    "fancylog[image]",
     "itk-elastix",
     "lxml_html_clean",
     "numpy",
@@ -138,6 +138,7 @@ passenv =
     PYVISTA_OFF_SCREEN
 extras =
     dev
+    image
 commands =
     pytest -v --color=yes --cov=brainglobe_registration --cov-report=xml
 deps =
