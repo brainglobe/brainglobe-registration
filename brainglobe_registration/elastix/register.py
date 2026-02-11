@@ -62,6 +62,8 @@ def run_registration(
     result_transform_parameters = elastix_object.GetTransformParameterObject()
 
     if output_directory:
+       
+        Path(output_directory).mkdir(parents=True, exist_ok=True)
         file_names = [
             f"{output_directory}/TransformParameters.{i}.txt"
             for i in range(len(parameter_lists))
@@ -296,7 +298,7 @@ def setup_parameter_object(parameter_lists: List[tuple[str, dict]]):
     Returns
     -------
     itk.ParameterObject
-        The parameter object.#
+        The parameter object.
     """
     parameter_object = itk.ParameterObject.New()
 
