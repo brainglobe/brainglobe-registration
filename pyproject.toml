@@ -30,7 +30,7 @@ dependencies = [
     "dask",
     "dask-image",
     "fancylog",
-    "itk-elastix",
+    "itk-elastix>=0.24.0",
     "lxml_html_clean",
     "numpy",
     "pandas",
