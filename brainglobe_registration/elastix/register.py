@@ -62,7 +62,7 @@ def run_registration(
     result_transform_parameters = elastix_object.GetTransformParameterObject()
 
     if output_directory:
-       
+
         Path(output_directory).mkdir(parents=True, exist_ok=True)
         file_names = [
             f"{output_directory}/TransformParameters.{i}.txt"
