@@ -574,6 +574,15 @@ class RegistrationWidget(QScrollArea):
             transform_image,
         )
 
+        if len(self.transform_selections) == 0:
+            display_info(
+                widget=self,
+                title="No Transform Selected",
+                message="The section position will be saved.",
+            )
+
+            return
+
         print("Running registration")
         parameters = run_registration(
             atlas_image,

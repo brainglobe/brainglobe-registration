@@ -607,6 +607,30 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
     assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
 
 
+def test_on_run_button_clicked_no_transform_selected(
+    registration_widget_with_example_atlas, mocker, tmp_path
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+
+    widget = registration_widget_with_example_atlas
+    widget.run_button.setEnabled(True)
+
+    widget._moving_image = mocker.Mock()
+    widget.output_directory = tmp_path
+
+    widget.transform_selections = []
+
+    widget.run_button.click()
+
+    mocked_display_info.assert_called_once_with(
+        widget=widget,
+        title="No Transform Selected",
+        message="The section position will be saved.",
+    )
+
+
 def test_open_auto_slice_dialog_no_atlas(registration_widget, mocker):
     mocked_display_info = mocker.patch(
         "brainglobe_registration.registration_widget.display_info"
