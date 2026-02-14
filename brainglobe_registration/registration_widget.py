@@ -577,8 +577,9 @@ class RegistrationWidget(QScrollArea):
         if len(self.transform_selections) == 0:
             display_info(
                 widget=self,
-                title="No Transform Selected",
-                message="The section position will be saved.",
+                title="Warning",
+                message="Please select at least one transform "
+                "before clicking 'Run'.",
             )
 
             return

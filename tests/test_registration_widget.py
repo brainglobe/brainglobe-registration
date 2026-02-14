@@ -626,8 +626,8 @@ def test_on_run_button_clicked_no_transform_selected(
 
     mocked_display_info.assert_called_once_with(
         widget=widget,
-        title="No Transform Selected",
-        message="The section position will be saved.",
+        title="Warning",
+        message="Please select at least one transform before clicking 'Run'.",
     )
 
 
