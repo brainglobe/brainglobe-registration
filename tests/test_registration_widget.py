@@ -477,6 +477,108 @@ def test_on_output_directory_text_edited(registration_widget):
     assert registration_widget.output_directory == Path.home()
 
 
+def test_get_current_parameter_tab_index_no_tab(registration_widget, mocker):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mocker.patch.object(
+        registration_widget.parameters_tab, "currentIndex", return_value=-1
+    )
+
+    assert registration_widget._get_current_parameter_tab_index() is None
+    mocked_show_error.assert_called_once_with("No parameter tab selected.")
+
+
+def test_on_load_parameter_file_clicked_updates_parameters(
+    registration_widget, mocker, tmp_path: Path
+):
+    param_file = tmp_path / "params.txt"
+    param_file.write_text('(TestParam "value")\n(NumberOfHistogramBins 32)')
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getOpenFileName",
+        return_value=(str(param_file), ""),
+    )
+
+    registration_widget._on_load_parameter_file_clicked()
+
+    expected = {
+        "TestParam": ["value"],
+        "NumberOfHistogramBins": ["32"],
+    }
+    assert registration_widget.transform_selections[0][1] == expected
+    assert (
+        registration_widget.parameter_setting_tabs_lists[0].param_dict
+        == expected
+    )
+
+
+def test_on_load_parameter_file_clicked_cancelled(registration_widget, mocker):
+    mock_open = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getOpenFileName",
+        return_value=("", ""),
+    )
+    mock_read = mocker.patch(
+        "brainglobe_registration.registration_widget.open_parameter_file"
+    )
+
+    registration_widget._on_load_parameter_file_clicked()
+
+    mock_open.assert_called_once()
+    mock_read.assert_not_called()
+
+
+def test_on_save_parameter_file_clicked_writes_file(
+    registration_widget, mocker, tmp_path: Path
+):
+    save_path = tmp_path / "custom_params"
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getSaveFileName",
+        return_value=(str(save_path), ""),
+    )
+    registration_widget.parameter_setting_tabs_lists[0].param_dict = {
+        "Transform": ["AffineTransform"],
+        "DefaultPixelValue": ["0"],
+    }
+
+    registration_widget._on_save_parameter_file_clicked()
+
+    written = save_path.with_suffix(".txt").read_text()
+    assert '(Transform "AffineTransform")' in written
+    assert "(DefaultPixelValue 0)" in written
+
+
+def test_on_save_parameter_file_clicked_cancelled(registration_widget, mocker):
+    mock_save = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getSaveFileName",
+        return_value=("", ""),
+    )
+    mock_write = mocker.patch(
+        "brainglobe_registration.registration_widget.write_parameter_file"
+    )
+
+    registration_widget._on_save_parameter_file_clicked()
+
+    mock_save.assert_called_once()
+    mock_write.assert_not_called()
+
+
+def test_on_save_parameter_file_clicked_no_tab(registration_widget, mocker):
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mocker.patch.object(
+        registration_widget.parameters_tab, "currentIndex", return_value=-1
+    )
+    mock_save = mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getSaveFileName"
+    )
+
+    registration_widget._on_save_parameter_file_clicked()
+
+    mocked_show_error.assert_called_once_with("No parameter tab selected.")
+    mock_save.assert_not_called()
+
+
 def test_on_open_file_dialog_clicked(registration_widget, mocker):
     mocked_open_dialog = mocker.patch(
         "brainglobe_registration.registration_widget.QFileDialog.getExistingDirectory"

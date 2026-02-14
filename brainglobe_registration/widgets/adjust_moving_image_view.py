@@ -29,6 +29,8 @@ class AdjustMovingImageView(QWidget):
         and roll.
     reset_atlas_signal : Signal
         Emitted when the atlas is reset.
+    reset_moving_image_signal : Signal
+        Emitted when the moving image adjustments are reset.
 
     Methods
     -------
@@ -218,8 +220,13 @@ class AdjustMovingImageView(QWidget):
 
     def _on_moving_image_reset(self):
         """
-        Emit the reset_moving_image_signal to restore moving image data.
+        Reset the moving image pixel sizes and orientation.
         """
+        self.adjust_moving_image_pixel_size_x.setValue(0)
+        self.adjust_moving_image_pixel_size_y.setValue(0)
+        self.adjust_moving_image_pixel_size_z.setValue(0)
+        self.data_orientation_field.setText("")
+
         self.reset_moving_image_signal.emit()
 
     def __dict__(self):
