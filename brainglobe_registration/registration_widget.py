@@ -577,7 +577,7 @@ class RegistrationWidget(QScrollArea):
         if len(self.transform_selections) == 0:
             display_info(
                 widget=self,
-                title="Warning",
+                title="No Transforms Selected",
                 message="Please select at least one transform "
                 "before clicking 'Run'.",
             )
