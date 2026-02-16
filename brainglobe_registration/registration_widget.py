@@ -574,6 +574,16 @@ class RegistrationWidget(QScrollArea):
             transform_image,
         )
 
+        if len(self.transform_selections) == 0:
+            display_info(
+                widget=self,
+                title="No Transforms Selected",
+                message="Please select at least one transform "
+                "before clicking 'Run'.",
+            )
+
+            return
+
         print("Running registration")
         parameters = run_registration(
             atlas_image,
