@@ -4,12 +4,61 @@ from typing import List, Optional, Tuple
 import itk
 import numpy as np
 import numpy.typing as npt
+from brainglobe_atlasapi import BrainGlobeAtlas
 
 from brainglobe_registration.utils.atlas import (
     convert_atlas_labels,
     restore_atlas_labels,
 )
 from brainglobe_registration.utils.preprocess import filter_image
+
+
+def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
+    """
+    Crop an atlas to match the brain geometry (full brain or hemisphere).
+
+    When registering a hemisphere to a full brain atlas, the unwanted
+    hemisphere must be masked out to prevent registration confusion.
+
+    Parameters
+    ----------
+    atlas : BrainGlobeAtlas
+        The atlas to crop.
+    brain_geometry : str
+        The brain geometry type. Options:
+        - "full": Full brain (no cropping)
+        - "hemisphere_l": Left hemisphere (masks right hemisphere)
+        - "hemisphere_r": Right hemisphere (masks left hemisphere)
+
+    Returns
+    -------
+    BrainGlobeAtlas
+        A new atlas with the specified hemisphere masked (set to 0).
+    """
+    if brain_geometry == "full":
+        return atlas
+
+    # Create a copy of the atlas
+    atlas_cropped = BrainGlobeAtlas(atlas.atlas_name)
+
+    # Determine which hemisphere to mask
+    if brain_geometry == "hemisphere_l":
+        # Mask right hemisphere
+        ind = atlas_cropped.right_hemisphere_value
+    elif brain_geometry == "hemisphere_r":
+        # Mask left hemisphere
+        ind = atlas_cropped.left_hemisphere_value
+    else:
+        raise ValueError(
+            f"Unknown brain_geometry: {brain_geometry}. "
+            "Must be 'full', 'hemisphere_l', or 'hemisphere_r'."
+        )
+
+    # Set the unwanted hemisphere to 0 (black) in both reference and annotation
+    atlas_cropped.reference[atlas_cropped.hemispheres == ind] = 0
+    atlas_cropped.annotation[atlas_cropped.hemispheres == ind] = 0
+
+    return atlas_cropped
 
 
 def run_registration(

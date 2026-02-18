@@ -108,6 +108,8 @@ class RegistrationWidget(QScrollArea):
         self._moving_image_data_backup: Optional[npt.NDArray] = None
 
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
+        # Sample brain geometry (full, hemisphere_l, hemisphere_r)
+        self._brain_geometry: str = "full"
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
         # Registered image layer reference (saved after registration)
@@ -165,6 +167,9 @@ class RegistrationWidget(QScrollArea):
         )
         self.get_atlas_widget.moving_image_index_change.connect(
             self._on_sample_dropdown_index_changed
+        )
+        self.get_atlas_widget.sample_geometry_change.connect(
+            self._on_sample_geometry_changed
         )
         self.get_atlas_widget.sample_image_popup_about_to_show.connect(
             self._on_sample_popup_about_to_show
@@ -422,6 +427,17 @@ class RegistrationWidget(QScrollArea):
         self._moving_image_data_backup = self._moving_image.data.copy()
         self._update_is_3d_flag()
 
+    def _on_sample_geometry_changed(self, geometry: str):
+        """
+        Update the brain geometry when the user changes the dropdown.
+
+        Parameters
+        ----------
+        geometry : str
+            The selected brain geometry ("full", "hemisphere_l", or "hemisphere_r").
+        """
+        self._brain_geometry = geometry
+
     def _on_output_directory_text_edited(self):
         self.output_directory = Path(self.output_directory_text_field.text())
 
@@ -478,17 +494,31 @@ class RegistrationWidget(QScrollArea):
         )
         self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
 
+        # Crop atlas if necessary for hemisphere registration
+        atlas_for_registration = self._atlas
+        if self._brain_geometry != "full":
+            # Import crop function locally to avoid slow widget loading
+            from brainglobe_registration.elastix.register import crop_atlas
+
+            atlas_for_registration = crop_atlas(self._atlas, self._brain_geometry)
+            logging.info(
+                f"Atlas cropped for {self._brain_geometry} registration"
+            )
+
         if self._moving_image.data.ndim == 2:
             atlas_selection = (
                 slice(
                     self._atlas_2d_slice_index, self._atlas_2d_slice_index + 1
                 ),
             )
-            atlas_image = get_data_from_napari_layer(
-                self._atlas_data_layer, atlas_selection
-            ).astype(np.float32)
-            annotation_image = get_data_from_napari_layer(
-                self._atlas_annotations_layer, atlas_selection
+            # Use atlas_for_registration consistently (original or cropped)
+            atlas_image = np.squeeze(
+                atlas_for_registration.reference[atlas_selection]
+                .astype(np.float32)
+                .copy()
+            )
+            annotation_image = np.squeeze(
+                atlas_for_registration.annotation[atlas_selection].copy()
             )
 
             moving_image = moving_image.astype(np.float32)
@@ -550,10 +580,11 @@ class RegistrationWidget(QScrollArea):
             )
 
         else:
-            atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
-            annotation_image = get_data_from_napari_layer(
-                self._atlas_annotations_layer
-            )
+            # 3D case - use atlas_for_registration directly
+            atlas_image = atlas_for_registration.reference.astype(
+                np.float32
+            ).copy()
+            annotation_image = atlas_for_registration.annotation.copy()
 
         for transform_selection in self.transform_selections:
             if "FixedImageDimension" not in transform_selection[1]:
