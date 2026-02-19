@@ -145,9 +145,9 @@ class SelectImagesView(QWidget):
         Emit the sample_geometry_change signal with the selected geometry.
 
         Converts the dropdown index to the corresponding geometry string:
-        - Index 0: "full"
-        - Index 1: "hemisphere_l"
-        - Index 2: "hemisphere_r"
+        ~ Index 0: "full"
+        ~ Index 1: "hemisphere_l"
+        ~ Index 2: "hemisphere_r"
         """
         index = self.sample_geometry_dropdown.currentIndex()
         if index == 0:
@@ -157,7 +157,7 @@ class SelectImagesView(QWidget):
         elif index == 2:
             geometry = "hemisphere_r"
         else:
-            geometry = "full"  # Default to full brain
+            geometry = "full"  # default
         self.sample_geometry_change.emit(geometry)
 
     def reset_atlas_combobox(self):

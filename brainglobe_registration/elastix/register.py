@@ -25,8 +25,8 @@ def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
     atlas : BrainGlobeAtlas
         The atlas to crop.
     brain_geometry : str
-        The brain geometry type. Options:
-        - "full": Full brain (no cropping)
+        The brain geometry type:
+        - "full": Full brain 
         - "hemisphere_l": Left hemisphere (masks right hemisphere)
         - "hemisphere_r": Right hemisphere (masks left hemisphere)
 
