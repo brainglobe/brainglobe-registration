@@ -493,13 +493,15 @@ class RegistrationWidget(QScrollArea):
         )
         self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
 
-        # Crop atlas if necessary 
+        # Crop atlas if necessary
         atlas_for_registration = self._atlas
         if self._brain_geometry != "full":
             # avoid slow widget loading
             from brainglobe_registration.elastix.register import crop_atlas
 
-            atlas_for_registration = crop_atlas(self._atlas, self._brain_geometry)
+            atlas_for_registration = crop_atlas(
+                self._atlas, self._brain_geometry
+            )
             logging.info(
                 f"Atlas cropped for {self._brain_geometry} registration"
             )

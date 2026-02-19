@@ -90,7 +90,11 @@ class SelectImagesView(QWidget):
 
         self.sample_geometry_label = QLabel("Sample Geometry:")
         self.sample_geometry_dropdown = QComboBox(parent=self)
-        self.geometry_options = ["Full Brain", "Left Hemisphere", "Right Hemisphere"]
+        self.geometry_options = [
+            "Full Brain",
+            "Left Hemisphere",
+            "Right Hemisphere",
+        ]
         self.sample_geometry_dropdown.addItems(self.geometry_options)
 
         self.available_atlas_dropdown.currentIndexChanged.connect(

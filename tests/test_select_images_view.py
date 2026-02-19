@@ -186,5 +186,7 @@ def test_select_images_view_default_geometry(select_images_view, qtbot):
 
     # Default should be "full" (index 0)
     assert select_images_view.sample_geometry_dropdown.currentIndex() == 0
-    assert select_images_view.sample_geometry_dropdown.currentText() == "Full Brain"
-
+    assert (
+        select_images_view.sample_geometry_dropdown.currentText()
+        == "Full Brain"
+    )
