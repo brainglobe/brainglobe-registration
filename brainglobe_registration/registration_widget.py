@@ -108,7 +108,7 @@ class RegistrationWidget(QScrollArea):
         self._moving_image_data_backup: Optional[npt.NDArray] = None
 
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
-        # brain geometry (full, hemi l or r)
+        # brain geometry (full, hemi or quarter)
         self._brain_geometry: str = "full"
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
