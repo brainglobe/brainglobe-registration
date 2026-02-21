@@ -945,8 +945,7 @@ def test_checkerboard_checkbox_enabled_after_registration(
     assert not registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
 
     # Simulate registration completion by manually enabling the QC widget
-    # (This is what happens after registration completes in
-    # _on_run_button_click)
+    
     registration_widget.qc_widget.set_enabled(True)
 
     # After registration, checkbox should be enabled
@@ -974,7 +973,7 @@ def test_show_checkerboard_no_moving_image(registration_widget, mocker):
     mocked_show_error.assert_called_once()
     # Worker should not be created since error occurs before
     mocked_create_worker.assert_not_called()
-    # Checkbox remains checked (user selection preserved)
+    # Checkbox remains checked 
     assert registration_widget.qc_widget.checkerboard_checkbox.isChecked()
 
 
