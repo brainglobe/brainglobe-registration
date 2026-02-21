@@ -432,10 +432,29 @@ class RegistrationWidget(QScrollArea):
         Update the brain geometry when the user changes the dropdown.
 
         Parameters
+        ----------
         geometry : str
-            The selected brain geometry ("full", "hemisphere_l", or "hemisphere_r").
+            The selected brain geometry ("full", "hemisphere_l", "hemisphere_r",
+            "quarter_al", "quarter_ar", "quarter_pl", or "quarter_pr").
         """
         self._brain_geometry = geometry
+
+    def _get_atlas_for_registration(self) -> BrainGlobeAtlas:
+        """Return atlas cropped to currently selected brain geometry."""
+        assert self._atlas is not None
+
+        atlas_for_registration = self._atlas
+        if self._brain_geometry != "full":
+            from brainglobe_registration.elastix.register import crop_atlas
+
+            atlas_for_registration = crop_atlas(
+                self._atlas, self._brain_geometry
+            )
+            logging.info(
+                f"Atlas cropped for {self._brain_geometry} registration"
+            )
+
+        return atlas_for_registration
 
     def _on_output_directory_text_edited(self):
         self.output_directory = Path(self.output_directory_text_field.text())
@@ -493,18 +512,7 @@ class RegistrationWidget(QScrollArea):
         )
         self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
 
-        # Crop atlas if necessary
-        atlas_for_registration = self._atlas
-        if self._brain_geometry != "full":
-            # avoid slow widget loading
-            from brainglobe_registration.elastix.register import crop_atlas
-
-            atlas_for_registration = crop_atlas(
-                self._atlas, self._brain_geometry
-            )
-            logging.info(
-                f"Atlas cropped for {self._brain_geometry} registration"
-            )
+        atlas_for_registration = self._get_atlas_for_registration()
 
         if self._moving_image.data.ndim == 2:
             atlas_selection = (
@@ -1329,7 +1337,8 @@ class RegistrationWidget(QScrollArea):
         worker.start()
 
     def run_auto_slice_thread(self, params: dict):
-        atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
+        atlas_for_registration = self._get_atlas_for_registration()
+        atlas_image = atlas_for_registration.reference
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.int16
         )

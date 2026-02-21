@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
+from copy import deepcopy
 
 import itk
 import numpy as np
@@ -15,10 +16,10 @@ from brainglobe_registration.utils.preprocess import filter_image
 
 def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
     """
-    Crop an atlas to match the brain geometry (full brain or hemisphere).
+    Crop an atlas to match the brain geometry (full brain, hemisphere, or quarter).
 
-    When registering a hemisphere to a full brain atlas, the unwanted
-    hemisphere must be masked out to prevent registration confusion.
+    When registering a partial brain to a full brain atlas,
+    the unwanted regions must be masked out.
 
     Parameters
     ----------
@@ -29,38 +30,74 @@ def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
         - "full": Full brain
         - "hemisphere_l": Left hemisphere (masks right hemisphere)
         - "hemisphere_r": Right hemisphere (masks left hemisphere)
+        - "quarter_al": Anterior left quarter (masks other 3 quarters)
+        - "quarter_ar": Anterior right quarter (masks other 3 quarters)
+        - "quarter_pl": Posterior left quarter (masks other 3 quarters)
+        - "quarter_pr": Posterior right quarter (masks other 3 quarters)
 
     Returns
     -------
     BrainGlobeAtlas
-        A new atlas with the specified hemisphere masked (set to 0).
+        A new atlas with the specified region masked.
     """
     if brain_geometry == "full":
         return atlas
 
-    # Create a copy of the atlas
-    atlas_cropped = BrainGlobeAtlas(atlas.atlas_name)
+    atlas_cropped = deepcopy(atlas)
+    geom = brain_geometry.lower()
 
-    # Determine which hemisphere to mask
-    if brain_geometry == "hemisphere_l":
-        # Mask right hemisphere
+    # hemisphere case
+    if geom == "hemisphere_l":
         ind = atlas_cropped.right_hemisphere_value
-    elif brain_geometry == "hemisphere_r":
-        # Mask left hemisphere
+        atlas_cropped.reference[atlas_cropped.hemispheres == ind] = 0
+        atlas_cropped.annotation[atlas_cropped.hemispheres == ind] = 0
+        return atlas_cropped
+
+    elif geom == "hemisphere_r":
         ind = atlas_cropped.left_hemisphere_value
-    else:
-        raise ValueError(
-            f"Unknown brain_geometry: {brain_geometry}. "
-            "Must be 'full', 'hemisphere_l', or 'hemisphere_r'."
+        atlas_cropped.reference[atlas_cropped.hemispheres == ind] = 0
+        atlas_cropped.annotation[atlas_cropped.hemispheres == ind] = 0
+        return atlas_cropped
+
+    #quarter case
+    elif geom.startswith("quarter_"):
+        quarter_code = geom.split("_", maxsplit=1)[1]
+        wants_left = quarter_code.endswith("l")
+        wants_anterior = quarter_code.startswith("a")
+
+        hemisphere_value_to_keep = (
+            atlas_cropped.left_hemisphere_value
+            if wants_left
+            else atlas_cropped.right_hemisphere_value
+        )
+        hemisphere_keep_mask = (
+            atlas_cropped.hemispheres == hemisphere_value_to_keep
         )
 
-    # Set the unwanted hemisphere to 0 (black) in both reference and annotation
-    atlas_cropped.reference[atlas_cropped.hemispheres == ind] = 0
-    atlas_cropped.annotation[atlas_cropped.hemispheres == ind] = 0
+        #asr
+        # axis 0: AP (anterior -> posterior)
+        ap_axis = 0
+        ap_size = atlas_cropped.reference.shape[ap_axis]
+        ap_midpoint = ap_size // 2
+        ap_coords = np.arange(ap_size).reshape((-1, 1, 1))
+        ap_keep_mask = (
+            ap_coords < ap_midpoint
+            if wants_anterior
+            else ap_coords >= ap_midpoint
+        )
 
-    return atlas_cropped
+        keep_mask = hemisphere_keep_mask & ap_keep_mask
 
+        atlas_cropped.reference[~keep_mask] = 0
+        atlas_cropped.annotation[~keep_mask] = 0
 
+        return atlas_cropped
+    else:
+        raise ValueError(
+            f"Unknown brain geometry: {brain_geometry}. "
+            "must be 'full', 'hemisphere_l', 'hemisphere_r', "
+            "'quarter_al', 'quarter_ar', 'quarter_pl', or 'quarter_pr'."
+        )
 def run_registration(
     atlas_image: npt.NDArray,
     moving_image: npt.NDArray,

@@ -26,9 +26,9 @@ class SelectImagesView(QWidget):
     and atlas for registration.
 
     This widget provides dropdown menus for selecting the atlas, the sample
-    to be used for registration, and the sample geometry (full brain or
-    hemisphere). It emits signals when the selected atlas or sample image
-    changes.
+    to be used for registration, and the sample geometry (full brain,
+    hemisphere, or quarter). It emits signals when the selected atlas or
+    sample image changes.
 
     Attributes
     ----------
@@ -40,7 +40,8 @@ class SelectImagesView(QWidget):
         the index of the selected image.
     sample_geometry_change : Signal
         Emitted when the sample geometry changes. The signal includes the
-        geometry as a string: "full", "hemisphere_l", or "hemisphere_r".
+        geometry as a string: "full", "hemisphere_l", "hemisphere_r",
+        "quarter_al", "quarter_ar", "quarter_pl", or "quarter_pr".
 
     Methods
     -------
@@ -94,6 +95,10 @@ class SelectImagesView(QWidget):
             "Full Brain",
             "Left Hemisphere",
             "Right Hemisphere",
+            "Anterior Left Quarter",
+            "Anterior Right Quarter",
+            "Posterior Left Quarter",
+            "Posterior Right Quarter",
         ]
         self.sample_geometry_dropdown.addItems(self.geometry_options)
 
@@ -149,9 +154,13 @@ class SelectImagesView(QWidget):
         Emit the sample_geometry_change signal with the selected geometry.
 
         Converts the dropdown index to the corresponding geometry string:
-        ~ Index 0: "full"
-        ~ Index 1: "hemisphere_l"
-        ~ Index 2: "hemisphere_r"
+        ~ ind 0: "full"
+        ~ ind 1: "hemisphere_l"
+        ~ ind 2: "hemisphere_r"
+        ~ ind 3: "quarter_al" (anterior-left)
+        ~ ind 4: "quarter_ar" (anterior-right)
+        ~ ind 5: "quarter_pl" (posterior-left)
+        ~ ind 6: "quarter_pr" (posterior-right)
         """
         index = self.sample_geometry_dropdown.currentIndex()
         if index == 0:
@@ -160,6 +169,14 @@ class SelectImagesView(QWidget):
             geometry = "hemisphere_l"
         elif index == 2:
             geometry = "hemisphere_r"
+        elif index == 3:
+            geometry = "quarter_al"
+        elif index == 4:
+            geometry = "quarter_ar"
+        elif index == 5:
+            geometry = "quarter_pl"
+        elif index == 6:
+            geometry = "quarter_pr"
         else:
             geometry = "full"  # default
         self.sample_geometry_change.emit(geometry)

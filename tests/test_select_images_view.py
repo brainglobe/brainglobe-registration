@@ -45,11 +45,12 @@ def test_select_images_view(select_images_view, qtbot):
         select_images_view.available_sample_dropdown_label.text()
         == "Select sample:"
     )
-    # Test sample geometry dropdown
+    #test sample geometry dropdown
     assert (
         select_images_view.sample_geometry_label.text() == "Sample Geometry:"
     )
-    assert select_images_view.sample_geometry_dropdown.count() == 3
+    #total 
+    assert select_images_view.sample_geometry_dropdown.count() == 7
     assert (
         select_images_view.sample_geometry_dropdown.currentText()
         == "Full Brain"
@@ -160,6 +161,10 @@ def test_select_images_view_moving_image_index_change_multi(
         (0, "full"),
         (1, "hemisphere_l"),
         (2, "hemisphere_r"),
+        (3, "quarter_al"),
+        (4, "quarter_ar"),
+        (5, "quarter_pl"),
+        (6, "quarter_pr"),
     ],
 )
 def test_select_images_view_sample_geometry_change(
