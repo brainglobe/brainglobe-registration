@@ -503,6 +503,39 @@ def test_on_open_file_dialog_cancelled(registration_widget, mocker):
     mocked_open_dialog.assert_called_once()
 
 
+def test_on_sample_geometry_changed_sets_brain_geometry(registration_widget):
+    registration_widget._brain_geometry = "full"
+
+    registration_widget._on_sample_geometry_changed("quarter_al")
+
+    assert registration_widget._brain_geometry == "quarter_al"
+
+
+def test_get_atlas_for_registration_non_full_uses_crop(
+    registration_widget, mocker
+):
+    mock_atlas = mocker.Mock()
+    cropped_atlas = mocker.Mock()
+    registration_widget._atlas = mock_atlas
+    registration_widget._brain_geometry = "quarter_al"
+
+    mock_crop = mocker.patch(
+        "brainglobe_registration.elastix.register.crop_atlas",
+        return_value=cropped_atlas,
+    )
+    mock_log_info = mocker.patch(
+        "brainglobe_registration.registration_widget.logging.info"
+    )
+
+    result = registration_widget._get_atlas_for_registration()
+
+    assert result is cropped_atlas
+    mock_crop.assert_called_once_with(mock_atlas, "quarter_al")
+    mock_log_info.assert_called_once_with(
+        "Atlas cropped for quarter_al registration"
+    )
+
+
 def test_on_run_button_clicked_no_atlas(registration_widget, mocker):
     mocked_display_info = mocker.patch(
         "brainglobe_registration.registration_widget.display_info"
