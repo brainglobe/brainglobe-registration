@@ -173,7 +173,8 @@ def test_select_images_view_sample_geometry_change(
     qtbot.addWidget(select_images_view)
 
     # For index 0, we need to set it to a different value first,
-    # because Qt doesn't emit currentIndexChanged when setting to the current index
+    # because Qt doesn't emit currentIndexChanged when setting
+    # to the current index.
     if geometry_index == 0:
         select_images_view.sample_geometry_dropdown.setCurrentIndex(1)
 

@@ -16,7 +16,8 @@ from brainglobe_registration.utils.preprocess import filter_image
 
 def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
     """
-    Crop an atlas to match the brain geometry (full brain, hemisphere, or quarter).
+    Crop an atlas to match the brain geometry
+    (full brain, hemisphere, or quarter).
 
     When registering a partial brain to a full brain atlas,
     the unwanted regions must be masked out.

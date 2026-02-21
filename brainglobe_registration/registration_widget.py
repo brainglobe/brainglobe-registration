@@ -434,8 +434,9 @@ class RegistrationWidget(QScrollArea):
         Parameters
         ----------
         geometry : str
-            The selected brain geometry ("full", "hemisphere_l", "hemisphere_r",
-            "quarter_al", "quarter_ar", "quarter_pl", or "quarter_pr").
+            The selected brain geometry:
+            "full", "hemisphere_l", "hemisphere_r",
+            "quarter_al", "quarter_ar", "quarter_pl", or "quarter_pr".
         """
         self._brain_geometry = geometry
 

@@ -357,7 +357,8 @@ def test_crop_atlas_quarter_al(atlas):
     BrainGlobe "asr" orientation:
     - Index 0 (AP): 0=Anterior, max=Posterior
     - Index 2 (ML): 0=Right, max=Left
-    So Anterior-Left = keep small indices on axis 0, keep large indices on axis 2
+    So Anterior-Left means: keep small indices on axis 0,
+    and keep large indices on axis 2.
     """
     cropped = crop_atlas(atlas, "quarter_al")
 
