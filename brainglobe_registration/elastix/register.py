@@ -1,6 +1,6 @@
+from copy import deepcopy
 from pathlib import Path
 from typing import List, Optional, Tuple
-from copy import deepcopy
 
 import itk
 import numpy as np
@@ -59,7 +59,7 @@ def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
         atlas_cropped.annotation[atlas_cropped.hemispheres == ind] = 0
         return atlas_cropped
 
-    #quarter case
+    # quarter case
     elif geom.startswith("quarter_"):
         quarter_code = geom.split("_", maxsplit=1)[1]
         wants_left = quarter_code.endswith("l")
@@ -74,7 +74,7 @@ def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
             atlas_cropped.hemispheres == hemisphere_value_to_keep
         )
 
-        #asr
+        # asr
         # axis 0: AP (anterior -> posterior)
         ap_axis = 0
         ap_size = atlas_cropped.reference.shape[ap_axis]
@@ -98,6 +98,8 @@ def crop_atlas(atlas: BrainGlobeAtlas, brain_geometry: str) -> BrainGlobeAtlas:
             "must be 'full', 'hemisphere_l', 'hemisphere_r', "
             "'quarter_al', 'quarter_ar', 'quarter_pl', or 'quarter_pr'."
         )
+
+
 def run_registration(
     atlas_image: npt.NDArray,
     moving_image: npt.NDArray,

@@ -311,7 +311,7 @@ def test_crop_atlas(atlas, brain_geometry):
     cropped = crop_atlas(atlas, brain_geometry)
 
     assert isinstance(cropped, BrainGlobeAtlas)
-    
+
     # Assert shapes are preserved
     assert cropped.reference.shape == atlas.reference.shape
     assert cropped.annotation.shape == atlas.annotation.shape
@@ -353,7 +353,7 @@ def test_crop_atlas_hemisphere_r(atlas):
 
 def test_crop_atlas_quarter_al(atlas):
     """Test that anterior-left quarter masks correctly.
-    
+
     BrainGlobe "asr" orientation:
     - Index 0 (AP): 0=Anterior, max=Posterior
     - Index 2 (ML): 0=Right, max=Left
@@ -361,7 +361,6 @@ def test_crop_atlas_quarter_al(atlas):
     """
     cropped = crop_atlas(atlas, "quarter_al")
 
-   
     cropped_nonzero = np.sum(cropped.reference != 0)
     full_nonzero = np.sum(atlas.reference != 0)
     assert cropped_nonzero < full_nonzero
@@ -369,7 +368,9 @@ def test_crop_atlas_quarter_al(atlas):
     # Posterior (large indices on axis 0) should be completely masked
     ap_axis = 0
     ap_midpoint = atlas.reference.shape[ap_axis] // 2
-    posterior_locations = np.arange(ap_midpoint, atlas.reference.shape[ap_axis])
+    posterior_locations = np.arange(
+        ap_midpoint, atlas.reference.shape[ap_axis]
+    )
     posterior_slice = (posterior_locations, slice(None), slice(None))
     assert np.all(cropped.reference[posterior_slice] == 0)
 

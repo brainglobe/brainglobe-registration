@@ -45,11 +45,11 @@ def test_select_images_view(select_images_view, qtbot):
         select_images_view.available_sample_dropdown_label.text()
         == "Select sample:"
     )
-    #test sample geometry dropdown
+    # test sample geometry dropdown
     assert (
         select_images_view.sample_geometry_label.text() == "Sample Geometry:"
     )
-    #total 
+    # total
     assert select_images_view.sample_geometry_dropdown.count() == 7
     assert (
         select_images_view.sample_geometry_dropdown.currentText()
