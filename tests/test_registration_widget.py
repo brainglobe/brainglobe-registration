@@ -776,6 +776,11 @@ def test_run_auto_slice_thread_logs_and_yields_results(
         side_effect=[atlas_image, moving_image],
     )
 
+    # use mock atlas.
+    mock_atlas = mocker.Mock()
+    registration_widget._atlas = mock_atlas
+    registration_widget._brain_geometry = "full"
+
     logging_dir = Path("/tmp/fake_logging_dir")
     mocker.patch(
         "brainglobe_registration.registration_widget.get_brainglobe_dir",
