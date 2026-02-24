@@ -109,6 +109,8 @@ class RegistrationWidget(QScrollArea):
         self._atlas_offset = np.zeros(3)
         self._atlas_2d_slice_index: int = -1
         self._atlas_2d_slice_corners: npt.NDArray = np.zeros((4, 3))
+
+        # --- Plane sampling state (Issue #151) ---
         self._plane_sampling_active: bool = False
         self._atlas_rotation_matrix_3x3: npt.NDArray = np.eye(3)
         self._sampled_atlas_layer: Optional[napari.layers.Image] = None
@@ -120,6 +122,7 @@ class RegistrationWidget(QScrollArea):
         # Cache for sampled planes: {z_index: (ref_plane, ann_plane)}
         self._plane_cache: dict = {}
         self._plane_cache_max_size: int = 64
+
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
 
@@ -338,11 +341,11 @@ class RegistrationWidget(QScrollArea):
             self.get_atlas_widget.reset_atlas_combobox()
 
     def _delete_atlas_layers(self):
-        # Delete atlas reference layer if it exists
         # Clean up plane sampling layers if active
         if self._plane_sampling_active:
             self._deactivate_plane_sampling()
-            
+
+        # Delete atlas reference layer if it exists
         if self._atlas_data_layer in self._viewer.layers:
             self._viewer.layers.remove(self._atlas_data_layer)
 
@@ -359,6 +362,7 @@ class RegistrationWidget(QScrollArea):
 
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
+
     def _reset_atlas_attributes(self):
         self._atlas_transform_matrix = np.eye(3)
         self._atlas_rotation_matrix_3x3 = np.eye(3)
@@ -505,21 +509,22 @@ class RegistrationWidget(QScrollArea):
                 self._plane_sampling_active
                 and self._sampled_atlas_layer is not None
             ):
-                atlas_image = self._sampled_atlas_layer.data.astype(
-                    np.float32
-                )
-                # Annotations from sampled layer
+                atlas_image = np.squeeze(
+                    self._sampled_atlas_layer.data
+                ).astype(np.float32)
                 if self._sampled_annotations_layer is not None:
-                    annotation_image = (
+                    annotation_image = np.squeeze(
                         self._sampled_annotations_layer.data
                     )
                 else:
                     annotation_image = get_data_from_napari_layer(
                         self._atlas_annotations_layer,
-                        (slice(
-                            self._atlas_2d_slice_index,
-                            self._atlas_2d_slice_index + 1,
-                        ),),
+                        (
+                            slice(
+                                self._atlas_2d_slice_index,
+                                self._atlas_2d_slice_index + 1,
+                            ),
+                        ),
                     )
             else:
                 # Original path: no rotation, standard orthogonal slice
@@ -535,6 +540,10 @@ class RegistrationWidget(QScrollArea):
                 annotation_image = get_data_from_napari_layer(
                     self._atlas_annotations_layer, atlas_selection
                 )
+
+            # Ensure both are exactly 2D
+            atlas_image = np.squeeze(atlas_image)
+            annotation_image = np.squeeze(annotation_image)
 
             moving_image = moving_image.astype(np.float32)
 
@@ -563,7 +572,13 @@ class RegistrationWidget(QScrollArea):
                         "float"
                     ]
 
-            rotated_shape = np.array(self._atlas_data_layer.data.shape)
+            # When plane sampling is active, the atlas data layer is still
+            # the original unrotated 3D volume (we never change its shape).
+            # For corner calculation we use the original atlas shape.
+            if self._plane_sampling_active:
+                rotated_shape = np.array(self._atlas.reference.shape)
+            else:
+                rotated_shape = np.array(self._atlas_data_layer.data.shape)
             original_shape = np.array(self._atlas.shape)
 
             atlas_corners = [
@@ -688,21 +703,35 @@ class RegistrationWidget(QScrollArea):
         hemispheres_image = self._atlas.hemispheres
 
         if not np.allclose(self._atlas_transform_matrix, np.eye(3)):
-            hemispheres_image = dask_affine_transform(
-                self._atlas.hemispheres,
-                self._atlas_transform_matrix,
-                offset=self._atlas_offset,
-                order=0,
-                output_shape=self._atlas_data_layer.data.shape,
-            )
+            if self._plane_sampling_active and self._moving_image.ndim == 2:
+                # When plane sampling is active, sample the hemispheres
+                # plane the same way we sampled the atlas plane
+                hemispheres_image = sample_annotation_plane(
+                    annotation_volume=self._atlas.hemispheres,
+                    z_index=self._atlas_2d_slice_index,
+                    rotation_matrix=self._atlas_rotation_matrix_3x3,
+                )
+            else:
+                hemispheres_image = dask_affine_transform(
+                    self._atlas.hemispheres,
+                    self._atlas_transform_matrix,
+                    offset=self._atlas_offset,
+                    order=0,
+                    output_shape=self._atlas_data_layer.data.shape,
+                )
 
-        if self._moving_image.ndim == 2:
+        if (
+            self._moving_image.ndim == 2
+            and not self._plane_sampling_active
+        ):
             hemispheres_image = hemispheres_image[
                 self._atlas_2d_slice_index, :, :
             ]
 
         if isinstance(hemispheres_image, da.Array):
             hemispheres_image = hemispheres_image.compute()
+
+        hemispheres_image = np.squeeze(hemispheres_image)
 
         registered_hemispheres = transform_annotation_image(
             hemispheres_image, parameters
@@ -1208,6 +1237,19 @@ class RegistrationWidget(QScrollArea):
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
 
+    # ------------------------------------------------------------------ #
+    #  Plane-sampling rotation (Issue #151)                                #
+    #                                                                      #
+    #  Instead of rotating the entire 3D atlas volume (~77M voxels,        #
+    #  2-5 seconds), we keep the volume static and sample a single 2D      #
+    #  plane from it using scipy.ndimage.map_coordinates (~10 ms).         #
+    #                                                                      #
+    #  A dedicated 2D napari Image layer ("Atlas (sampled plane)") is       #
+    #  created for the sampled plane and updated whenever:                  #
+    #    - the user changes the rotation parameters, or                    #
+    #    - the user scrolls the z-slider.                                  #
+    # ------------------------------------------------------------------ #
+
     def _on_adjust_atlas_rotation(
         self, pitch: float, yaw: float, roll: float
     ):
@@ -1220,8 +1262,6 @@ class RegistrationWidget(QScrollArea):
         2. Sample a single 2D plane from the static volume
         3. Display it in a separate 2D layer
         4. Connect the dims slider to re-sample on scroll
-
-        This implements Issue #151.
         """
         if not (
             self._atlas
@@ -1233,14 +1273,14 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # Step 1: Build the rotation matrix (just the 3x3, no bounding box)
+        # Step 1: Build the 3x3 rotation matrix (for plane sampling)
         self._atlas_rotation_matrix_3x3 = build_rotation_matrix(
             roll, yaw, pitch
         )
 
         # We still need the old-style transform matrix for the registration
         # pipeline's corner calculation (backward compatibility)
-        transform_matrix, offset, bounding_box = create_rotation_matrix(
+        transform_matrix, offset, _bounding_box = create_rotation_matrix(
             roll, yaw, pitch, self._atlas.reference.shape
         )
         self._atlas_transform_matrix = transform_matrix
@@ -1249,7 +1289,7 @@ class RegistrationWidget(QScrollArea):
         # Step 2: Clear the plane cache (rotation changed)
         self._plane_cache.clear()
 
-        # Step 3: Activate plane sampling mode
+        # Step 3: Activate plane sampling mode (if not already active)
         if not self._plane_sampling_active:
             self._activate_plane_sampling()
 
@@ -1262,12 +1302,18 @@ class RegistrationWidget(QScrollArea):
 
         Hides the 3D atlas layers and connects the dims slider
         to re-sample the plane whenever the user scrolls.
+
+        IMPORTANT: We set the atlas layer opacity to 0 instead of
+        setting visible=False. This keeps the 3D layer "present" in
+        napari so the z-slider remains active. If we hide the only
+        3D layer, napari removes the dims slider entirely.
         """
         self._plane_sampling_active = True
 
-        # Hide the 3D atlas volume (we'll show 2D sampled planes instead)
+        # Make the 3D atlas volume invisible BUT keep the layer present
+        # so that napari keeps showing the z-slider.
         if self._atlas_data_layer is not None:
-            self._atlas_data_layer.visible = False
+            self._atlas_data_layer.opacity = 0
         if self._atlas_annotations_layer is not None:
             self._atlas_annotations_layer.visible = False
 
@@ -1286,10 +1332,13 @@ class RegistrationWidget(QScrollArea):
         self._plane_sampling_active = False
         self._plane_cache.clear()
 
-        # Disconnect the dims slider listener
-        self._viewer.dims.events.current_step.disconnect(
-            self._on_dims_slider_changed
-        )
+        # Disconnect the dims slider listener (safe even if not connected)
+        try:
+            self._viewer.dims.events.current_step.disconnect(
+                self._on_dims_slider_changed
+            )
+        except (TypeError, ValueError):
+            pass  # Was not connected
 
         # Remove sampled layers
         if (
@@ -1308,6 +1357,7 @@ class RegistrationWidget(QScrollArea):
 
         # Restore 3D atlas layers
         if self._atlas_data_layer is not None:
+            self._atlas_data_layer.opacity = 1
             self._atlas_data_layer.visible = True
 
     def _on_dims_slider_changed(self, event):
@@ -1362,7 +1412,9 @@ class RegistrationWidget(QScrollArea):
         # Update or create the display layers
         if self._sampled_atlas_layer is None:
             # First time: create the layers
-            contrast_max = float(np.max(ref_plane)) if np.max(ref_plane) > 0 else 1.0
+            contrast_max = (
+                float(np.max(ref_plane)) if np.max(ref_plane) > 0 else 1.0
+            )
             self._sampled_atlas_layer = self._viewer.add_image(
                 ref_plane,
                 name="Atlas (sampled plane)",
@@ -1381,8 +1433,8 @@ class RegistrationWidget(QScrollArea):
             if self._sampled_annotations_layer is not None:
                 self._sampled_annotations_layer.data = ann_plane.astype(
                     np.uint32
-                ) 
-                  
+                )
+
     def _on_atlas_reset(self):
         if not self._atlas:
             show_error(
@@ -1399,6 +1451,7 @@ class RegistrationWidget(QScrollArea):
 
         # Restore original atlas data
         self._atlas_data_layer.data = self._atlas.reference
+        self._atlas_data_layer.opacity = 1
         self._atlas_annotations_layer.data = self._atlas.annotation
 
         self._reset_atlas_attributes()
@@ -1575,7 +1628,7 @@ class RegistrationWidget(QScrollArea):
         atlas_in_data_space: npt.NDArray
             The atlas in data space.
         annotation_in_data_space: npt.NDArray
-            The annotation in data space.#
+            The annotation in data space.
         registered_hemispheres: npt.NDArray
             The hemispheres annotation in data space.
         """
