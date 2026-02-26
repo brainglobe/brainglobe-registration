@@ -95,9 +95,7 @@ def sample_plane(
     x_coords = np.arange(out_w, dtype=np.float64)
     grid_y, grid_x = np.meshgrid(y_coords, x_coords, indexing="ij")
 
-    # Step 2: Create 3D coordinates for this plane in "rotated space."
-    # The plane lives at z=z_index, spanning the full (y, x) range.
-    # Shape: (3, H*W) — each column is a [z, y, x] point.
+ 
     plane_coords = np.stack(
         [
             np.full(grid_y.shape, z_index, dtype=np.float64),
