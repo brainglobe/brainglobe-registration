@@ -350,8 +350,10 @@ class RegistrationWidget(QScrollArea):
         ):
             # Reset the atlas selection combobox
             self.get_atlas_widget.reset_atlas_combobox()
-
     def _delete_atlas_layers(self):
+        # Clean up plane sampling state first
+        self._deactivate_plane_sampling()
+
         # Delete atlas reference layer if it exists
         if self._atlas_data_layer in self._viewer.layers:
             self._viewer.layers.remove(self._atlas_data_layer)
@@ -369,7 +371,6 @@ class RegistrationWidget(QScrollArea):
 
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
-
     def _reset_atlas_attributes(self):
         self._atlas_transform_matrix = np.eye(3)
         self._atlas_offset = np.zeros(3)
@@ -1204,61 +1205,146 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        # Build rotation matrix for plane sampling (Issue #151)
+        rotation_matrix = build_rotation_matrix(roll, yaw, pitch)
+
+        # Also compute the old-style transform matrix for registration use
         transform_matrix, offset, bounding_box = create_rotation_matrix(
-            roll,
-            yaw,
-            pitch,
-            self._atlas.reference.shape,
+            roll, yaw, pitch, self._atlas.reference.shape
         )
-
-        rotated_reference = rotate_volume(
-            data=self._atlas.reference,
-            reference_shape=self._atlas.reference.shape,
-            final_transform=transform_matrix,
-            bounding_box=bounding_box,
-            interpolation_order=2,
-            offset=offset,
-        )
-
-        rotated_annotations = rotate_volume(
-            data=self._atlas.annotation,
-            reference_shape=self._atlas.reference.shape,
-            final_transform=transform_matrix,
-            bounding_box=bounding_box,
-            interpolation_order=0,
-            offset=offset,
-        )
-
         self._atlas_transform_matrix = transform_matrix
         self._atlas_offset = offset
-        self._atlas_data_layer.data = rotated_reference
-        self._atlas_annotations_layer.data = rotated_annotations
+
+        # Store the rotation matrix for plane sampling
+        self._plane_rotation_matrix = rotation_matrix
+
+        # Get the current z-index from the viewer's dimension slider
+        current_z = self._viewer.dims.current_step[0]
+
+        # Sample 2D planes from the static atlas volumes
+        sampled_ref = sample_plane(
+            self._atlas.reference,
+            z_index=float(current_z),
+            rotation_matrix=rotation_matrix,
+            interpolation_order=2,
+        )
+        sampled_ann = sample_annotation_plane(
+            self._atlas.annotation,
+            z_index=float(current_z),
+            rotation_matrix=rotation_matrix,
+        )
+
+        if not self._plane_sampling_active:
+            # First time: hide original 3D layers, create 2D sampled layers
+            self._atlas_data_layer.visible = False
+            self._atlas_annotations_layer.visible = False
+
+            self._sampled_reference_layer = self._viewer.add_image(
+                sampled_ref,
+                name=f"{self._atlas_data_layer.name} (sampled plane)",
+                colormap="gray",
+                blending="translucent",
+            )
+            self._sampled_annotations_layer = self._viewer.add_labels(
+                sampled_ann.astype(np.uint32),
+                name="Annotations (sampled plane)",
+                visible=False,
+            )
+
+            # Connect dimension slider listener
+            self._dims_slider_connection = (
+                self._viewer.dims.events.current_step.connect(
+                    self._on_dims_slider_changed
+                )
+            )
+
+            self._plane_sampling_active = True
+        else:
+            # Update existing sampled layers
+            self._sampled_reference_layer.data = sampled_ref
+            self._sampled_annotations_layer.data = sampled_ann.astype(
+                np.uint32
+            )
 
         # Resets the viewer grid to update the grid to the new atlas
-        # The grid is disabled and re-enabled to force the grid to update
         self._viewer.reset_view()
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
 
-        worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
-        worker.returned.connect(self.set_atlas_layer_data)
-        worker.start()
+    def _on_dims_slider_changed(self, event):
+        """
+        Listener for napari dimension slider changes.
 
-    @thread_worker
-    def compute_atlas_rotation(self, dask_array: da.Array):
-        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
-        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(False)
+        When plane sampling is active, re-samples the atlas plane at the
+        new z-index whenever the user scrolls through slices.
+        """
+        if not self._plane_sampling_active:
+            return
 
-        computed_array = dask_array.compute()
+        if not (self._atlas and self._sampled_reference_layer):
+            return
 
-        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
-        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(True)
+        current_z = self._viewer.dims.current_step[0]
 
-        return computed_array
+        sampled_ref = sample_plane(
+            self._atlas.reference,
+            z_index=float(current_z),
+            rotation_matrix=self._plane_rotation_matrix,
+            interpolation_order=2,
+        )
+        sampled_ann = sample_annotation_plane(
+            self._atlas.annotation,
+            z_index=float(current_z),
+            rotation_matrix=self._plane_rotation_matrix,
+        )
 
-    def set_atlas_layer_data(self, new_data):
-        self._atlas_data_layer.data = new_data
+        self._sampled_reference_layer.data = sampled_ref
+        self._sampled_annotations_layer.data = sampled_ann.astype(np.uint32)
 
+    def _on_atlas_reset(self):
+        if not self._atlas:
+            show_error(
+                "No atlas selected. Please select an atlas before resetting"
+            )
+            return
+
+        # Clean up plane sampling state
+        self._deactivate_plane_sampling()
+
+        self._atlas_data_layer.data = self._atlas.reference
+        self._atlas_data_layer.visible = True
+        self._atlas_annotations_layer.data = self._atlas.annotation
+        self._atlas_annotations_layer.visible = True
+
+        self._reset_atlas_attributes()
+
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
+
+    def _deactivate_plane_sampling(self):
+        """Remove sampled plane layers and disconnect the slider listener."""
+        if self._dims_slider_connection is not None:
+            self._viewer.dims.events.current_step.disconnect(
+                self._on_dims_slider_changed
+            )
+            self._dims_slider_connection = None
+
+        if (
+            self._sampled_reference_layer is not None
+            and self._sampled_reference_layer in self._viewer.layers
+        ):
+            self._viewer.layers.remove(self._sampled_reference_layer)
+        self._sampled_reference_layer = None
+
+        if (
+            self._sampled_annotations_layer is not None
+            and self._sampled_annotations_layer in self._viewer.layers
+        ):
+            self._viewer.layers.remove(self._sampled_annotations_layer)
+        self._sampled_annotations_layer = None
+
+        self._plane_sampling_active = False
+        self._plane_rotation_matrix = np.eye(3)
     def _on_atlas_reset(self):
         if not self._atlas:
             show_error(
