@@ -14,7 +14,7 @@ def build_rotation_matrix(
     roll: float, yaw: float, pitch: float
 ) -> npt.NDArray:
     """
-    Build a 3x3 rotation matrix from Euler angles.
+    build a 3x3 rotation matrix from Euler angles.
 
     Parameters
     ----------
@@ -59,7 +59,6 @@ def sample_plane(
         (height, width) of the output 2D plane.
     interpolation_order : int, optional
         Spline interpolation order for map_coordinates.
-        Use 2 for reference images (smooth), 0 for annotations (preserve labels).
         Default: 2.
 
     Returns

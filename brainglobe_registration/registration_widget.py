@@ -115,7 +115,7 @@ class RegistrationWidget(QScrollArea):
         self._moving_image_data_backup: Optional[npt.NDArray] = None
 
         
-        # --- Plane sampling state (Issue #151) ---
+        # Plane sampling state :
         self._plane_sampling_active: bool = False
         self._plane_rotation_matrix: npt.NDArray = np.eye(3)
         self._sampled_reference_layer: Optional[napari.layers.Image] = None
@@ -123,19 +123,12 @@ class RegistrationWidget(QScrollArea):
         self._dims_slider_connection = None
 
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
-        # Flag to differentiate between manual and automatic atlas deletion
-        self._automatic_deletion_flag = False
-        # Registered image layer reference (saved after registration)
-        self._registered_image: Optional[napari.layers.Image] = None
-        # Checkerboard visualization
-        self._checkerboard_layer: Optional[napari.layers.Image] = None
-        # Cached image data for QC (avoids repeated layer queries)
-        self._cached_moving_data: Optional[npt.NDArray] = None
-        self._cached_registered_data: Optional[npt.NDArray] = None
-        # Timer for debouncing square size changes (real-time updates)
-        self._square_size_timer = QTimer()
-        self._square_size_timer.setSingleShot(True)
-        self._square_size_timer.timeout.connect(self._on_square_size_changed)
+        
+        self._plane_sampling_timer = QTimer()
+        self._plane_sampling_timer.setSingleShot(True)
+        self._plane_sampling_timer.setInterval(30)  # 30ms debounc
+        self._plane_sampling_timer.timeout.connect(self._update_sampled_plane)
+
         
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
@@ -1205,7 +1198,7 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # Build rotation matrix for plane sampling (Issue #151)
+        # build rotation matrix for plane sampling 
         rotation_matrix = build_rotation_matrix(roll, yaw, pitch)
 
         # Also compute the old-style transform matrix for registration use
@@ -1235,7 +1228,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         if not self._plane_sampling_active:
-            # First time: hide original 3D layers, create 2D sampled layers
+            #first time: hide original 3D layers, create 2D sampled layers, later no need..
             self._atlas_data_layer.visible = False
             self._atlas_annotations_layer.visible = False
 
@@ -1273,34 +1266,51 @@ class RegistrationWidget(QScrollArea):
 
     def _on_dims_slider_changed(self, event):
         """
-        Listener for napari dimension slider changes.
-
-        When plane sampling is active, re-samples the atlas plane at the
-        new z-index whenever the user scrolls through slices.
+        Called on EVERY slider tick. Does NOT compute anything —
+        just restarts the debounce timer.
         """
         if not self._plane_sampling_active:
             return
 
-        if not (self._atlas and self._sampled_reference_layer):
+        # Restart timer. If the user is still dragging, the timer keeps
+        self._plane_sampling_timer.start()
+
+    def _update_sampled_plane(self):
+        """
+        re-samples the plane. Only called by the debounce timer,
+        """
+        if not self._plane_sampling_active:
             return
 
-        current_z = self._viewer.dims.current_step[0]
+        current_z = float(self._viewer.dims.current_step[0])
+
+        #only recompute if z actually changed
+        if hasattr(self, '_last_sampled_z') and self._last_sampled_z == current_z:
+            return
+        self._last_sampled_z = current_z
+
+        from brainglobe_registration.utils.plane_sampling import (
+            sample_plane,
+            sample_annotation_plane,
+        )
 
         sampled_ref = sample_plane(
             self._atlas.reference,
-            z_index=float(current_z),
+            z_index=current_z,
             rotation_matrix=self._plane_rotation_matrix,
-            interpolation_order=2,
         )
-        sampled_ann = sample_annotation_plane(
+
+        if self._sampled_reference_layer is not None:
+            self._sampled_reference_layer.data = sampled_ref
+
+        sampled_annot = sample_annotation_plane(
             self._atlas.annotation,
-            z_index=float(current_z),
+            z_index=current_z,
             rotation_matrix=self._plane_rotation_matrix,
         )
 
-        self._sampled_reference_layer.data = sampled_ref
-        self._sampled_annotations_layer.data = sampled_ann.astype(np.uint32)
-
+        if self._sampled_annotations_layer is not None:
+            self._sampled_annotations_layer.data = sampled_annot
     def _on_atlas_reset(self):
         if not self._atlas:
             show_error(
@@ -1308,7 +1318,6 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # Clean up plane sampling state
         self._deactivate_plane_sampling()
 
         self._atlas_data_layer.data = self._atlas.reference
