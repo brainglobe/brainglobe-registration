@@ -351,8 +351,8 @@ def test_invalid_sample_orientation(
         (0, 0, 0, (132, 80, 114)),
         (45, 0, 0, (150, 150, 114)),
         (0, 45, 0, (174, 80, 174)),
-        (0, 0, 45, (132, 137, 137)),
-        (0, 90, 90, (80, 114, 132)),
+        (0, 0, 45, (132, 138, 138)),
+        (0, 90, 90, (115, 133, 81)),
     ],
 )
 def test_on_adjust_atlas_rotation(
@@ -707,6 +707,30 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
 
     # Check that QC widget is enabled after registration
     assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
+
+def test_on_run_button_clicked_no_transform_selected(
+    registration_widget_with_example_atlas, mocker, tmp_path
+):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+
+    widget = registration_widget_with_example_atlas
+    widget.run_button.setEnabled(True)
+
+    widget._moving_image = mocker.Mock()
+    widget.output_directory = tmp_path
+
+    widget.transform_selections = []
+
+    widget.run_button.click()
+
+    mocked_display_info.assert_called_once_with(
+        widget=widget,
+        title="No Transforms Selected",
+        message="Please select at least one transform before clicking 'Run'.",
+    )
 
 
 def test_open_auto_slice_dialog_no_atlas(registration_widget, mocker):

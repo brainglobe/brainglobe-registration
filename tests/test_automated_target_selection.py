@@ -26,11 +26,15 @@ def atlas_and_sample():
     atlas_volume = atlas.reference
     atlas_res = atlas.resolution
 
-    rot_matrix, bounding_box = create_rotation_matrix(
+    rot_matrix, offset, bounding_box = create_rotation_matrix(
         roll=ROLL, yaw=YAW, pitch=PITCH, img_shape=atlas_volume.shape
     )
     rotated_volume = rotate_volume(
-        atlas_volume, atlas_volume.shape, rot_matrix, bounding_box
+        atlas_volume,
+        atlas_volume.shape,
+        rot_matrix,
+        bounding_box,
+        offset=offset,
     )
     sample = rotated_volume[TRUE_SLICE].compute()
 
