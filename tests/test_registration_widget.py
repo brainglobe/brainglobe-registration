@@ -477,18 +477,6 @@ def test_on_output_directory_text_edited(registration_widget):
     assert registration_widget.output_directory == Path.home()
 
 
-def test_get_current_parameter_tab_index_no_tab(registration_widget, mocker):
-    mocked_show_error = mocker.patch(
-        "brainglobe_registration.registration_widget.show_error"
-    )
-    mocker.patch.object(
-        registration_widget.parameters_tab, "currentIndex", return_value=-1
-    )
-
-    assert registration_widget._get_current_parameter_tab_index() is None
-    mocked_show_error.assert_called_once_with("No parameter tab selected.")
-
-
 def test_on_load_parameter_file_clicked_updates_parameters(
     registration_widget, mocker, tmp_path: Path
 ):
@@ -499,7 +487,7 @@ def test_on_load_parameter_file_clicked_updates_parameters(
         return_value=(str(param_file), ""),
     )
 
-    registration_widget._on_load_parameter_file_clicked()
+    registration_widget._on_load_parameter_file_clicked(0)
 
     expected = {
         "TestParam": ["value"],
@@ -521,7 +509,7 @@ def test_on_load_parameter_file_clicked_cancelled(registration_widget, mocker):
         "brainglobe_registration.registration_widget.open_parameter_file"
     )
 
-    registration_widget._on_load_parameter_file_clicked()
+    registration_widget._on_load_parameter_file_clicked(0)
 
     mock_open.assert_called_once()
     mock_read.assert_not_called()
@@ -540,7 +528,7 @@ def test_on_save_parameter_file_clicked_writes_file(
         "DefaultPixelValue": ["0"],
     }
 
-    registration_widget._on_save_parameter_file_clicked()
+    registration_widget._on_save_parameter_file_clicked(0)
 
     written = save_path.with_suffix(".txt").read_text()
     assert '(Transform "AffineTransform")' in written
@@ -556,27 +544,24 @@ def test_on_save_parameter_file_clicked_cancelled(registration_widget, mocker):
         "brainglobe_registration.registration_widget.write_parameter_file"
     )
 
-    registration_widget._on_save_parameter_file_clicked()
+    registration_widget._on_save_parameter_file_clicked(0)
 
     mock_save.assert_called_once()
     mock_write.assert_not_called()
 
 
-def test_on_save_parameter_file_clicked_no_tab(registration_widget, mocker):
-    mocked_show_error = mocker.patch(
-        "brainglobe_registration.registration_widget.show_error"
-    )
-    mocker.patch.object(
-        registration_widget.parameters_tab, "currentIndex", return_value=-1
-    )
-    mock_save = mocker.patch(
-        "brainglobe_registration.registration_widget.QFileDialog.getSaveFileName"
-    )
+def test_on_load_parameter_file_clicked_out_of_order(registration_widget):
+    with pytest.raises(
+        IndexError, match="Transform file selection out of order"
+    ):
+        registration_widget._on_load_parameter_file_clicked(100)
 
-    registration_widget._on_save_parameter_file_clicked()
 
-    mocked_show_error.assert_called_once_with("No parameter tab selected.")
-    mock_save.assert_not_called()
+def test_on_save_parameter_file_clicked_out_of_order(registration_widget):
+    with pytest.raises(
+        IndexError, match="Transform file selection out of order"
+    ):
+        registration_widget._on_save_parameter_file_clicked(100)
 
 
 def test_on_open_file_dialog_clicked(registration_widget, mocker):

@@ -198,6 +198,12 @@ class RegistrationWidget(QScrollArea):
         self.transform_select_view.file_option_changed_signal.connect(
             self._on_default_file_selection_change
         )
+        self.transform_select_view.import_button_clicked_signal.connect(
+            self._on_load_parameter_file_clicked
+        )
+        self.transform_select_view.export_button_clicked_signal.connect(
+            self._on_save_parameter_file_clicked
+        )
 
         # Use decorator to connect to layer deletion event
         self._connect_events()
@@ -273,25 +279,6 @@ class RegistrationWidget(QScrollArea):
         self._widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
-
-        self.parameter_file_buttons = QWidget()
-        self.parameter_file_buttons.setLayout(QHBoxLayout())
-        self.load_parameters_button = QPushButton("Load Parameters")
-        self.load_parameters_button.clicked.connect(
-            self._on_load_parameter_file_clicked
-        )
-        self.save_parameters_button = QPushButton("Save Parameters")
-        self.save_parameters_button.clicked.connect(
-            self._on_save_parameter_file_clicked
-        )
-        self.parameter_file_buttons.layout().addWidget(
-            self.load_parameters_button
-        )
-        self.parameter_file_buttons.layout().addWidget(
-            self.save_parameters_button
-        )
-
-        self._widget.add_widget(self.parameter_file_buttons, collapsible=False)
         # Add QC widget after Advanced Settings
         self._widget.add_widget(self.qc_widget, widget_title="Quality Control")
 
@@ -1072,19 +1059,9 @@ class RegistrationWidget(QScrollArea):
         self.transform_selections[index] = (transform_type, param_dict)
         self.parameter_setting_tabs_lists[index].set_data(param_dict)
 
-    def _get_current_parameter_tab_index(self) -> Optional[int]:
-        current_index = self.parameters_tab.currentIndex()
-        if current_index < 0 or current_index >= len(
-            self.parameter_setting_tabs_lists
-        ):
-            show_error("No parameter tab selected.")
-            return None
-        return current_index
-
-    def _on_load_parameter_file_clicked(self) -> None:
-        current_index = self._get_current_parameter_tab_index()
-        if current_index is None:
-            return
+    def _on_load_parameter_file_clicked(self, index: int) -> None:
+        if index < 0 or index >= len(self.transform_selections):
+            raise IndexError("Transform file selection out of order")
 
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -1096,16 +1073,15 @@ class RegistrationWidget(QScrollArea):
             return
 
         param_dict = open_parameter_file(Path(file_path))
-        transform_type = self.transform_selections[current_index][0]
-        self.transform_selections[current_index] = (transform_type, param_dict)
-        self.parameter_setting_tabs_lists[current_index].set_data(param_dict)
+        transform_type = self.transform_selections[index][0]
+        self.transform_selections[index] = (transform_type, param_dict)
+        self.parameter_setting_tabs_lists[index].set_data(param_dict)
 
-    def _on_save_parameter_file_clicked(self) -> None:
-        current_index = self._get_current_parameter_tab_index()
-        if current_index is None:
-            return
+    def _on_save_parameter_file_clicked(self, index: int) -> None:
+        if index < 0 or index >= len(self.transform_selections):
+            raise IndexError("Transform file selection out of order")
 
-        transform_type = self.transform_selections[current_index][0]
+        transform_type = self.transform_selections[index][0]
         suggested_name = f"{transform_type}.txt"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -1120,9 +1096,7 @@ class RegistrationWidget(QScrollArea):
         if save_path.suffix == "":
             save_path = save_path.with_suffix(".txt")
 
-        param_dict = self.parameter_setting_tabs_lists[
-            current_index
-        ].param_dict
+        param_dict = self.parameter_setting_tabs_lists[index].param_dict
         write_parameter_file(save_path, param_dict)
 
     def _on_sample_popup_about_to_show(self):
