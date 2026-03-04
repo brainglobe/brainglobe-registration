@@ -128,3 +128,14 @@ def test_write_parameter_file_empty_values(tmp_path: Path):
 
     contents = file_path.read_text()
     assert "(Spacing)\n" in contents
+
+
+def test_write_parameter_file_empty_string_value(tmp_path: Path):
+    param_dict: dict[str, list[str]] = {"Comment": [""]}
+    file_path = tmp_path / "params.txt"
+
+    write_parameter_file(file_path, param_dict)
+
+    contents = file_path.read_text()
+    assert '(Comment "")' in contents
+    assert open_parameter_file(file_path) == {"Comment": [""]}
