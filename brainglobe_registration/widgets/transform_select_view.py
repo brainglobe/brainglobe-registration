@@ -94,7 +94,7 @@ class TransformSelectView(QTableWidget):
         self.setColumnCount(4)
         self.setRowCount(len(self.transform_type_options))
         self.setHorizontalHeaderLabels(
-            ["Transform Type", "Default File", "Import", "Export"]
+            ["Transform Type", "File", "Import", "Export"]
         )
 
         # Add dropdown menus to the table for each transform type option
@@ -349,3 +349,26 @@ class TransformSelectView(QTableWidget):
 
     def _on_export_button_clicked(self, index: int) -> None:
         self.export_button_clicked_signal.emit(index)
+
+    def set_transform_type_selection(self, index: int, transform_type: str) -> None:
+        if index < 0 or index >= len(self.transform_type_selections):
+            raise IndexError("Transform selection out of order")
+
+        transform_index = self.transform_type_selections[index].findText(
+            transform_type
+        )
+        if transform_index == -1:
+            return
+
+        self.transform_type_selections[index].setCurrentIndex(transform_index)
+
+    def set_file_selection(self, index: int, file_option: str) -> None:
+        if index < 0 or index >= len(self.file_selections):
+            raise IndexError("Transform file selection out of order")
+
+        option_index = self.file_selections[index].findText(file_option)
+        if option_index == -1:
+            self.file_selections[index].addItem(file_option)
+            option_index = self.file_selections[index].findText(file_option)
+
+        self.file_selections[index].setCurrentIndex(option_index)

@@ -481,7 +481,9 @@ def test_on_load_parameter_file_clicked_updates_parameters(
     registration_widget, mocker, tmp_path: Path
 ):
     param_file = tmp_path / "params.txt"
-    param_file.write_text('(TestParam "value")\n(NumberOfHistogramBins 32)')
+    param_file.write_text(
+        '(Transform "AffineTransform")\n(TestParam "value")\n(NumberOfHistogramBins 32)'
+    )
     mocker.patch(
         "brainglobe_registration.registration_widget.QFileDialog.getOpenFileName",
         return_value=(str(param_file), ""),
@@ -490,6 +492,7 @@ def test_on_load_parameter_file_clicked_updates_parameters(
     registration_widget._on_load_parameter_file_clicked(0)
 
     expected = {
+        "Transform": ["AffineTransform"],
         "TestParam": ["value"],
         "NumberOfHistogramBins": ["32"],
     }
@@ -497,6 +500,33 @@ def test_on_load_parameter_file_clicked_updates_parameters(
     assert (
         registration_widget.parameter_setting_tabs_lists[0].param_dict
         == expected
+    )
+    assert (
+        registration_widget.transform_select_view.file_selections[0].currentText()
+        == str(param_file)
+    )
+
+
+def test_on_load_parameter_file_clicked_updates_transform_type(
+    registration_widget, mocker, tmp_path: Path
+):
+    param_file = tmp_path / "params_bspline.txt"
+    param_file.write_text(
+        '(Transform "BSplineTransform")\n(NumberOfHistogramBins 32)'
+    )
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getOpenFileName",
+        return_value=(str(param_file), ""),
+    )
+
+    registration_widget._on_load_parameter_file_clicked(0)
+
+    assert registration_widget.transform_selections[0][0] == "bspline"
+    assert (
+        registration_widget.transform_select_view.transform_type_selections[
+            0
+        ].currentText()
+        == "bspline"
     )
 
 
