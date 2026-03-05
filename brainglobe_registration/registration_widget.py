@@ -1228,6 +1228,7 @@ class RegistrationWidget(QScrollArea):
             self._atlas_data_layer.visible = False
             self._atlas_annotations_layer.visible = False
 
+            #create a 2d image layer..
             self._sampled_reference_layer = self._viewer.add_image(
                 sampled_ref,
                 name=f"{self._atlas_data_layer.name} (sampled plane)",
