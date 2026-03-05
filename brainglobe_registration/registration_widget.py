@@ -27,7 +27,6 @@ from dask_image.ndinterp import affine_transform as dask_affine_transform
 from fancylog import fancylog
 from napari.qt.threading import (
     create_worker,
-    thread_worker,
 )
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
@@ -69,16 +68,13 @@ from brainglobe_registration.utils.napari import (
     get_data_from_napari_layer,
     get_image_layer_names,
 )
-
 from brainglobe_registration.utils.plane_sampling import (
     build_rotation_matrix,
     sample_annotation_plane,
     sample_plane,
 )
-
 from brainglobe_registration.utils.transforms import (
     create_rotation_matrix,
-    rotate_volume,
 )
 from brainglobe_registration.utils.visuals import generate_checkerboard
 from brainglobe_registration.widgets.adjust_moving_image_view import (
@@ -114,7 +110,6 @@ class RegistrationWidget(QScrollArea):
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
 
-        
         # Plane sampling state :
         self._plane_sampling_active: bool = False
         self._plane_rotation_matrix: npt.NDArray = np.eye(3)
@@ -123,13 +118,12 @@ class RegistrationWidget(QScrollArea):
         self._dims_slider_connection = None
 
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
-        
+
         self._plane_sampling_timer = QTimer()
         self._plane_sampling_timer.setSingleShot(True)
         self._plane_sampling_timer.setInterval(30)  # 30ms debounc
         self._plane_sampling_timer.timeout.connect(self._update_sampled_plane)
 
-        
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
@@ -343,6 +337,7 @@ class RegistrationWidget(QScrollArea):
         ):
             # Reset the atlas selection combobox
             self.get_atlas_widget.reset_atlas_combobox()
+
     def _delete_atlas_layers(self):
         # Clean up plane sampling state first
         self._deactivate_plane_sampling()
@@ -364,6 +359,7 @@ class RegistrationWidget(QScrollArea):
 
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
+
     def _reset_atlas_attributes(self):
         self._atlas_transform_matrix = np.eye(3)
         self._atlas_offset = np.zeros(3)
@@ -1198,7 +1194,7 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # build rotation matrix for plane sampling 
+        # build rotation matrix for plane sampling
         rotation_matrix = build_rotation_matrix(roll, yaw, pitch)
 
         # Also compute the old-style transform matrix for registration use
@@ -1228,7 +1224,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         if not self._plane_sampling_active:
-            #first time: hide original 3D layers, create 2D sampled layers, later no need..
+            # first time: hide original 3D layers, create 2D sampled layers, later no need..
             self._atlas_data_layer.visible = False
             self._atlas_annotations_layer.visible = False
 
@@ -1284,14 +1280,17 @@ class RegistrationWidget(QScrollArea):
 
         current_z = float(self._viewer.dims.current_step[0])
 
-        #only recompute if z actually changed
-        if hasattr(self, '_last_sampled_z') and self._last_sampled_z == current_z:
+        # only recompute if z actually changed
+        if (
+            hasattr(self, "_last_sampled_z")
+            and self._last_sampled_z == current_z
+        ):
             return
         self._last_sampled_z = current_z
 
         from brainglobe_registration.utils.plane_sampling import (
-            sample_plane,
             sample_annotation_plane,
+            sample_plane,
         )
 
         sampled_ref = sample_plane(
@@ -1311,6 +1310,7 @@ class RegistrationWidget(QScrollArea):
 
         if self._sampled_annotations_layer is not None:
             self._sampled_annotations_layer.data = sampled_annot
+
     def _on_atlas_reset(self):
         if not self._atlas:
             show_error(
@@ -1354,6 +1354,7 @@ class RegistrationWidget(QScrollArea):
 
         self._plane_sampling_active = False
         self._plane_rotation_matrix = np.eye(3)
+
     def _on_atlas_reset(self):
         if not self._atlas:
             show_error(

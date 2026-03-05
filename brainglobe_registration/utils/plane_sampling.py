@@ -74,7 +74,6 @@ def sample_plane(
     x_coords = np.arange(out_w, dtype=np.float64)
     grid_y, grid_x = np.meshgrid(y_coords, x_coords, indexing="ij")
 
- 
     plane_coords = np.stack(
         [
             np.full(grid_y.shape, z_index, dtype=np.float64),
@@ -86,15 +85,14 @@ def sample_plane(
 
     volume_center = np.array(volume.shape, dtype=np.float64) / 2.0
 
-    #inverse = transpose in orthogonal:)
+    # inverse = transpose in orthogonal:)
     inv_rotation = rotation_matrix.T
 
-    #shift to center, rotate, shift back
+    # shift to center, rotate, shift back
     source_coords = (
         inv_rotation @ (plane_coords - volume_center[:, None])
     ) + volume_center[:, None]
 
-    
     # map_coordinates handles interpolation and boundary conditions.
     # mode='constant', cval=0 means out-of-bounds regions are black.
     sampled = map_coordinates(
@@ -141,5 +139,5 @@ def sample_annotation_plane(
         z_index,
         rotation_matrix,
         output_shape=output_shape,
-        interpolation_order=0,  #NN:no label mixing
+        interpolation_order=0,  # NN:no label mixing
     ).astype(annotation_volume.dtype)
