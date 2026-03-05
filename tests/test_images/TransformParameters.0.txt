@@ -15,7 +15,7 @@
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
 (ResultImageFormat "tiff")
-(ResultImagePixelType "unsigned short")
+(ResultImagePixelType "uint16")
 (Size 428 318)
 (Spacing 1 1)
 (Transform "AffineTransform")

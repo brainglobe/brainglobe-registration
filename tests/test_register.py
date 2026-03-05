@@ -246,3 +246,48 @@ def test_setup_parameter_object_one_transform(parameter_list, expected):
 
     for index, transform_type in enumerate(expected):
         assert param_obj.GetParameterMap(index)["Transform"] == transform_type
+
+
+def test_run_registration_creates_directory(
+    tmp_path, atlas_reference, sample_moving_image, monkeypatch
+):
+    """
+    Test that `run_registration` creates the output directory and writes
+    transform parameter files."""
+    non_existent_folder = tmp_path / "new_output_folder"
+    assert not non_existent_folder.exists()
+
+    dummy_params = [("affine", {"MaximumNumberOfIterations": ["1"]})]
+
+    # Create a parameter object that the dummy elastix object will return.
+    expected_param_obj = setup_parameter_object(dummy_params)
+
+    class DummyElastix:
+        def __init__(self, moving, fixed):
+            self._param_obj = expected_param_obj
+
+        def SetParameterObject(self, po):
+            self._param_obj = po
+
+        def UpdateLargestPossibleRegion(self):
+            return None
+
+        def GetTransformParameterObject(self):
+            return self._param_obj
+
+    monkeypatch.setattr(
+        itk.ElastixRegistrationMethod,
+        "New",
+        lambda moving, fixed: DummyElastix(moving, fixed),
+    )
+
+    # Run registration attempting to save to the non-existent folder
+    run_registration(
+        atlas_reference,
+        sample_moving_image,
+        dummy_params,
+        output_directory=non_existent_folder,
+    )
+
+    assert non_existent_folder.exists()
+    assert (non_existent_folder / "TransformParameters.0.txt").exists()

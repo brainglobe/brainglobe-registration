@@ -34,6 +34,7 @@ from napari.utils.notifications import show_error
 from napari.viewer import Viewer
 from qt_niu.collapsible_widget import CollapsibleWidgetContainer
 from qt_niu.dialog import display_info
+from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -73,6 +74,7 @@ from brainglobe_registration.utils.transforms import (
     rotate_volume,
 )
 from brainglobe_registration.utils.visuals import (
+    generate_checkerboard,
     generate_intensity_difference_map,
 )
 from brainglobe_registration.widgets.adjust_moving_image_view import (
@@ -101,16 +103,27 @@ class RegistrationWidget(QScrollArea):
         self._atlas: Optional[BrainGlobeAtlas] = None
         self._atlas_data_layer: Optional[napari.layers.Image] = None
         self._atlas_annotations_layer: Optional[napari.layers.Labels] = None
-        self._atlas_transform_matrix: Optional[npt.NDArray] = None
+        self._atlas_transform_matrix: npt.NDArray = np.eye(3)
+        self._atlas_offset = np.zeros(3)
+        self._atlas_2d_slice_index: int = -1
+        self._atlas_2d_slice_corners: npt.NDArray = np.zeros((4, 3))
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
-        self._registered_image: Optional[napari.layers.Image] = None
         self._intensity_map_layer: Optional[napari.layers.Image] = None
-        self._cached_moving_data: Optional[npt.NDArray] = None
-        self._cached_registered_data: Optional[npt.NDArray] = None
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
         self._automatic_deletion_flag = False
+        # Registered image layer reference (saved after registration)
+        self._registered_image: Optional[napari.layers.Image] = None
+        # Checkerboard visualization
+        self._checkerboard_layer: Optional[napari.layers.Image] = None
+        # Cached image data for QC (avoids repeated layer queries)
+        self._cached_moving_data: Optional[npt.NDArray] = None
+        self._cached_registered_data: Optional[npt.NDArray] = None
+        # Timer for debouncing square size changes (real-time updates)
+        self._square_size_timer = QTimer()
+        self._square_size_timer.setSingleShot(True)
+        self._square_size_timer.timeout.connect(self._on_square_size_changed)
 
         self.transform_params: dict[str, dict] = {
             "affine": {},
@@ -173,6 +186,9 @@ class RegistrationWidget(QScrollArea):
         self.adjust_moving_image_widget.reset_atlas_signal.connect(
             self._on_atlas_reset
         )
+        self.adjust_moving_image_widget.reset_moving_image_signal.connect(
+            self._on_moving_image_reset
+        )
 
         self.transform_select_view = TransformSelectView()
         self.transform_select_view.transform_type_added_signal.connect(
@@ -190,6 +206,19 @@ class RegistrationWidget(QScrollArea):
 
         self.filter_checkbox = QCheckBox("Filter Images")
         self.filter_checkbox.setChecked(False)
+
+        # QC widget for quality control visualizations
+        self.qc_widget = QCWidget(parent=self)
+        # Plot QC button - generates all selected QC plots
+        self.qc_widget.plot_qc_button.clicked.connect(self._on_plot_qc_clicked)
+        # Clear QC images button
+        self.qc_widget.clear_qc_button.clicked.connect(
+            self._on_clear_qc_images
+        )
+        # Square size spinbox - real-time updates when checkerboard displayed
+        self.qc_widget.square_size_spinbox.valueChanged.connect(
+            self._on_square_size_value_changed
+        )
 
         self.output_directory_widget = QWidget()
         self.output_directory_widget.setLayout(QHBoxLayout())
@@ -218,8 +247,9 @@ class RegistrationWidget(QScrollArea):
                 "Registration with Elastix",
                 github_repo_name="brainglobe-registration",
             ),
-            collapsible=False,
+            widget_title="brainglobe-registration",
         )
+        self._widget.collapsible_widgets[-1].expand(animate=False)
         self._widget.add_widget(
             self.get_atlas_widget, widget_title="Select Images"
         )
@@ -246,6 +276,9 @@ class RegistrationWidget(QScrollArea):
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
 
+        # Add QC widget after Advanced Settings
+        self._widget.add_widget(self.qc_widget, widget_title="Quality Control")
+
         self._widget.add_widget(self.filter_checkbox, collapsible=False)
 
         self._widget.add_widget(QLabel("Output Directory"), collapsible=False)
@@ -253,16 +286,6 @@ class RegistrationWidget(QScrollArea):
             self.output_directory_widget, collapsible=False
         )
         self._widget.add_widget(self.run_button, collapsible=False)
-
-        self.qc_widget = QCWidget()
-        self.qc_widget.set_enabled(False)
-        self._widget.add_widget(
-            self.qc_widget, widget_title="Quality Control (QC)"
-        )
-        self.qc_widget.plot_qc_button.clicked.connect(self._on_plot_qc_clicked)
-        self.qc_widget.clear_qc_button.clicked.connect(
-            self._on_clear_qc_clicked
-        )
 
         self._widget.layout().itemAt(1).widget().collapse(animate=False)
 
@@ -298,13 +321,14 @@ class RegistrationWidget(QScrollArea):
             self._cached_moving_data = None
             self._cached_registered_data = None
             self.qc_widget.set_enabled(False)
+            self.qc_widget.checkerboard_checkbox.blockSignals(True)
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
+            self.qc_widget.checkerboard_checkbox.blockSignals(False)
             self.qc_widget.intensity_map_checkbox.blockSignals(True)
             self.qc_widget.intensity_map_checkbox.setChecked(False)
             self.qc_widget.intensity_map_checkbox.blockSignals(False)
-            if self._intensity_map_layer is not None:
-                if self._intensity_map_layer in self._viewer.layers:
-                    self._viewer.layers.remove(self._intensity_map_layer)
-                self._intensity_map_layer = None
+            self._remove_checkerboard()
+            self._remove_intensity_map()
 
         # Check if deleted layer is the atlas reference / atlas annotations
         if (
@@ -327,9 +351,17 @@ class RegistrationWidget(QScrollArea):
         self._atlas = None
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
-        self._atlas_transform_matrix = None
+
+        self._reset_atlas_attributes()
+
         self.run_button.setEnabled(False)
         self._viewer.grid.enabled = False
+
+    def _reset_atlas_attributes(self):
+        self._atlas_transform_matrix = np.eye(3)
+        self._atlas_offset = np.zeros(3)
+        self._atlas_2d_slice_index = -1
+        self._atlas_2d_slice_corners = np.zeros((4, 3))
 
     def _update_dropdowns(self):
         # Extract the names of the remaining layers
@@ -458,22 +490,16 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        from brainglobe_registration.elastix.register import (
-            calculate_deformation_field,
-            invert_transformation,
-            run_registration,
-            transform_annotation_image,
-            transform_image,
-        )
-
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.uint16
         )
-        current_atlas_slice = self._viewer.dims.current_step[0]
+        self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
 
         if self._moving_image.data.ndim == 2:
             atlas_selection = (
-                slice(current_atlas_slice, current_atlas_slice + 1),
+                slice(
+                    self._atlas_2d_slice_index, self._atlas_2d_slice_index + 1
+                ),
             )
             atlas_image = get_data_from_napari_layer(
                 self._atlas_data_layer, atlas_selection
@@ -508,6 +534,38 @@ class RegistrationWidget(QScrollArea):
                     transform_selection[1]["MovingInternalImagePixelType"] = [
                         "float"
                     ]
+
+            rotated_shape = np.array(self._atlas_data_layer.data.shape)
+            original_shape = np.array(self._atlas.shape)
+
+            atlas_corners = [
+                [self._atlas_2d_slice_index, 0, 0],
+                [self._atlas_2d_slice_index, 0, atlas_image.shape[1]],
+                [self._atlas_2d_slice_index, atlas_image.shape[0], 0],
+                [
+                    self._atlas_2d_slice_index,
+                    atlas_image.shape[0],
+                    atlas_image.shape[1],
+                ],
+            ]
+
+            # Centers
+            rotated_center = rotated_shape / 2.0
+            original_center = original_shape / 2.0
+
+            # Inverse transform: rotated -> original
+            original_corners = np.trunc(
+                (
+                    self._atlas_transform_matrix
+                    @ (atlas_corners - rotated_center).T
+                ).T
+                + original_center
+            )
+
+            self._atlas_2d_slice_corners = (
+                original_corners * self._atlas.resolution
+            )
+
         else:
             atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
             annotation_image = get_data_from_napari_layer(
@@ -524,6 +582,25 @@ class RegistrationWidget(QScrollArea):
                     str(self._moving_image.data.ndim)
                 ]
 
+        # Import elastix functions locally to avoid slow widget loading
+        from brainglobe_registration.elastix.register import (
+            calculate_deformation_field,
+            invert_transformation,
+            run_registration,
+            transform_annotation_image,
+            transform_image,
+        )
+
+        if len(self.transform_selections) == 0:
+            display_info(
+                widget=self,
+                title="No Transforms Selected",
+                message="Please select at least one transform "
+                "before clicking 'Run'.",
+            )
+
+            return
+
         print("Running registration")
         parameters = run_registration(
             atlas_image,
@@ -537,6 +614,7 @@ class RegistrationWidget(QScrollArea):
             transform_image(atlas_image, parameters)
         )
 
+        # Save reference to registered image layer for QC visualizations
         self._registered_image = self._viewer.add_image(
             atlas_in_data_space, name="Registered Image", visible=False
         )
@@ -581,16 +659,19 @@ class RegistrationWidget(QScrollArea):
         imwrite(registered_annotation_image_path, registered_annotation_image)
         hemispheres_image = self._atlas.hemispheres
 
-        if self._atlas_transform_matrix is not None:
+        if not np.allclose(self._atlas_transform_matrix, np.eye(3)):
             hemispheres_image = dask_affine_transform(
                 self._atlas.hemispheres,
                 self._atlas_transform_matrix,
+                offset=self._atlas_offset,
                 order=0,
                 output_shape=self._atlas_data_layer.data.shape,
             )
 
         if self._moving_image.ndim == 2:
-            hemispheres_image = hemispheres_image[current_atlas_slice, :, :]
+            hemispheres_image = hemispheres_image[
+                self._atlas_2d_slice_index, :, :
+            ]
 
         if isinstance(hemispheres_image, da.Array):
             hemispheres_image = hemispheres_image.compute()
@@ -662,14 +743,27 @@ class RegistrationWidget(QScrollArea):
         self._atlas_data_layer.visible = False
         self._viewer.grid.enabled = False
 
+        # Cache image data for QC (avoids repeated layer queries)
+        # Improves performance: get_data_from_napari_layer can be slow
+        # with Dask arrays or large images
         self._cached_moving_data = get_data_from_napari_layer(
             self._moving_image
         )
         self._cached_registered_data = get_data_from_napari_layer(
             self._registered_image
         )
+
+        # Enable QC widget now that registration is complete
         self.qc_widget.set_enabled(True)
 
+        # Set default square size based on image dimensions if not
+        # user-modified (adaptive: roughly 1/16th of smallest dimension,
+        # minimum 8 pixels)
+        min_dimension = min(moving_image.shape[-2:])
+        default_square_size = max(8, min_dimension // 16)
+        # Only update if still at default value (32)
+        if self.qc_widget.square_size_spinbox.value() == 32:
+            self.qc_widget.square_size_spinbox.setValue(default_square_size)
         print("Saving outputs")
         imwrite(self.output_directory / "downsampled.tiff", moving_image)
 
@@ -678,56 +772,281 @@ class RegistrationWidget(QScrollArea):
         ) as f:
             json.dump(self, f, default=serialize_registration_widget, indent=4)
 
-    def _on_plot_qc_clicked(self) -> None:
-        """Apply selected QC visualizations (Plot QC button)."""
+    def _on_plot_qc_clicked(self):
+        """
+        Generate all selected QC visualizations.
+
+        Checks which QC plots are selected and generates them.
+        This prevents accidental computation from checkbox toggles.
+        """
+        # Handle checkerboard: show if checked, remove if unchecked
+        if self.qc_widget.checkerboard_checkbox.isChecked():
+            self._show_checkerboard()
+        else:
+            self._remove_checkerboard()
+
+        # Handle intensity-map: show if checked, remove if unchecked
+        # Display intensity-map second if both are shown (layers on top)
         if self.qc_widget.intensity_map_checkbox.isChecked():
             self._show_intensity_map()
+        else:
+            self._remove_intensity_map()
 
-    def _on_clear_qc_clicked(self) -> None:
-        """Remove QC layers and clear selection."""
-        self._remove_intensity_map()
-        self.qc_widget.intensity_map_checkbox.blockSignals(True)
-        self.qc_widget.intensity_map_checkbox.setChecked(False)
-        self.qc_widget.intensity_map_checkbox.blockSignals(False)
+    def _show_checkerboard(self):
+        """
+        Generate and display checkerboard using a background thread.
 
-    def _show_intensity_map(self) -> None:
-        """Build intensity-difference map in a worker thread and display it."""
-        if self._registered_image is None or self._moving_image is None:
+        This method uses threading to keep the UI responsive during
+        checkerboard generation, especially important for large 3D images.
+        """
+        if not self._moving_image:
             show_error(
-                "Registered Image or Moving image not found. "
+                "No moving image available. "
+                "Please select a moving image first."
+            )
+            return
+
+        # Use saved reference to registered image layer
+        if self._registered_image is None:
+            show_error(
+                "Registered Image layer not found. "
+                "Please run registration first."
+            )
+            return
+
+        # Use cached data if available (set after registration),
+        # otherwise fetch from layers and cache (fallback)
+        if self._cached_moving_data is not None:
+            moving_data = self._cached_moving_data
+            registered_data = self._cached_registered_data
+        else:
+            # Fallback if cache is empty (shouldn't happen normally)
+            self._cached_moving_data = get_data_from_napari_layer(
+                self._moving_image
+            )
+            self._cached_registered_data = get_data_from_napari_layer(
+                self._registered_image
+            )
+            moving_data = self._cached_moving_data
+            registered_data = self._cached_registered_data
+
+        # Handle dimension mismatch: if moving image is 2D but registered is
+        # 3D, extract the current slice from the registered image
+        if moving_data.ndim == 2 and registered_data.ndim == 3:
+            # Get current slice position from viewer
+            current_slice = self._viewer.dims.current_step[0]
+            # Extract the corresponding slice
+            registered_data = registered_data[current_slice, :, :]
+        elif moving_data.ndim == 3 and registered_data.ndim == 2:
+            # If moving is 3D but registered is 2D, we can't match them
+            show_error(
+                f"Cannot create checkerboard: dimension mismatch. "
+                f"Moving image is 3D {moving_data.shape} but "
+                f"Registered image is 2D {registered_data.shape}"
+            )
+            return
+
+        # Get square size from QC widget (user-configurable)
+        square_size = self.qc_widget.square_size_spinbox.value()
+
+        # Create worker to generate checkerboard in background thread
+        # This keeps the UI responsive during computation
+        worker = create_worker(
+            self._generate_checkerboard_thread,
+            moving_data,
+            registered_data,
+            square_size,
+        )
+
+        # When worker finishes, update the layer on main thread
+        worker.returned.connect(self._update_checkerboard_layer)
+        worker.errored.connect(self._on_checkerboard_error)
+        worker.start()
+
+    def _on_checkerboard_error(self, error: Exception):
+        """
+        Handle errors from checkerboard generation worker.
+
+        Parameters
+        ----------
+        error : Exception
+            The error that occurred during checkerboard generation.
+        """
+        show_error(f"Error generating checkerboard: {error}")
+        self.qc_widget.checkerboard_checkbox.setChecked(False)
+
+    def _generate_checkerboard_thread(
+        self,
+        moving_data: npt.NDArray,
+        registered_data: npt.NDArray,
+        square_size: int,
+    ) -> npt.NDArray:
+        """
+        Generate checkerboard pattern in background thread.
+
+        This function runs in a background thread and does NOT freeze the UI.
+        The heavy computation (normalization, pattern generation) happens here.
+
+        Parameters
+        ----------
+        moving_data : npt.NDArray
+            The moving image data.
+        registered_data : npt.NDArray
+            The registered image data.
+        square_size : int
+            Size of checkerboard squares in pixels.
+
+        Returns
+        -------
+        npt.NDArray
+            The generated checkerboard pattern.
+        """
+        # Note: generate_checkerboard() handles shape mismatches automatically
+        # by cropping to the overlapping region
+        return generate_checkerboard(
+            moving_data, registered_data, square_size=square_size
+        )
+
+    def _update_checkerboard_layer(self, checkerboard_data: npt.NDArray):
+        """
+        Update the checkerboard layer in Napari viewer (main thread).
+
+        This method runs when the background computation is complete.
+        It updates the layer on the main thread (required for Qt operations).
+
+        Parameters
+        ----------
+        checkerboard_data : npt.NDArray
+            The computed checkerboard pattern to display.
+        """
+        try:
+            # Update existing layer if it exists (faster than remove/add)
+            if self._checkerboard_layer is not None:
+                if self._checkerboard_layer in self._viewer.layers:
+                    # OPTIMIZATION: Update data in place instead of removing
+                    # and re-adding the layer. This is much faster for Napari.
+                    self._checkerboard_layer.data = checkerboard_data
+                    self._checkerboard_layer.visible = True
+                else:
+                    # Layer was deleted manually, reset reference
+                    self._checkerboard_layer = None
+
+            # If layer doesn't exist (first run or was deleted), create it
+            if self._checkerboard_layer is None:
+                self._checkerboard_layer = self._viewer.add_image(
+                    checkerboard_data,
+                    name="Checkerboard",
+                    colormap="gray",
+                    blending="opaque",
+                    visible=True,
+                )
+
+            # Hide original images for better visualization
+            if self._moving_image is not None:
+                self._moving_image.visible = False
+            if self._registered_image is not None:
+                self._registered_image.visible = False
+
+        except Exception as e:
+            show_error(f"Error updating checkerboard layer: {str(e)}")
+            self.qc_widget.checkerboard_checkbox.setChecked(False)
+
+    def _remove_checkerboard(self):
+        """
+        Remove the checkerboard visualization and restore original images.
+        """
+        if self._checkerboard_layer is not None:
+            if self._checkerboard_layer in self._viewer.layers:
+                self._viewer.layers.remove(self._checkerboard_layer)
+            self._checkerboard_layer = None
+
+        # Stop any pending square size updates
+        self._square_size_timer.stop()
+
+        # Restore visibility of original images
+        if self._moving_image is not None:
+            self._moving_image.visible = True
+
+        if self._registered_image is not None:
+            self._registered_image.visible = False
+
+    def _on_square_size_value_changed(self, value: int):
+        """
+        Handle square size spinbox value changes with debouncing.
+
+        This method restarts a timer. When the timer fires, if the
+        checkerboard is currently displayed, it will be regenerated with the
+        new square size. This provides real-time updates while avoiding
+        excessive recomputation
+        when the user holds the arrow button.
+
+        Parameters
+        ----------
+        value : int
+            The new square size value (unused, but required by signal).
+        """
+        # Restart the timer (debounce: wait 300ms after last change)
+        self._square_size_timer.stop()
+        self._square_size_timer.start(300)  # 300ms delay
+
+    def _on_square_size_changed(self):
+        """
+        Regenerate checkerboard with new square size if currently displayed.
+
+        This method is called by the debounce timer after the user stops
+        changing the square size. It checks if the checkerboard is currently
+        displayed and regenerates it with the new square size value.
+        """
+        # Only regenerate if checkerboard is currently displayed
+        if (
+            self._checkerboard_layer is not None
+            and self._checkerboard_layer in self._viewer.layers
+            and self.qc_widget.checkerboard_checkbox.isChecked()
+        ):
+            # Regenerate checkerboard with new square size
+            self._show_checkerboard()
+
+    def _show_intensity_map(self):
+        """
+        Generate and display intensity-difference map in a background thread.
+        """
+        if not self._moving_image:
+            show_error(
+                "No moving image available. "
+                "Please select a moving image first."
+            )
+            self.qc_widget.intensity_map_checkbox.setChecked(False)
+            return
+
+        if self._registered_image is None:
+            show_error(
+                "Registered Image layer not found. "
                 "Please run registration first."
             )
             self.qc_widget.intensity_map_checkbox.setChecked(False)
             return
-        if self._registered_image not in self._viewer.layers:
-            show_error(
-                "Registered Image layer was removed. "
-                "Please run registration again."
-            )
-            self.qc_widget.intensity_map_checkbox.setChecked(False)
-            return
-        if self._moving_image not in self._viewer.layers:
-            show_error(
-                "Moving image layer was removed. "
-                "Please run registration again."
-            )
-            self.qc_widget.intensity_map_checkbox.setChecked(False)
-            return
 
-        moving_data = self._cached_moving_data
-        registered_data = self._cached_registered_data
-        if moving_data is None or registered_data is None:
-            moving_data = get_data_from_napari_layer(self._moving_image)
-            registered_data = get_data_from_napari_layer(
+        if self._cached_moving_data is not None:
+            moving_data = self._cached_moving_data
+            registered_data = self._cached_registered_data
+        else:
+            self._cached_moving_data = get_data_from_napari_layer(
+                self._moving_image
+            )
+            self._cached_registered_data = get_data_from_napari_layer(
                 self._registered_image
             )
+            moving_data = self._cached_moving_data
+            registered_data = self._cached_registered_data
 
         if moving_data.ndim == 2 and registered_data.ndim == 3:
             current_slice = self._viewer.dims.current_step[0]
             registered_data = registered_data[current_slice, :, :]
         elif moving_data.ndim == 3 and registered_data.ndim == 2:
             show_error(
-                "Dimension mismatch: moving is 3D but registered is 2D."
+                f"Cannot create intensity map: dimension mismatch. "
+                f"Moving image is 3D {moving_data.shape} but "
+                f"Registered image is 2D {registered_data.shape}"
             )
             self.qc_widget.intensity_map_checkbox.setChecked(False)
             return
@@ -746,45 +1065,58 @@ class RegistrationWidget(QScrollArea):
         moving_data: npt.NDArray,
         registered_data: npt.NDArray,
     ) -> npt.NDArray:
-        """Compute intensity difference map (runs in background thread)."""
+        """Generate intensity-difference map in a worker thread."""
         return generate_intensity_difference_map(
-            registered_data,
             moving_data,
+            registered_data,
             normalize=True,
         )
 
-    def _update_intensity_map_layer(self, diff_map: npt.NDArray) -> None:
-        """Add or update intensity map layer (main thread)."""
+    def _update_intensity_map_layer(self, intensity_map_data: npt.NDArray):
+        """Update intensity map layer in the Napari viewer."""
         try:
             if self._intensity_map_layer is not None:
                 if self._intensity_map_layer in self._viewer.layers:
-                    self._intensity_map_layer.data = diff_map
+                    self._intensity_map_layer.data = intensity_map_data
                     self._intensity_map_layer.visible = True
                 else:
                     self._intensity_map_layer = None
+
             if self._intensity_map_layer is None:
                 self._intensity_map_layer = self._viewer.add_image(
-                    diff_map,
+                    intensity_map_data,
                     name="Intensity Difference Map",
                     colormap="gray",
                     blending="translucent",
                     opacity=0.7,
+                    visible=True,
                 )
-        except Exception as e:
-            show_error(f"Error updating intensity map: {e}")
+
+        except Exception as error:
+            show_error(f"Error updating intensity map layer: {error}")
             self.qc_widget.intensity_map_checkbox.setChecked(False)
 
-    def _on_intensity_map_error(self, exc: Exception) -> None:
-        """Handle errors from intensity map worker."""
-        show_error(f"Intensity map failed: {exc}")
+    def _on_intensity_map_error(self, error: Exception):
+        """Handle errors from intensity-map generation worker."""
+        show_error(f"Error generating intensity map: {error}")
         self.qc_widget.intensity_map_checkbox.setChecked(False)
 
-    def _remove_intensity_map(self) -> None:
-        """Remove the intensity difference map layer."""
+    def _remove_intensity_map(self):
+        """Remove the intensity-map visualization if it exists."""
         if self._intensity_map_layer is not None:
             if self._intensity_map_layer in self._viewer.layers:
                 self._viewer.layers.remove(self._intensity_map_layer)
             self._intensity_map_layer = None
+
+    def _on_clear_qc_images(self):
+        """Remove all QC visualization layers."""
+        # Remove checkerboard if it exists
+        self._remove_checkerboard()
+        self._remove_intensity_map()
+
+        # Uncheck all QC checkboxes
+        self.qc_widget.checkerboard_checkbox.setChecked(False)
+        self.qc_widget.intensity_map_checkbox.setChecked(False)
 
     def _on_transform_type_added(
         self, transform_type: str, transform_order: int
@@ -941,6 +1273,25 @@ class RegistrationWidget(QScrollArea):
         print(f"Scaled image shape: {self._moving_image.data.shape}")
         print("---")
 
+    def _on_moving_image_reset(self) -> None:
+        if not self._moving_image:
+            show_error(
+                "Sample image not selected. "
+                "Please select a sample image before resetting"
+            )
+            return
+
+        if self._moving_image_data_backup is None:
+            show_error("No backup available to reset the moving image.")
+            return
+
+        self._moving_image.data = self._moving_image_data_backup.copy()
+        self.moving_anatomical_space = None
+
+        # Resets the viewer grid to update the grid to the original image
+        self._viewer.grid.enabled = False
+        self._viewer.grid.enabled = True
+
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
             self._atlas
@@ -952,7 +1303,7 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        transform_matrix, bounding_box = create_rotation_matrix(
+        transform_matrix, offset, bounding_box = create_rotation_matrix(
             roll,
             yaw,
             pitch,
@@ -965,6 +1316,7 @@ class RegistrationWidget(QScrollArea):
             final_transform=transform_matrix,
             bounding_box=bounding_box,
             interpolation_order=2,
+            offset=offset,
         )
 
         rotated_annotations = rotate_volume(
@@ -973,9 +1325,11 @@ class RegistrationWidget(QScrollArea):
             final_transform=transform_matrix,
             bounding_box=bounding_box,
             interpolation_order=0,
+            offset=offset,
         )
 
         self._atlas_transform_matrix = transform_matrix
+        self._atlas_offset = offset
         self._atlas_data_layer.data = rotated_reference
         self._atlas_annotations_layer.data = rotated_annotations
 
@@ -1013,6 +1367,9 @@ class RegistrationWidget(QScrollArea):
 
         self._atlas_data_layer.data = self._atlas.reference
         self._atlas_annotations_layer.data = self._atlas.annotation
+
+        self._reset_atlas_attributes()
+
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
 
@@ -1219,6 +1576,10 @@ class RegistrationWidget(QScrollArea):
     def __dict__(self):
         return {
             "atlas": self._atlas,
+            "atlas_transform_matrix": self._atlas_transform_matrix.tolist(),
+            "atlas_offset": self._atlas_offset.tolist(),
+            "atlas_2d_slice_index": self._atlas_2d_slice_index,
+            "atlas_slice_corners": self._atlas_2d_slice_corners.tolist(),
             "atlas_data_layer": self._atlas_data_layer,
             "atlas_annotations_layer": self._atlas_annotations_layer,
             "moving_image": self._moving_image,
