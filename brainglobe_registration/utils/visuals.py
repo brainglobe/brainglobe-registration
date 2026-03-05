@@ -56,7 +56,7 @@ def generate_checkerboard(
     >>> img2 = np.random.rand(100, 100)
     >>> checkerboard = generate_checkerboard(img1, img2, square_size=16)
     """
-    # Handle shape mismatches by cropping to minimum shape 
+    # Handle shape mismatches by cropping to minimum shape
     #  an extra safety check before pad/crop
     if image1.ndim != image2.ndim:
         raise ValueError(
