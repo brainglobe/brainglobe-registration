@@ -346,13 +346,13 @@ def test_invalid_sample_orientation(
 
 
 @pytest.mark.parametrize(
-    "pitch, yaw, roll, expected_shape",
+    "pitch, yaw, roll",
     [
-        (0, 0, 0, (132, 80, 114)),
-        (45, 0, 0, (150, 150, 114)),
-        (0, 45, 0, (174, 80, 174)),
-        (0, 0, 45, (132, 138, 138)),
-        (0, 90, 90, (115, 133, 81)),
+        (0, 0, 0),
+        (45, 0, 0),
+        (0, 45, 0),
+        (0, 0, 45),
+        (0, 90, 90),
     ],
 )
 def test_on_adjust_atlas_rotation(
@@ -360,24 +360,36 @@ def test_on_adjust_atlas_rotation(
     pitch,
     yaw,
     roll,
-    expected_shape,
 ):
     reg_widget = registration_widget_with_example_atlas
     atlas_shape = reg_widget._atlas.reference.shape
 
     reg_widget._on_adjust_atlas_rotation(pitch, yaw, roll)
 
-    assert reg_widget._atlas_data_layer.data.shape == expected_shape
-    assert reg_widget._atlas_annotations_layer.data.shape == expected_shape
+    # Original atlas data should be unchanged
     assert reg_widget._atlas.reference.shape == atlas_shape
-    assert (
-        reg_widget._atlas_data_layer.data.dtype
-        == reg_widget._atlas.reference.dtype
+
+    # Plane sampling should be active
+    assert reg_widget._plane_sampling_active is True
+
+    # Sampled layers should exist and be 2D
+    assert reg_widget._sampled_reference_layer is not None
+    assert reg_widget._sampled_annotations_layer is not None
+    assert reg_widget._sampled_reference_layer.data.ndim == 2
+    assert reg_widget._sampled_annotations_layer.data.ndim == 2
+
+    # Sampled reference plane shape should match atlas H x W
+    assert reg_widget._sampled_reference_layer.data.shape == (
+        atlas_shape[1],
+        atlas_shape[2],
     )
-    assert (
-        reg_widget._atlas_annotations_layer.data.dtype
-        == reg_widget._atlas.annotation.dtype
-    )
+
+    # Original 3D layers should be hidden
+    assert reg_widget._atlas_data_layer.visible is False
+    assert reg_widget._atlas_annotations_layer.visible is False
+
+    # Atlas data layer data should still be the original (unchanged)
+    assert reg_widget._atlas_data_layer.data.shape == atlas_shape
 
 
 def test_on_adjust_atlas_rotation_no_atlas(registration_widget, mocker):
@@ -395,7 +407,19 @@ def test_on_atlas_reset(registration_widget_with_example_atlas):
     atlas_shape = reg_widget._atlas.reference.shape
     reg_widget._on_adjust_atlas_rotation(10, 10, 10)
 
+    # Plane sampling should be active after rotation
+    assert reg_widget._plane_sampling_active is True
+
     reg_widget._on_atlas_reset()
+
+    # Plane sampling should be deactivated
+    assert reg_widget._plane_sampling_active is False
+    assert reg_widget._sampled_reference_layer is None
+    assert reg_widget._sampled_annotations_layer is None
+
+    # Original layers should be visible again
+    assert reg_widget._atlas_data_layer.visible is True
+    assert reg_widget._atlas_annotations_layer.visible is True
 
     assert reg_widget._atlas_data_layer.data.shape == atlas_shape
     assert reg_widget._atlas.reference.shape == atlas_shape
@@ -408,6 +432,49 @@ def test_on_atlas_reset(registration_widget_with_example_atlas):
         reg_widget._atlas_annotations_layer.data.dtype
         == reg_widget._atlas.annotation.dtype
     )
+
+
+def test_plane_sampling_updates_on_slider_change(
+    registration_widget_with_example_atlas,
+    qtbot,
+):
+    """Test that scrolling the dimension slider updates the sampled plane."""
+    reg_widget = registration_widget_with_example_atlas
+
+    # Activate plane sampling
+    reg_widget._on_adjust_atlas_rotation(10, 5, 3)
+    assert reg_widget._plane_sampling_active is True
+
+    # Get initial sampled data
+    initial_data = reg_widget._sampled_reference_layer.data.copy()
+
+    # Change the slider position
+    reg_widget._viewer.dims.set_current_step(0, 50)
+    qtbot.wait(100)
+
+    # The sampled plane should have been updated
+    updated_data = reg_widget._sampled_reference_layer.data
+    # With rotation + different z, data should differ
+    assert not np.array_equal(initial_data, updated_data)
+
+
+def test_multiple_rotations_reuse_sampled_layers(
+    registration_widget_with_example_atlas,
+):
+    """Test that calling rotation multiple times reuses layers."""
+    reg_widget = registration_widget_with_example_atlas
+
+    reg_widget._on_adjust_atlas_rotation(10, 5, 3)
+    first_ref_layer = reg_widget._sampled_reference_layer
+    first_ann_layer = reg_widget._sampled_annotations_layer
+
+    reg_widget._on_adjust_atlas_rotation(20, 10, 5)
+    second_ref_layer = reg_widget._sampled_reference_layer
+    second_ann_layer = reg_widget._sampled_annotations_layer
+
+    # Should be the same layer objects (updated in place)
+    assert first_ref_layer is second_ref_layer
+    assert first_ann_layer is second_ann_layer
 
 
 def test_on_atlas_reset_no_atlas(registration_widget, mocker):
