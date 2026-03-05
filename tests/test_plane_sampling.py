@@ -38,11 +38,13 @@ class TestBuildRotationMatrix:
         """90-degree roll around X-axis should swap Y and Z."""
         result = build_rotation_matrix(90, 0, 0)
         # X stays the same, Y->Z, Z->-Y
-        expected = np.array([
-            [1, 0, 0],
-            [0, 0, -1],
-            [0, 1, 0],
-        ])
+        expected = np.array(
+            [
+                [1, 0, 0],
+                [0, 0, -1],
+                [0, 1, 0],
+            ]
+        )
         np.testing.assert_array_almost_equal(result, expected)
 
 
