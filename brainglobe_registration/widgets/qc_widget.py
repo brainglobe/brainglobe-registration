@@ -1,4 +1,10 @@
-"""Quality Control widget for registration validation."""
+"""
+Quality Control widget for registration validation.
+
+This widget provides QC visualizations and controls for assessing
+registration quality, including checkerboard visualization and future features
+such as intensity maps and Jacobian analysis.
+"""
 
 from qtpy.QtWidgets import (
     QCheckBox,
@@ -12,7 +18,28 @@ from qtpy.QtWidgets import (
 
 
 class QCWidget(QWidget):
-    """Widget containing QC options and actions."""
+    """
+    A QWidget subclass that provides Quality Control (QC) functionality
+    for registration validation.
+
+    This widget contains controls and visualizations for assessing
+    registration quality, such as checkerboard patterns, intensity maps,
+    and other QC metrics.
+
+    Attributes
+    ----------
+    checkerboard_checkbox : QCheckBox
+        Checkbox to select checkerboard visualization.
+    plot_qc_button : QPushButton
+        Button to generate selected QC plots.
+    clear_qc_button : QPushButton
+        Button to clear all QC visualizations.
+
+    Methods
+    -------
+    set_enabled(enabled: bool)
+        Enable or disable all QC controls.
+    """
 
     def __init__(self, parent=None):
         """
@@ -80,7 +107,15 @@ class QCWidget(QWidget):
         self.layout().addWidget(self.clear_qc_button)
 
     def set_enabled(self, enabled: bool):
-        """Enable or disable all QC controls."""
+        """
+        Enable or disable all QC controls.
+
+        Parameters
+        ----------
+        enabled : bool
+            Whether to enable the QC controls.
+        """
+
         self.checkerboard_checkbox.setEnabled(enabled)
         self.intensity_map_checkbox.setEnabled(enabled)
         self.square_size_spinbox.setEnabled(enabled)
