@@ -1,4 +1,6 @@
-"""Tests for visualization utilities in brainglobe_registration.utils.visuals."""
+"""Tests for visualization utilities in
+`brainglobe_registration.utils.visuals`.
+"""
 
 import numpy as np
 import pytest

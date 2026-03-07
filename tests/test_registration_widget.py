@@ -965,6 +965,56 @@ def test_on_plot_qc_clicked_no_registered_image_shows_error(
     assert not registration_widget.qc_widget.intensity_map_checkbox.isChecked()
 
 
+def test_on_plot_qc_clicked_unchecked_removes_both_layers(
+    registration_widget, mocker
+):
+    """Unchecked QC options should remove existing visualization layers."""
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(False)
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(False)
+
+    mocked_remove_checkerboard = mocker.Mock()
+    mocked_remove_intensity_map = mocker.Mock()
+    mocked_show_checkerboard = mocker.Mock()
+    mocked_show_intensity_map = mocker.Mock()
+    registration_widget._remove_checkerboard = mocked_remove_checkerboard
+    registration_widget._remove_intensity_map = mocked_remove_intensity_map
+    registration_widget._show_checkerboard = mocked_show_checkerboard
+    registration_widget._show_intensity_map = mocked_show_intensity_map
+
+    registration_widget._on_plot_qc_clicked()
+
+    mocked_remove_checkerboard.assert_called_once()
+    mocked_remove_intensity_map.assert_called_once()
+    mocked_show_checkerboard.assert_not_called()
+    mocked_show_intensity_map.assert_not_called()
+
+
+def test_on_plot_qc_clicked_checked_shows_both_layers_in_order(
+    registration_widget, mocker
+):
+    """Checked QC options should show both in the expected call order."""
+    registration_widget.qc_widget.checkerboard_checkbox.setChecked(True)
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+
+    call_order = []
+    registration_widget._show_checkerboard = mocker.Mock(
+        side_effect=lambda: call_order.append("checkerboard")
+    )
+    registration_widget._show_intensity_map = mocker.Mock(
+        side_effect=lambda: call_order.append("intensity")
+    )
+    mocked_remove_checkerboard = mocker.Mock()
+    mocked_remove_intensity_map = mocker.Mock()
+    registration_widget._remove_checkerboard = mocked_remove_checkerboard
+    registration_widget._remove_intensity_map = mocked_remove_intensity_map
+
+    registration_widget._on_plot_qc_clicked()
+
+    assert call_order == ["checkerboard", "intensity"]
+    mocked_remove_checkerboard.assert_not_called()
+    mocked_remove_intensity_map.assert_not_called()
+
+
 def test_show_intensity_map_success(registration_widget, mocker):
     """Plot QC with registered image adds intensity map layer via worker."""
     moving_data = np.random.rand(50, 50).astype(np.float32)
