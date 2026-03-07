@@ -1057,6 +1057,125 @@ def test_show_intensity_map_success(registration_widget, mocker):
     )
 
 
+def test_show_intensity_map_no_moving_image(registration_widget, mocker):
+    """Intensity map shows error when no moving image is selected."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker"
+    )
+
+    registration_widget._moving_image = None
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+
+    registration_widget._show_intensity_map()
+
+    mocked_show_error.assert_called_once()
+    mocked_create_worker.assert_not_called()
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isChecked()
+
+
+def test_show_intensity_map_dimension_mismatch(registration_widget, mocker):
+    """Intensity map shows error and exits when dimensions are incompatible."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    mocked_create_worker = mocker.patch(
+        "brainglobe_registration.registration_widget.create_worker"
+    )
+
+    moving_data = np.ones((3, 8, 8), dtype=np.float32)
+    registered_data = np.ones((8, 8), dtype=np.float32)
+
+    moving_layer = registration_widget._viewer.add_image(
+        moving_data, name="moving"
+    )
+    registered_layer = registration_widget._viewer.add_image(
+        registered_data, name="Registered Image"
+    )
+
+    registration_widget._moving_image = moving_layer
+    registration_widget._registered_image = registered_layer
+    registration_widget._cached_moving_data = moving_data
+    registration_widget._cached_registered_data = registered_data
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+
+    registration_widget._show_intensity_map()
+
+    mocked_show_error.assert_called_once()
+    mocked_create_worker.assert_not_called()
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isChecked()
+
+
+def test_update_intensity_map_layer_updates_existing_layer(
+    registration_widget,
+):
+    """Existing intensity-map layer should be updated in place."""
+    old_data = np.zeros((20, 20), dtype=np.float32)
+    new_data = np.ones((20, 20), dtype=np.float32)
+
+    existing_layer = registration_widget._viewer.add_image(
+        old_data,
+        name="Intensity Difference Map",
+        colormap="gray",
+        blending="translucent",
+        opacity=0.7,
+        visible=True,
+    )
+    registration_widget._intensity_map_layer = existing_layer
+
+    registration_widget._update_intensity_map_layer(new_data)
+
+    assert registration_widget._intensity_map_layer is existing_layer
+    np.testing.assert_array_equal(existing_layer.data, new_data)
+    assert existing_layer.visible
+    names = [layer.name for layer in registration_widget._viewer.layers]
+    assert names.count("Intensity Difference Map") == 1
+
+
+def test_update_intensity_map_layer_recreates_deleted_layer(
+    registration_widget,
+):
+    """If previous layer was deleted manually, create a fresh one."""
+    old_layer = registration_widget._viewer.add_image(
+        np.zeros((10, 10), dtype=np.float32),
+        name="Intensity Difference Map",
+        colormap="gray",
+        blending="translucent",
+        opacity=0.7,
+        visible=True,
+    )
+    registration_widget._intensity_map_layer = old_layer
+    registration_widget._viewer.layers.remove(old_layer)
+
+    new_data = np.full((10, 10), 0.5, dtype=np.float32)
+    registration_widget._update_intensity_map_layer(new_data)
+
+    assert registration_widget._intensity_map_layer is not None
+    assert (
+        registration_widget._intensity_map_layer
+        in registration_widget._viewer.layers
+    )
+    np.testing.assert_array_equal(
+        registration_widget._intensity_map_layer.data,
+        new_data,
+    )
+
+
+def test_on_intensity_map_error_unchecks_checkbox(registration_widget, mocker):
+    """Intensity-map worker errors are surfaced and the option is reset."""
+    mocked_show_error = mocker.patch(
+        "brainglobe_registration.registration_widget.show_error"
+    )
+    registration_widget.qc_widget.intensity_map_checkbox.setChecked(True)
+
+    registration_widget._on_intensity_map_error(Exception("imap failure"))
+
+    mocked_show_error.assert_called_once()
+    assert not registration_widget.qc_widget.intensity_map_checkbox.isChecked()
+
+
 def test_on_clear_qc_clicked_removes_layer_and_unchecks(
     registration_widget, mocker
 ):
