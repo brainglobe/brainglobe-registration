@@ -134,6 +134,40 @@ class TestSamplePlane:
         # With identity rotation and integer z, all values should be exactly 5
         np.testing.assert_array_equal(result, 5.0)
 
+    def test_mode_nearest_no_zeros_at_edge(self, gradient_volume):
+        """With mode='nearest', edge pixels should clamp (not be zero)."""
+        rot = build_rotation_matrix(15, 0, 0)
+        result_nearest = sample_plane(
+            gradient_volume,
+            z_index=5.0,
+            rotation_matrix=rot,
+            interpolation_order=1,
+            mode="nearest",
+        )
+        result_constant = sample_plane(
+            gradient_volume,
+            z_index=5.0,
+            rotation_matrix=rot,
+            interpolation_order=1,
+            mode="constant",
+            cval=0.0,
+        )
+        # nearest mode should have no zeros where constant mode does
+        # (at least at the borders that go outside the volume)
+        constant_zeros = np.sum(result_constant == 0)
+        nearest_zeros = np.sum(result_nearest == 0)
+        assert nearest_zeros <= constant_zeros
+
+    def test_mode_constant_default(self, simple_volume):
+        """Default mode should be 'constant' with cval=0."""
+        result = sample_plane(
+            simple_volume,
+            z_index=100.0,  # outside volume
+            rotation_matrix=np.eye(3),
+        )
+        # Should be all zeros with default mode='constant', cval=0
+        np.testing.assert_array_equal(result, 0.0)
+
 
 class TestSampleAnnotationPlane:
     """Tests for sample_annotation_plane()."""

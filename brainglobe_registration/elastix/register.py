@@ -161,8 +161,11 @@ def transform_image(
 
     transformed_image = transformix_object.GetOutput()
 
-    # Convert to a numpy array of the original type.
-    transformed_image = np.asarray(transformed_image).astype(image.dtype)
+    # Convert to a numpy array; clip negatives to prevent
+    # wrap-around when casting to unsigned types.
+    transformed_image = np.asarray(transformed_image)
+    transformed_image = np.clip(transformed_image, 0, None)
+    transformed_image = transformed_image.astype(image.dtype)
 
     return transformed_image
 

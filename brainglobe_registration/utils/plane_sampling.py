@@ -41,6 +41,8 @@ def sample_plane(
     rotation_matrix: npt.NDArray,
     output_shape: Optional[Tuple[int, int]] = None,
     interpolation_order: int = 2,
+    mode: str = "constant",
+    cval: float = 0.0,
 ) -> npt.NDArray:
     """
     Sample a single 2D plane from a 3D volume at a given z-position
@@ -60,6 +62,11 @@ def sample_plane(
     interpolation_order : int, optional
         Spline interpolation order for map_coordinates.
         Default: 2.
+    mode : str, optional
+        Boundary mode for map_coordinates ('constant', 'nearest', etc.).
+        Default: 'constant'.
+    cval : float, optional
+        Fill value when mode='constant'. Default: 0.0.
 
     Returns
     -------
@@ -94,13 +101,12 @@ def sample_plane(
     ) + volume_center[:, None]
 
     # map_coordinates handles interpolation and boundary conditions.
-    # mode='constant', cval=0 means out-of-bounds regions are black.
     sampled = map_coordinates(
         volume,
         source_coords,
         order=interpolation_order,
-        mode="constant",
-        cval=0.0,
+        mode=mode,
+        cval=cval,
     ).reshape(output_shape)
 
     return sampled
