@@ -14,7 +14,6 @@ from brainglobe_registration.elastix.register import (
 from brainglobe_registration.similarity_metrics import (
     compute_similarity_metric,
     pad_to_match_shape,
-    prepare_images,
 )
 from brainglobe_registration.utils.file import open_parameter_file
 from brainglobe_registration.utils.logging import (

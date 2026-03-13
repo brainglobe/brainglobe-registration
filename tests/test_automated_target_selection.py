@@ -28,9 +28,7 @@ def atlas_and_sample():
     atlas_volume = atlas.reference
     atlas_res = atlas.resolution
 
-    rot_matrix = build_rotation_matrix(
-        roll=ROLL, yaw=YAW, pitch=PITCH
-    )
+    rot_matrix = build_rotation_matrix(roll=ROLL, yaw=YAW, pitch=PITCH)
     sample = sample_plane(
         atlas_volume,
         z_index=float(TRUE_SLICE),
