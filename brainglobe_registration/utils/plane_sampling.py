@@ -40,7 +40,7 @@ def sample_plane(
     z_index: float,
     rotation_matrix: npt.NDArray,
     output_shape: Optional[Tuple[int, int]] = None,
-    interpolation_order: int = 2,
+    interpolation_order: int = 0,
     mode: str = "constant",
     cval: float = 0.0,
 ) -> npt.NDArray:
