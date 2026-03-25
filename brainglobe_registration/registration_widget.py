@@ -70,11 +70,9 @@ from brainglobe_registration.utils.napari import (
 )
 from brainglobe_registration.utils.plane_sampling import (
     build_rotation_matrix,
+    compute_rotation_offset,
     sample_annotation_plane,
     sample_plane,
-)
-from brainglobe_registration.utils.transforms import (
-    create_rotation_matrix,
 )
 from brainglobe_registration.utils.visuals import generate_checkerboard
 from brainglobe_registration.widgets.adjust_moving_image_view import (
@@ -1194,15 +1192,15 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # build rotation matrix for plane sampling
+        # Build rotation matrix for plane sampling (forward rotation R)
         rotation_matrix = build_rotation_matrix(roll, yaw, pitch)
 
-        # Also compute the old-style transform matrix for registration use
-        transform_matrix, offset, bounding_box = create_rotation_matrix(
-            roll, yaw, pitch, self._atlas.reference.shape
+        # Compute inverse rotation (R.T) and offset for registration use
+        # This replaces the duplicate call to create_rotation_matrix
+        self._atlas_transform_matrix = rotation_matrix.T
+        self._atlas_offset = compute_rotation_offset(
+            rotation_matrix, self._atlas.reference.shape
         )
-        self._atlas_transform_matrix = transform_matrix
-        self._atlas_offset = offset
 
         # Store the rotation matrix for plane sampling
         self._plane_rotation_matrix = rotation_matrix

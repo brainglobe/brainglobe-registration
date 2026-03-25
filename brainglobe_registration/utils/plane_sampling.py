@@ -35,6 +35,66 @@ def build_rotation_matrix(
     ).as_matrix()
 
 
+def compute_rotation_offset(
+    rotation_matrix: npt.NDArray,
+    volume_shape: Tuple[int, int, int],
+) -> npt.NDArray:
+    """
+    Compute the offset for transforming coordinates.
+
+    This computes the offset needed to center the rotation around the
+    volume center and map output coordinates back to input coordinates.
+
+    Parameters
+    ----------
+    rotation_matrix : npt.NDArray
+        3x3 rotation matrix from build_rotation_matrix().
+    volume_shape : tuple of (int, int, int)
+        Shape of the 3D volume (D, H, W).
+
+    Returns
+    -------
+    npt.NDArray
+        3-element offset vector for affine transformations.
+    """
+    inv_rotation = rotation_matrix.T
+    input_shape = np.array(volume_shape, dtype=np.float64)
+    input_center = input_shape / 2.0
+
+    # Compute output shape by rotating corners
+    corners = (
+        np.array(
+            [
+                [0, 0, 0],
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1],
+                [1, 1, 0],
+                [1, 0, 1],
+                [0, 1, 1],
+                [1, 1, 1],
+            ]
+        )
+        * input_shape
+    )
+
+    # Rotate corners around input center
+    rotated_corners = (
+        rotation_matrix @ (corners - input_center).T
+    ).T + input_center
+
+    # Find bounding box of rotated volume
+    min_coords = rotated_corners.min(axis=0)
+    max_coords = rotated_corners.max(axis=0)
+    output_shape = np.ceil(max_coords - min_coords).astype(int)
+    output_center = output_shape / 2.0
+
+    # Offset: map output coords to input coords
+    offset = input_center - inv_rotation @ output_center
+
+    return offset
+
+
 def sample_plane(
     volume: npt.NDArray,
     z_index: float,
