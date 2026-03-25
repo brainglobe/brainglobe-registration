@@ -1,3 +1,4 @@
+import warnings
 from typing import Tuple
 
 import dask.array as da
@@ -96,6 +97,10 @@ def rotate_volume(
     """
     Apply a 3D affine transformation to a volume using a precomputed transform.
 
+    .. deprecated::
+        rotate_volume is deprecated and will be removed in a future version.
+        Use plane_sampling.sample_plane instead for more efficient 2D slicing.
+
     Parameters
     ----------
     data : npt.NDArray
@@ -116,6 +121,12 @@ def rotate_volume(
     transformed : npt.NDArray
         Transformed 3D volume resampled into the new bounding box.
     """
+    warnings.warn(
+        "rotate_volume is deprecated and will be removed in a future version. "
+        "Use brainglobe_registration.utils.plane_sampling.sample_plane instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     transformed = ndi.affine_transform(
         da.from_array(
             data, chunks=(2, reference_shape[1], reference_shape[2])
