@@ -123,7 +123,8 @@ def rotate_volume(
     """
     warnings.warn(
         "rotate_volume is deprecated and will be removed in a future version. "
-        "Use brainglobe_registration.utils.plane_sampling.sample_plane instead.",
+        "Use brainglobe_registration.utils.plane_sampling."
+        "sample_plane instead.",
         DeprecationWarning,
         stacklevel=2,
     )

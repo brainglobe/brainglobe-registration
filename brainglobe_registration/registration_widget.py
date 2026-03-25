@@ -114,9 +114,6 @@ class RegistrationWidget(QScrollArea):
         self._sampled_reference_layer: Optional[napari.layers.Image] = None
         self._sampled_annotations_layer: Optional[napari.layers.Labels] = None
         self._dims_slider_connection = None
-
-        self.moving_anatomical_space: Optional[AnatomicalSpace] = None
-
         self._plane_sampling_timer = QTimer()
         self._plane_sampling_timer.setSingleShot(True)
         self._plane_sampling_timer.setInterval(30)  # 30ms debounc
@@ -1192,11 +1189,10 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # Build rotation matrix for plane sampling (forward rotation R)
+        # build rotation matrix for plane sampling
         rotation_matrix = build_rotation_matrix(roll, yaw, pitch)
 
-        # Compute inverse rotation (R.T) and offset for registration use
-        # This replaces the duplicate call to create_rotation_matrix
+        # compute inverse rotation (R.T) and offset for registration use
         self._atlas_transform_matrix = rotation_matrix.T
         self._atlas_offset = compute_rotation_offset(
             rotation_matrix, self._atlas.reference.shape
@@ -1222,7 +1218,7 @@ class RegistrationWidget(QScrollArea):
         )
 
         if not self._plane_sampling_active:
-            # first time: hide original 3D layers, create 2D sampled layers, later no need..
+            # First call: hide 3D layers and create sampled 2D layers.
             self._atlas_data_layer.visible = False
             self._atlas_annotations_layer.visible = False
 
@@ -1249,10 +1245,12 @@ class RegistrationWidget(QScrollArea):
             self._plane_sampling_active = True
         else:
             # Update existing sampled layers
-            self._sampled_reference_layer.data = sampled_ref
-            self._sampled_annotations_layer.data = sampled_ann.astype(
-                np.uint32
-            )
+            if self._sampled_reference_layer is not None:
+                self._sampled_reference_layer.data = sampled_ref
+            if self._sampled_annotations_layer is not None:
+                self._sampled_annotations_layer.data = sampled_ann.astype(
+                    np.uint32
+                )
 
         # Resets the viewer grid to update the grid to the new atlas
         self._viewer.reset_view()
@@ -1353,21 +1351,6 @@ class RegistrationWidget(QScrollArea):
 
         self._plane_sampling_active = False
         self._plane_rotation_matrix = np.eye(3)
-
-    def _on_atlas_reset(self):
-        if not self._atlas:
-            show_error(
-                "No atlas selected. Please select an atlas before resetting"
-            )
-            return
-
-        self._atlas_data_layer.data = self._atlas.reference
-        self._atlas_annotations_layer.data = self._atlas.annotation
-
-        self._reset_atlas_attributes()
-
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
 
     def _open_auto_slice_dialog(self):
         if not (self._atlas and self._atlas_data_layer):
