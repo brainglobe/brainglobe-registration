@@ -247,7 +247,7 @@ class TestPlaneSamplingIntegration:
         rotated_slice = sample_plane(
             volume,
             z_index=10.0,
-            rotation_matrix=build_rotation_matrix(0, 2.0, 1.5),
+            rotation_matrix=build_rotation_matrix(0, 1.0, 0.5),
             interpolation_order=1,
             mode="nearest",
         )
@@ -256,7 +256,7 @@ class TestPlaneSamplingIntegration:
         assert not np.allclose(identity_slice, rotated_slice)
         # But correlated (small rotation)
         corr = np.corrcoef(identity_slice.ravel(), rotated_slice.ravel())[0, 1]
-        assert corr > 0.75
+        assert corr > 0.8
 
     def test_nearest_mode_no_black_borders(self):
         """mode='nearest' should not produce zero-fill at edges."""
