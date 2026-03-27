@@ -1040,7 +1040,7 @@ class RegistrationWidget(QScrollArea):
 
         if default_file_type.startswith("(Custom)"):
             return
-            
+
         self.transform_select_view.clear_custom_file(index)
 
         transform_type = self.transform_selections[index][0]
@@ -1083,9 +1083,10 @@ class RegistrationWidget(QScrollArea):
 
         selected_file_path = Path(file_path)
         param_dict = open_parameter_file(selected_file_path)
-        transform_type = self._get_transform_type_from_param_dict(
-            param_dict
-        ) or self.transform_selections[index][0]
+        transform_type = (
+            self._get_transform_type_from_param_dict(param_dict)
+            or self.transform_selections[index][0]
+        )
 
         self.transform_select_view.set_transform_type_selection(
             index, transform_type
@@ -1093,7 +1094,9 @@ class RegistrationWidget(QScrollArea):
         self.transform_selections[index] = (transform_type, param_dict)
         self.parameter_setting_tabs_lists[index].set_data(param_dict)
         self.parameters_tab.setTabText(index, transform_type)
-        self.transform_select_view.set_custom_file_path(index, str(selected_file_path))
+        self.transform_select_view.set_custom_file_path(
+            index, str(selected_file_path)
+        )
 
     def _on_save_parameter_file_clicked(self, index: int) -> None:
         if index < 0 or index >= len(self.transform_selections):

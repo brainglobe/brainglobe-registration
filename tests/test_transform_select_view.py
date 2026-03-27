@@ -18,9 +18,7 @@ def test_transform_select_view(transform_select_view, qtbot):
         transform_select_view.horizontalHeaderItem(0).text()
         == "Transform Type"
     )
-    assert (
-        transform_select_view.horizontalHeaderItem(1).text() == "File"
-    )
+    assert transform_select_view.horizontalHeaderItem(1).text() == "File"
     assert transform_select_view.horizontalHeaderItem(2).text() == "Import"
     assert transform_select_view.horizontalHeaderItem(3).text() == "Export"
 
@@ -223,10 +221,7 @@ def test_set_custom_file_path(transform_select_view, qtbot):
         transform_select_view.cellWidget(0, 1).currentText()
         == "(Custom) custom_affine.txt"
     )
-    assert (
-        transform_select_view.cellWidget(0, 1).toolTip()
-        == custom_file_path
-    )
+    assert transform_select_view.cellWidget(0, 1).toolTip() == custom_file_path
 
 
 def test_clear_custom_file(transform_select_view, qtbot):
@@ -246,5 +241,5 @@ def test_clear_custom_file(transform_select_view, qtbot):
     combo_box = transform_select_view.cellWidget(0, 1)
     for i in range(combo_box.count()):
         assert not combo_box.itemText(i).startswith("(Custom)")
-    
+
     assert combo_box.toolTip() == ""
