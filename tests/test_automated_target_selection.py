@@ -57,6 +57,7 @@ def test_registration_objective_valid_input_mi(atlas_and_sample):
         atlas_volume=atlas_volume,
         sample=sample,
         metric="mi",
+        roll=ROLL,
     )
     assert isinstance(score, float)
     assert score > 0.8
@@ -75,6 +76,7 @@ def test_registration_objective_valid_input_ssim(atlas_and_sample):
         atlas_volume=atlas_volume,
         sample=sample,
         metric="ssim",
+        roll=ROLL,
     )
     assert isinstance(score, float)
     assert 0.8 < score <= 1.0
@@ -93,6 +95,7 @@ def test_registration_objective_valid_input_ncc(atlas_and_sample):
         atlas_volume=atlas_volume,
         sample=sample,
         metric="ncc",
+        roll=ROLL,
     )
     assert isinstance(score, float)
     assert 0.8 < score <= 1.0

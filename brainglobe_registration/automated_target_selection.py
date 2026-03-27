@@ -33,6 +33,7 @@ def registration_objective(
     sample: np.ndarray,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
     weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
+    roll: float = 0.0,
 ):
     """
     Compute a similarity score between a 2D sample image and a
@@ -85,7 +86,7 @@ def registration_objective(
     try:
         # Sample a single 2D plane directly from the volume
         # using plane_sampling (much faster than rotating the full volume)
-        rot_matrix = build_rotation_matrix(0, yaw, pitch)
+        rot_matrix = build_rotation_matrix(roll, yaw, pitch)
         z_idx = int(np.clip(z_slice, 0, atlas_volume.shape[0] - 1))
         current_atlas_slice = sample_plane(
             atlas_volume,
