@@ -482,7 +482,9 @@ def test_on_load_parameter_file_clicked_updates_parameters(
 ):
     param_file = tmp_path / "params.txt"
     param_file.write_text(
-        '(Transform "AffineTransform")\n(TestParam "value")\n(NumberOfHistogramBins 32)'
+        '(Transform "AffineTransform")\n'
+        '(TestParam "value")\n'
+        "(NumberOfHistogramBins 32)"
     )
     mocker.patch(
         "brainglobe_registration.registration_widget.QFileDialog.getOpenFileName",
