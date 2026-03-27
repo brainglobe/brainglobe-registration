@@ -213,10 +213,38 @@ def test_set_transform_type_selection(transform_select_view, qtbot):
     assert transform_select_view.cellWidget(0, 0).currentText() == "bspline"
 
 
-def test_set_file_selection_adds_custom_path(transform_select_view, qtbot):
+def test_set_custom_file_path(transform_select_view, qtbot):
     qtbot.addWidget(transform_select_view)
 
     custom_file_path = "C:/tmp/custom_affine.txt"
-    transform_select_view.set_file_selection(0, custom_file_path)
+    transform_select_view.set_custom_file_path(0, custom_file_path)
 
-    assert transform_select_view.cellWidget(0, 1).currentText() == custom_file_path
+    assert (
+        transform_select_view.cellWidget(0, 1).currentText()
+        == "(Custom) custom_affine.txt"
+    )
+    assert (
+        transform_select_view.cellWidget(0, 1).toolTip()
+        == custom_file_path
+    )
+
+
+def test_clear_custom_file(transform_select_view, qtbot):
+    qtbot.addWidget(transform_select_view)
+
+    custom_file_path = "C:/tmp/custom_affine.txt"
+    transform_select_view.set_custom_file_path(0, custom_file_path)
+
+    assert (
+        transform_select_view.cellWidget(0, 1).currentText()
+        == "(Custom) custom_affine.txt"
+    )
+
+    transform_select_view.clear_custom_file(0)
+
+    # Ensure custom option is removed
+    combo_box = transform_select_view.cellWidget(0, 1)
+    for i in range(combo_box.count()):
+        assert not combo_box.itemText(i).startswith("(Custom)")
+    
+    assert combo_box.toolTip() == ""

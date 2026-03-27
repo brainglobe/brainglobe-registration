@@ -362,13 +362,32 @@ class TransformSelectView(QTableWidget):
 
         self.transform_type_selections[index].setCurrentIndex(transform_index)
 
-    def set_file_selection(self, index: int, file_option: str) -> None:
+    def set_custom_file_path(self, index: int, file_path: str) -> None:
+        from pathlib import Path
         if index < 0 or index >= len(self.file_selections):
             raise IndexError("Transform file selection out of order")
 
-        option_index = self.file_selections[index].findText(file_option)
-        if option_index == -1:
-            self.file_selections[index].addItem(file_option)
-            option_index = self.file_selections[index].findText(file_option)
+        # Clear any existing custom files first to avoid duplicates
+        self.clear_custom_file(index)
 
+        filename = Path(file_path).name
+        display_text = f"(Custom) {filename}"
+
+        self.file_selections[index].addItem(display_text)
+        option_index = self.file_selections[index].findText(display_text)
+        
+        self.file_selections[index].blockSignals(True)
         self.file_selections[index].setCurrentIndex(option_index)
+        self.file_selections[index].blockSignals(False)
+        
+        self.file_selections[index].setToolTip(file_path)
+
+    def clear_custom_file(self, index: int) -> None:
+        if index < 0 or index >= len(self.file_selections):
+            raise IndexError("Transform file selection out of order")
+
+        for i in range(self.file_selections[index].count() - 1, -1, -1):
+            if self.file_selections[index].itemText(i).startswith("(Custom)"):
+                self.file_selections[index].removeItem(i)
+                
+        self.file_selections[index].setToolTip("")

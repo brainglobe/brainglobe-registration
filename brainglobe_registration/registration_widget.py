@@ -1038,6 +1038,11 @@ class RegistrationWidget(QScrollArea):
         if index >= len(self.transform_selections):
             raise IndexError("Transform file selection out of order")
 
+        if default_file_type.startswith("(Custom)"):
+            return
+            
+        self.transform_select_view.clear_custom_file(index)
+
         transform_type = self.transform_selections[index][0]
         selected_value_path = Path(default_file_type)
         if selected_value_path.exists() and selected_value_path.is_file():
@@ -1088,7 +1093,7 @@ class RegistrationWidget(QScrollArea):
         self.transform_selections[index] = (transform_type, param_dict)
         self.parameter_setting_tabs_lists[index].set_data(param_dict)
         self.parameters_tab.setTabText(index, transform_type)
-        self.transform_select_view.set_file_selection(index, str(selected_file_path))
+        self.transform_select_view.set_custom_file_path(index, str(selected_file_path))
 
     def _on_save_parameter_file_clicked(self, index: int) -> None:
         if index < 0 or index >= len(self.transform_selections):

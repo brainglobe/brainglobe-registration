@@ -503,11 +503,11 @@ def test_on_load_parameter_file_clicked_updates_parameters(
     )
     assert (
         registration_widget.transform_select_view.file_selections[0].currentText()
-        == str(param_file)
+        == "(Custom) params.txt"
     )
 
 
-def test_on_load_parameter_file_clicked_updates_transform_type(
+def test_set_custom_file_path_bspline(
     registration_widget, mocker, tmp_path: Path
 ):
     param_file = tmp_path / "params_bspline.txt"
@@ -527,6 +527,41 @@ def test_on_load_parameter_file_clicked_updates_transform_type(
             0
         ].currentText()
         == "bspline"
+    )
+    assert (
+        registration_widget.transform_select_view.file_selections[0].currentText()
+        == "(Custom) params_bspline.txt"
+    )
+
+
+def test_set_custom_file_path_no_transform_type(
+    registration_widget, mocker, tmp_path: Path
+):
+    param_file = tmp_path / "params_none.txt"
+    param_file.write_text(
+        '(NumberOfHistogramBins 32)'
+    )
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QFileDialog.getOpenFileName",
+        return_value=(str(param_file), ""),
+    )
+
+    # Initially it's affine
+    assert registration_widget.transform_selections[0][0] == "affine"
+
+    registration_widget._on_load_parameter_file_clicked(0)
+
+    # Should remain affine
+    assert registration_widget.transform_selections[0][0] == "affine"
+    assert (
+        registration_widget.transform_select_view.transform_type_selections[
+            0
+        ].currentText()
+        == "affine"
+    )
+    assert (
+        registration_widget.transform_select_view.file_selections[0].currentText()
+        == "(Custom) params_none.txt"
     )
 
 
