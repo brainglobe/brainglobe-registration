@@ -14,15 +14,14 @@ from brainglobe_registration.elastix.register import (
 from brainglobe_registration.similarity_metrics import (
     compute_similarity_metric,
     pad_to_match_shape,
-    prepare_images,
 )
 from brainglobe_registration.utils.file import open_parameter_file
 from brainglobe_registration.utils.logging import (
     FancyBayesLogger,
 )
-from brainglobe_registration.utils.transforms import (
-    create_rotation_matrix,
-    rotate_volume,
+from brainglobe_registration.utils.plane_sampling import (
+    build_rotation_matrix,
+    sample_plane,
 )
 
 
@@ -34,6 +33,7 @@ def registration_objective(
     sample: np.ndarray,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
     weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
+    roll: float = 0.0,
 ):
     """
     Compute a similarity score between a 2D sample image and a
@@ -84,23 +84,17 @@ def registration_objective(
             f"atlas volume with shape {atlas_volume.shape}"
         )
     try:
-        # Create rotation matrix
-        rot_matrix, offset, bounding_box = create_rotation_matrix(
-            0, yaw, pitch, img_shape=atlas_volume.shape
-        )
-
-        # Rotate atlas
-        rotated_volume = rotate_volume(
+        # Sample a single 2D plane directly from the volume
+        # using plane_sampling (much faster than rotating the full volume)
+        rot_matrix = build_rotation_matrix(roll, yaw, pitch)
+        z_idx = int(np.clip(z_slice, 0, atlas_volume.shape[0] - 1))
+        current_atlas_slice = sample_plane(
             atlas_volume,
-            atlas_volume.shape,
-            rot_matrix,
-            bounding_box,
-            offset=offset,
+            z_index=float(z_idx),
+            rotation_matrix=rot_matrix,
+            interpolation_order=1,
+            mode="nearest",
         )
-
-        # Convert float z to int index and clip to bounds
-        z_idx = int(np.clip(z_slice, 0, rotated_volume.shape[0] - 1))
-        current_atlas_slice = rotated_volume[z_idx].compute()
 
         # Run registration
         transform_type = "affine"
@@ -115,11 +109,9 @@ def registration_objective(
 
         transform_param_list = [(transform_type, transform_params)]
 
-        moving, fixed = prepare_images(sample, current_atlas_slice)
-
         if sample.ndim == 2:
-            atlas_image = fixed.astype(np.float32)
-            moving_image = moving.astype(np.float32)
+            atlas_image = current_atlas_slice.astype(np.float32)
+            moving_image = sample.astype(np.float32)
         else:
             print(
                 f"Error: expected 2D input for 'sample', but received array "
@@ -339,13 +331,14 @@ def run_bayesian_generator(
     yaw = round(best_params["yaw"], 2)
     z_slice = round(best_params["z_slice"])
 
-    rot_matrix, offset, out_shape = create_rotation_matrix(
-        0, yaw, pitch, atlas_volume.shape
+    rot_matrix = build_rotation_matrix(0, yaw, pitch)
+    target_slice = sample_plane(
+        atlas_volume,
+        z_index=float(z_slice),
+        rotation_matrix=rot_matrix,
+        interpolation_order=1,
+        mode="nearest",
     )
-    transformed_atlas = rotate_volume(
-        atlas_volume, atlas_volume.shape, rot_matrix, out_shape, offset=offset
-    )
-    target_slice = transformed_atlas[z_slice].compute()
 
     # Roll Optimisation
     opt_roll = BayesianOptimization(
