@@ -158,7 +158,7 @@ def run_registration(
             for i in range(len(parameter_lists))
         ]
 
-        itk.ParameterObject.WriteParameterFile(
+        itk.ParameterObject.WriteParameterFiles(
             result_transform_parameters, file_names
         )
 
