@@ -1,9 +1,4 @@
-"""
-Visualization utilities for brainglobe-registration.
-
-This module contains functions for generating visualization overlays
-such as checkerboard patterns for comparing registered images.
-"""
+"""Visualization utilities for registration quality control overlays."""
 
 import numpy as np
 import numpy.typing as npt
@@ -61,8 +56,8 @@ def generate_checkerboard(
     >>> img2 = np.random.rand(100, 100)
     >>> checkerboard = generate_checkerboard(img1, img2, square_size=16)
     """
-    # Handle shape mismatches by cropping to minimum shape (overlapping region)
-    # Just a extra safety check before pad/crop
+    # Handle shape mismatches by cropping to minimum shape
+    #  an extra safety check before pad/crop
     if image1.ndim != image2.ndim:
         raise ValueError(
             f"Images must have the same number of dimensions. "
@@ -110,6 +105,65 @@ def generate_checkerboard(
     )
 
     return checkerboard
+
+
+def generate_intensity_difference_map(
+    image1: npt.NDArray,
+    image2: npt.NDArray,
+    normalize: bool = True,
+) -> npt.NDArray:
+    """
+    Compute a pixel-wise absolute intensity-difference map between images.
+
+    Parameters
+    ----------
+    image1 : npt.NDArray
+        First image (2D or 3D).
+    image2 : npt.NDArray
+        Second image (2D or 3D).
+    normalize : bool, optional
+        If True, normalize each image to [0, 1] before differencing.
+
+    Returns
+    -------
+    npt.NDArray
+        Float32 absolute difference map. If shapes differ, both images are
+        cropped to their overlapping region.
+    """
+    if image1.ndim != image2.ndim:
+        raise ValueError(
+            f"Images must have same number of dimensions. "
+            f"Got {image1.ndim}D and {image2.ndim}D."
+        )
+
+    if image1.ndim not in (2, 3):
+        raise ValueError(
+            f"Only 2D and 3D images supported. Got ndim={image1.ndim}."
+        )
+
+    if image1.shape != image2.shape:
+        crop_slices = tuple(
+            slice(0, min(s1, s2)) for s1, s2 in zip(image1.shape, image2.shape)
+        )
+        image1 = image1[crop_slices]
+        image2 = image2[crop_slices]
+
+    img1 = image1.astype(np.float64)
+    img2 = image2.astype(np.float64)
+
+    if normalize:
+        for arr in (img1, img2):
+            arr_min = arr.min()
+            arr_max = arr.max()
+            if arr_max > arr_min:
+                arr -= arr_min
+                arr /= arr_max - arr_min
+
+    diff = np.abs(img1 - img2)
+    if normalize:
+        diff = np.clip(diff, 0.0, 1.0)
+
+    return diff.astype(np.float32)
 
 
 def _normalize_images_for_comparison(
@@ -215,7 +269,7 @@ def _generate_checkerboard(
     # - For 3D (d, h, w): mask is (h, w), broadcasting applies to all slices
     mask = ((y // square_size) + (x // square_size)) % 2 == 0
 
-    # Use np.where for efficient single-pass assignment
+    # np.where for efficient single-pass assignment
 
     checkerboard = np.where(mask, image1, image2).astype(output_dtype)
 
