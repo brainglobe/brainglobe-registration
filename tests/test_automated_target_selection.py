@@ -8,7 +8,7 @@ from brainglobe_registration.automated_target_selection import (
     similarity_only_objective,
 )
 from brainglobe_registration.utils.plane_sampling import (
-    build_rotation_matrix,
+    compute_rotation_offset,
     sample_plane,
 )
 from brainglobe_registration.utils.transforms import (
@@ -28,11 +28,15 @@ def atlas_and_sample():
     atlas_volume = atlas.reference
     atlas_res = atlas.resolution
 
-    rot_matrix = build_rotation_matrix(roll=ROLL, yaw=YAW, pitch=PITCH)
+    inv_rotation, offset, output_shape_3d = compute_rotation_offset(
+        roll=ROLL, yaw=YAW, pitch=PITCH, volume_shape=atlas_volume.shape
+    )
     sample = sample_plane(
         atlas_volume,
         z_index=float(TRUE_SLICE),
-        rotation_matrix=rot_matrix,
+        inv_rotation=inv_rotation,
+        offset=offset,
+        output_shape=(output_shape_3d[1], output_shape_3d[2]),
         interpolation_order=1,
         mode="nearest",
     )
@@ -226,11 +230,12 @@ class TestPlaneSamplingIntegration:
     def test_sample_plane_produces_valid_slice(self):
         """sample_plane with identity rotation should match direct indexing."""
         volume = np.random.default_rng(42).random((20, 30, 40))
-        rot = build_rotation_matrix(0, 0, 0)
+        inv_rotation, offset, _ = compute_rotation_offset(0, 0, 0, volume.shape)
         result = sample_plane(
             volume,
             z_index=10.0,
-            rotation_matrix=rot,
+            inv_rotation=inv_rotation,
+            offset=offset,
             interpolation_order=0,
         )
         expected = volume[10, :, :]
@@ -240,36 +245,57 @@ class TestPlaneSamplingIntegration:
         """Small rotation should produce a non-identical but similar slice."""
         rng = np.random.default_rng(42)
         volume = rng.random((20, 30, 40))
+        inv_rotation_id, offset_id, _ = compute_rotation_offset(
+            0, 0, 0, volume.shape
+        )
         identity_slice = sample_plane(
             volume,
             z_index=10.0,
-            rotation_matrix=build_rotation_matrix(0, 0, 0),
+            inv_rotation=inv_rotation_id,
+            offset=offset_id,
             interpolation_order=1,
             mode="nearest",
+        )
+        inv_rotation_rot, offset_rot, output_shape_rot = compute_rotation_offset(
+            0, 1.0, 0.5, volume.shape
         )
         rotated_slice = sample_plane(
             volume,
             z_index=10.0,
-            rotation_matrix=build_rotation_matrix(0, 1.0, 0.5),
+            inv_rotation=inv_rotation_rot,
+            offset=offset_rot,
+            output_shape=(output_shape_rot[1], output_shape_rot[2]),
             interpolation_order=1,
             mode="nearest",
         )
         # Should be similar but not identical
-        assert rotated_slice.shape == identity_slice.shape
-        assert not np.allclose(identity_slice, rotated_slice)
-        # But correlated (small rotation)
-        corr = np.corrcoef(identity_slice.ravel(), rotated_slice.ravel())[0, 1]
+        # Shapes may differ due to bounding box expansion
+        assert not np.allclose(
+            identity_slice,
+            rotated_slice[:identity_slice.shape[0], :identity_slice.shape[1]]
+        )
+        # But correlated (small rotation) - compare overlapping region
+        min_h = min(identity_slice.shape[0], rotated_slice.shape[0])
+        min_w = min(identity_slice.shape[1], rotated_slice.shape[1])
+        corr = np.corrcoef(
+            identity_slice[:min_h, :min_w].ravel(),
+            rotated_slice[:min_h, :min_w].ravel()
+        )[0, 1]
         assert corr > 0.8
 
     def test_nearest_mode_no_black_borders(self):
         """mode='nearest' should not produce zero-fill at edges."""
         rng = np.random.default_rng(42)
         volume = rng.random((20, 30, 40)) + 0.1  # ensure no true zeros
-        rot = build_rotation_matrix(0, 5.0, 5.0)
+        inv_rotation, offset, output_shape = compute_rotation_offset(
+            0, 5.0, 5.0, volume.shape
+        )
         result = sample_plane(
             volume,
             z_index=10.0,
-            rotation_matrix=rot,
+            inv_rotation=inv_rotation,
+            offset=offset,
+            output_shape=(output_shape[1], output_shape[2]),
             interpolation_order=1,
             mode="nearest",
         )

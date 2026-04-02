@@ -69,7 +69,6 @@ from brainglobe_registration.utils.napari import (
     get_image_layer_names,
 )
 from brainglobe_registration.utils.plane_sampling import (
-    build_rotation_matrix,
     compute_rotation_offset,
     sample_annotation_plane,
     sample_plane,
@@ -110,7 +109,9 @@ class RegistrationWidget(QScrollArea):
 
         # Plane sampling state :
         self._plane_sampling_active: bool = False
-        self._plane_rotation_matrix: npt.NDArray = np.eye(3)
+        self._plane_inv_rotation: npt.NDArray = np.eye(3)
+        self._plane_offset: npt.NDArray = np.zeros(3)
+        self._plane_output_shape: Tuple[int, int, int] = (0, 0, 0)
         self._sampled_reference_layer: Optional[napari.layers.Image] = None
         self._sampled_annotations_layer: Optional[napari.layers.Labels] = None
         self._dims_slider_connection = None
@@ -1189,17 +1190,20 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        # build rotation matrix for plane sampling
-        rotation_matrix = build_rotation_matrix(roll, yaw, pitch)
-
-        # compute inverse rotation (R.T) and offset for registration use
-        self._atlas_transform_matrix = rotation_matrix.T
-        self._atlas_offset = compute_rotation_offset(
-            rotation_matrix, self._atlas.reference.shape
+        # Compute rotation parameters using the new API that fixes clipping
+        # at extreme angles (e.g., 90° pitch)
+        inv_rotation, offset, output_shape_3d = compute_rotation_offset(
+            roll, yaw, pitch, self._atlas.reference.shape
         )
 
-        # Store the rotation matrix for plane sampling
-        self._plane_rotation_matrix = rotation_matrix
+        # Store for registration use
+        self._atlas_transform_matrix = inv_rotation
+        self._atlas_offset = offset
+
+        # Store for plane sampling updates
+        self._plane_inv_rotation = inv_rotation
+        self._plane_offset = offset
+        self._plane_output_shape = output_shape_3d
 
         # Get the current z-index from the viewer's dimension slider
         current_z = self._viewer.dims.current_step[0]
@@ -1208,13 +1212,17 @@ class RegistrationWidget(QScrollArea):
         sampled_ref = sample_plane(
             self._atlas.reference,
             z_index=float(current_z),
-            rotation_matrix=rotation_matrix,
-            interpolation_order=2,
+            inv_rotation=inv_rotation,
+            offset=offset,
+            output_shape=(output_shape_3d[1], output_shape_3d[2]),
+            interpolation_order=1,
         )
         sampled_ann = sample_annotation_plane(
             self._atlas.annotation,
             z_index=float(current_z),
-            rotation_matrix=rotation_matrix,
+            inv_rotation=inv_rotation,
+            offset=offset,
+            output_shape=(output_shape_3d[1], output_shape_3d[2]),
         )
 
         if not self._plane_sampling_active:
@@ -1285,15 +1293,12 @@ class RegistrationWidget(QScrollArea):
             return
         self._last_sampled_z = current_z
 
-        from brainglobe_registration.utils.plane_sampling import (
-            sample_annotation_plane,
-            sample_plane,
-        )
-
         sampled_ref = sample_plane(
             self._atlas.reference,
             z_index=current_z,
-            rotation_matrix=self._plane_rotation_matrix,
+            inv_rotation=self._plane_inv_rotation,
+            offset=self._plane_offset,
+            output_shape=(self._plane_output_shape[1], self._plane_output_shape[2]),
         )
 
         if self._sampled_reference_layer is not None:
@@ -1302,7 +1307,9 @@ class RegistrationWidget(QScrollArea):
         sampled_annot = sample_annotation_plane(
             self._atlas.annotation,
             z_index=current_z,
-            rotation_matrix=self._plane_rotation_matrix,
+            inv_rotation=self._plane_inv_rotation,
+            offset=self._plane_offset,
+            output_shape=(self._plane_output_shape[1], self._plane_output_shape[2]),
         )
 
         if self._sampled_annotations_layer is not None:

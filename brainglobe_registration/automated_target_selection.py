@@ -20,7 +20,7 @@ from brainglobe_registration.utils.logging import (
     FancyBayesLogger,
 )
 from brainglobe_registration.utils.plane_sampling import (
-    build_rotation_matrix,
+    compute_rotation_offset,
     sample_plane,
 )
 
@@ -86,12 +86,16 @@ def registration_objective(
     try:
         # Sample a single 2D plane directly from the volume
         # using plane_sampling (much faster than rotating the full volume)
-        rot_matrix = build_rotation_matrix(roll, yaw, pitch)
+        inv_rotation, offset, output_shape_3d = compute_rotation_offset(
+            roll, yaw, pitch, atlas_volume.shape
+        )
         z_idx = int(np.clip(z_slice, 0, atlas_volume.shape[0] - 1))
         current_atlas_slice = sample_plane(
             atlas_volume,
             z_index=float(z_idx),
-            rotation_matrix=rot_matrix,
+            inv_rotation=inv_rotation,
+            offset=offset,
+            output_shape=(output_shape_3d[1], output_shape_3d[2]),
             interpolation_order=1,
             mode="nearest",
         )
@@ -331,11 +335,15 @@ def run_bayesian_generator(
     yaw = round(best_params["yaw"], 2)
     z_slice = round(best_params["z_slice"])
 
-    rot_matrix = build_rotation_matrix(0, yaw, pitch)
+    inv_rotation, offset, output_shape_3d = compute_rotation_offset(
+        0, yaw, pitch, atlas_volume.shape
+    )
     target_slice = sample_plane(
         atlas_volume,
         z_index=float(z_slice),
-        rotation_matrix=rot_matrix,
+        inv_rotation=inv_rotation,
+        offset=offset,
+        output_shape=(output_shape_3d[1], output_shape_3d[2]),
         interpolation_order=1,
         mode="nearest",
     )
