@@ -244,7 +244,7 @@ class TestPlaneSamplingIntegration:
         np.testing.assert_array_almost_equal(result, expected)
 
     def test_sample_plane_with_small_rotation(self):
-        """Small rotation should produce a slightly different but valid slice."""
+        """Small rotation produces a slightly different but valid slice."""
         # Use structured volume where we can verify sampling correctness
         volume = np.zeros((20, 30, 40))
         for i in range(20):

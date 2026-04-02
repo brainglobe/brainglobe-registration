@@ -260,5 +260,7 @@ class AdjustMovingImageView(QWidget):
             "atlas_pitch": self.adjust_atlas_pitch.value(),
             "atlas_yaw": self.adjust_atlas_yaw.value(),
             "atlas_roll": self.adjust_atlas_roll.value(),
-            "interpolation_order": self.interpolation_order_dropdown.currentData(),
+            "interpolation_order": (
+                self.interpolation_order_dropdown.currentData()
+            ),
         }

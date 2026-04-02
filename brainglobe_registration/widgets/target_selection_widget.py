@@ -209,7 +209,9 @@ class AutoSliceDialog(QDialog):
             "n_iter": self.n_iter.value(),
             "metric": metric_value,
             "weights": weights,
-            "interpolation_order": self.interpolation_order_dropdown.currentData(),
+            "interpolation_order": (
+                self.interpolation_order_dropdown.currentData()
+            ),
         }
 
         self.parameters_confirmed.emit(params)
