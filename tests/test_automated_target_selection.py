@@ -271,8 +271,8 @@ class TestPlaneSamplingIntegration:
         assert np.isclose(identity_slice[15, 20], 1170.0)
 
         # Small rotation should produce slightly different values
-        inv_rotation_rot, offset_rot, output_shape_rot = compute_rotation_offset(
-            0, 1.0, 0.5, volume.shape
+        inv_rotation_rot, offset_rot, output_shape_rot = (
+            compute_rotation_offset(0, 1.0, 0.5, volume.shape)
         )
         rotated_slice = sample_plane(
             volume,
@@ -294,8 +294,7 @@ class TestPlaneSamplingIntegration:
         min_h = min(identity_slice.shape[0], rotated_slice.shape[0])
         min_w = min(identity_slice.shape[1], rotated_slice.shape[1])
         assert not np.allclose(
-            identity_slice[:min_h, :min_w],
-            rotated_slice[:min_h, :min_w]
+            identity_slice[:min_h, :min_w], rotated_slice[:min_h, :min_w]
         )
 
     def test_nearest_mode_no_black_borders(self):

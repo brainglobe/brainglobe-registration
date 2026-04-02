@@ -182,11 +182,15 @@ class AdjustMovingImageView(QWidget):
         self.interpolation_order_dropdown = QComboBox(parent=self)
         self.interpolation_order_dropdown.addItem("0", 0)
         self.interpolation_order_dropdown.addItem("1", 1)
-        self.interpolation_order_dropdown.setCurrentIndex(1)  # Default to Linear
+        self.interpolation_order_dropdown.setCurrentIndex(
+            1
+        )  # Default to Linear
         self.interpolation_order_dropdown.currentIndexChanged.connect(
             self._on_interpolation_order_changed
         )
-        self.layout().addRow("Interpolation:", self.interpolation_order_dropdown)
+        self.layout().addRow(
+            "Interpolation:", self.interpolation_order_dropdown
+        )
 
         self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)

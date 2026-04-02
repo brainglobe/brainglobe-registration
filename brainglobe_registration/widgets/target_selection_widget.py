@@ -126,7 +126,9 @@ class AutoSliceDialog(QDialog):
         self.interpolation_order_dropdown = QComboBox()
         self.interpolation_order_dropdown.addItem("0", 0)
         self.interpolation_order_dropdown.addItem("1", 1)
-        self.interpolation_order_dropdown.setCurrentIndex(1)  # Default to Linear
+        self.interpolation_order_dropdown.setCurrentIndex(
+            1
+        )  # Default to Linear
         form.addRow("Interpolation:", self.interpolation_order_dropdown)
 
         # Combined metric weights (initially hidden)

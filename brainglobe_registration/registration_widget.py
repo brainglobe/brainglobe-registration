@@ -112,7 +112,9 @@ class RegistrationWidget(QScrollArea):
         self._plane_inv_rotation: npt.NDArray = np.eye(3)
         self._plane_offset: npt.NDArray = np.zeros(3)
         self._plane_output_shape: Tuple[int, int, int] = (0, 0, 0)
-        self._interpolation_order: int = 1  # Default to linear (0=nearest, 1=linear)
+        self._interpolation_order: int = (
+            1  # Default to linear (0=nearest, 1=linear)
+        )
         self._sampled_reference_layer: Optional[napari.layers.Image] = None
         self._sampled_annotations_layer: Optional[napari.layers.Labels] = None
         self._dims_slider_connection = None
