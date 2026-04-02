@@ -378,11 +378,13 @@ def test_on_adjust_atlas_rotation(
     assert reg_widget._sampled_reference_layer.data.ndim == 2
     assert reg_widget._sampled_annotations_layer.data.ndim == 2
 
-    # Sampled reference plane shape should match atlas H x W
-    assert reg_widget._sampled_reference_layer.data.shape == (
-        atlas_shape[1],
-        atlas_shape[2],
+    # Sampled reference plane shape should match the computed output shape
+    # (dynamically expanded bounding box to prevent clipping at extreme angles)
+    expected_shape = (
+        reg_widget._plane_output_shape[1],
+        reg_widget._plane_output_shape[2],
     )
+    assert reg_widget._sampled_reference_layer.data.shape == expected_shape
 
     # Original 3D layers should be hidden
     assert reg_widget._atlas_data_layer.visible is False

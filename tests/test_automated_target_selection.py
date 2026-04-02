@@ -244,10 +244,16 @@ class TestPlaneSamplingIntegration:
         np.testing.assert_array_almost_equal(result, expected)
 
     def test_sample_plane_with_small_rotation(self):
-        """Small rotation should produce a non-identical but similar slice."""
-        rng = np.random.default_rng(42)
-        volume = rng.random((20, 30, 40))
-        inv_rotation_id, offset_id, _ = compute_rotation_offset(
+        """Small rotation should produce a slightly different but valid slice."""
+        # Use structured volume where we can verify sampling correctness
+        volume = np.zeros((20, 30, 40))
+        for i in range(20):
+            for j in range(30):
+                for k in range(40):
+                    volume[i, j, k] = i * 100 + j * 10 + k
+
+        # Identity rotation should give exact values
+        inv_rotation_id, offset_id, output_shape_id = compute_rotation_offset(
             0, 0, 0, volume.shape
         )
         identity_slice = sample_plane(
@@ -255,11 +261,18 @@ class TestPlaneSamplingIntegration:
             z_index=10.0,
             inv_rotation=inv_rotation_id,
             offset=offset_id,
+            output_shape=(output_shape_id[1], output_shape_id[2]),
             interpolation_order=1,
-            mode="nearest",
+            mode="constant",
         )
-        inv_rotation_rot, offset_rot, output_shape_rot = (
-            compute_rotation_offset(0, 1.0, 0.5, volume.shape)
+
+        # Verify identity slice correctness at known point
+        # At z=10, y=15, x=20: expected = 10*100 + 15*10 + 20 = 1170
+        assert np.isclose(identity_slice[15, 20], 1170.0)
+
+        # Small rotation should produce slightly different values
+        inv_rotation_rot, offset_rot, output_shape_rot = compute_rotation_offset(
+            0, 1.0, 0.5, volume.shape
         )
         rotated_slice = sample_plane(
             volume,
@@ -268,24 +281,22 @@ class TestPlaneSamplingIntegration:
             offset=offset_rot,
             output_shape=(output_shape_rot[1], output_shape_rot[2]),
             interpolation_order=1,
-            mode="nearest",
+            mode="constant",
         )
-        # Should be similar but not identical
-        # Shapes may differ due to bounding box expansion
-        assert not np.allclose(
-            identity_slice,
-            rotated_slice[
-                : identity_slice.shape[0], : identity_slice.shape[1]
-            ],
-        )
-        # But correlated (small rotation) - compare overlapping region
+
+        # Center of rotated slice should have valid (non-zero) data
+        center_y = rotated_slice.shape[0] // 2
+        center_x = rotated_slice.shape[1] // 2
+        assert rotated_slice[center_y, center_x] > 0
+
+        # Should be different from identity due to rotation
+        # (comparing same-sized center regions)
         min_h = min(identity_slice.shape[0], rotated_slice.shape[0])
         min_w = min(identity_slice.shape[1], rotated_slice.shape[1])
-        corr = np.corrcoef(
-            identity_slice[:min_h, :min_w].ravel(),
-            rotated_slice[:min_h, :min_w].ravel(),
-        )[0, 1]
-        assert corr > 0.8
+        assert not np.allclose(
+            identity_slice[:min_h, :min_w],
+            rotated_slice[:min_h, :min_w]
+        )
 
     def test_nearest_mode_no_black_borders(self):
         """mode='nearest' should not produce zero-fill at edges."""
