@@ -112,6 +112,7 @@ class RegistrationWidget(QScrollArea):
         self._plane_inv_rotation: npt.NDArray = np.eye(3)
         self._plane_offset: npt.NDArray = np.zeros(3)
         self._plane_output_shape: Tuple[int, int, int] = (0, 0, 0)
+        self._interpolation_order: int = 1  # Default to linear (0=nearest, 1=linear)
         self._sampled_reference_layer: Optional[napari.layers.Image] = None
         self._sampled_annotations_layer: Optional[napari.layers.Labels] = None
         self._dims_slider_connection = None
@@ -198,6 +199,9 @@ class RegistrationWidget(QScrollArea):
         )
         self.adjust_moving_image_widget.reset_moving_image_signal.connect(
             self._on_moving_image_reset
+        )
+        self.adjust_moving_image_widget.interpolation_order_changed.connect(
+            self._on_interpolation_order_changed
         )
 
         self.transform_select_view = TransformSelectView()
@@ -1215,7 +1219,7 @@ class RegistrationWidget(QScrollArea):
             inv_rotation=inv_rotation,
             offset=offset,
             output_shape=(output_shape_3d[1], output_shape_3d[2]),
-            interpolation_order=1,
+            interpolation_order=self._interpolation_order,
         )
         sampled_ann = sample_annotation_plane(
             self._atlas.annotation,
@@ -1302,6 +1306,7 @@ class RegistrationWidget(QScrollArea):
                 self._plane_output_shape[1],
                 self._plane_output_shape[2],
             ),
+            interpolation_order=self._interpolation_order,
         )
 
         if self._sampled_reference_layer is not None:
@@ -1320,6 +1325,13 @@ class RegistrationWidget(QScrollArea):
 
         if self._sampled_annotations_layer is not None:
             self._sampled_annotations_layer.data = sampled_annot
+
+    def _on_interpolation_order_changed(self, order: int):
+        """Handle interpolation order change from the UI."""
+        self._interpolation_order = order
+        # Re-sample if plane sampling is active
+        if self._plane_sampling_active:
+            self._update_sampled_plane()
 
     def _on_atlas_reset(self):
         if not self._atlas:
@@ -1456,6 +1468,7 @@ class RegistrationWidget(QScrollArea):
             params["n_iter"],
             params["metric"],
             params["weights"],
+            params.get("interpolation_order", 1),
         )
 
         i = 0

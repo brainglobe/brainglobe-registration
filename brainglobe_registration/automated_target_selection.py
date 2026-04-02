@@ -34,6 +34,7 @@ def registration_objective(
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
     weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
     roll: float = 0.0,
+    interpolation_order: int = 1,
 ):
     """
     Compute a similarity score between a 2D sample image and a
@@ -67,6 +68,8 @@ def registration_objective(
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
         Only used if metric="combined".
         Defaults to (0.7, 0.15, 0.15).
+    interpolation_order : int, optional
+        Spline interpolation order (0=nearest, 1=linear). Default: 1.
 
     Returns
     -------
@@ -96,7 +99,7 @@ def registration_objective(
             inv_rotation=inv_rotation,
             offset=offset,
             output_shape=(output_shape_3d[1], output_shape_3d[2]),
-            interpolation_order=1,
+            interpolation_order=interpolation_order,
             mode="nearest",
         )
 
@@ -212,6 +215,7 @@ def run_bayesian_generator(
     n_iter: int = 15,
     metric: Literal["mi", "ncc", "ssim", "combined"] = "mi",
     weights: Tuple[float, float, float] = (0.7, 0.15, 0.15),
+    interpolation_order: int = 1,
 ):
     """
     Run Bayesian optimisation to estimate the position of the
@@ -245,6 +249,8 @@ def run_bayesian_generator(
         3-tuple specifying weights for (MI, NCC, SSIM) in the combined metric.
         Only used if metric="combined".
         Defaults to (0.7, 0.15, 0.15).
+    interpolation_order : int, optional
+        Spline interpolation order (0=nearest, 1=linear). Default: 1.
 
     Returns
     -------
@@ -297,6 +303,7 @@ def run_bayesian_generator(
             sample=sample,
             metric=metric,
             weights=weights,
+            interpolation_order=interpolation_order,
         )
         optimizer.register(params=point, target=score)
 
@@ -317,6 +324,7 @@ def run_bayesian_generator(
             sample=sample,
             metric=metric,
             weights=weights,
+            interpolation_order=interpolation_order,
         )
         optimizer.register(params=point, target=score)
 
@@ -344,7 +352,7 @@ def run_bayesian_generator(
         inv_rotation=inv_rotation,
         offset=offset,
         output_shape=(output_shape_3d[1], output_shape_3d[2]),
-        interpolation_order=1,
+        interpolation_order=interpolation_order,
         mode="nearest",
     )
 

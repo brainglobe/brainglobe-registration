@@ -1,5 +1,6 @@
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
@@ -29,6 +30,8 @@ class AdjustMovingImageView(QWidget):
         and roll.
     reset_atlas_signal : Signal
         Emitted when the atlas is reset.
+    interpolation_order_changed : Signal
+        Emitted when the interpolation order changes. Emits 0 or 1.
 
     Methods
     -------
@@ -44,6 +47,7 @@ class AdjustMovingImageView(QWidget):
     atlas_rotation_signal = Signal(float, float, float)
     reset_atlas_signal = Signal()
     reset_moving_image_signal = Signal()
+    interpolation_order_changed = Signal(int)
 
     def __init__(self, parent=None, auto_slice_callback=None):
         """
@@ -173,6 +177,17 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow("Pitch:", self.adjust_atlas_pitch)
         self.layout().addRow("Yaw:", self.adjust_atlas_yaw)
         self.layout().addRow("Roll:", self.adjust_atlas_roll)
+
+        # Interpolation order dropdown (0=Nearest, 1=Linear)
+        self.interpolation_order_dropdown = QComboBox(parent=self)
+        self.interpolation_order_dropdown.addItem("0", 0)
+        self.interpolation_order_dropdown.addItem("1", 1)
+        self.interpolation_order_dropdown.setCurrentIndex(1)  # Default to Linear
+        self.interpolation_order_dropdown.currentIndexChanged.connect(
+            self._on_interpolation_order_changed
+        )
+        self.layout().addRow("Interpolation:", self.interpolation_order_dropdown)
+
         self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)
 
@@ -222,6 +237,17 @@ class AdjustMovingImageView(QWidget):
         """
         self.reset_moving_image_signal.emit()
 
+    def _on_interpolation_order_changed(self, index: int):
+        """
+        Emit interpolation_order_changed signal with the selected order.
+        """
+        order = self.interpolation_order_dropdown.currentData()
+        self.interpolation_order_changed.emit(order)
+
+    def get_interpolation_order(self) -> int:
+        """Return the currently selected interpolation order (0 or 1)."""
+        return self.interpolation_order_dropdown.currentData()
+
     def __dict__(self):
         return {
             "pixel_size_x": self.adjust_moving_image_pixel_size_x.value(),
@@ -230,4 +256,5 @@ class AdjustMovingImageView(QWidget):
             "atlas_pitch": self.adjust_atlas_pitch.value(),
             "atlas_yaw": self.adjust_atlas_yaw.value(),
             "atlas_roll": self.adjust_atlas_roll.value(),
+            "interpolation_order": self.interpolation_order_dropdown.currentData(),
         }
