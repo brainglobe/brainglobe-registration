@@ -135,8 +135,8 @@ class TestSamplePlane:
             inv_rotation=inv_rotation_id,
             offset=offset_id,
         )
-        inv_rotation_rot, offset_rot, output_shape_rot = compute_rotation_offset(
-            45, 0, 0, gradient_volume.shape
+        inv_rotation_rot, offset_rot, output_shape_rot = (
+            compute_rotation_offset(45, 0, 0, gradient_volume.shape)
         )
         rotated = sample_plane(
             gradient_volume,
@@ -147,7 +147,9 @@ class TestSamplePlane:
         )
         # They should NOT be the same (shapes may differ due to bounding box)
         # Check that the content differs when comparing overlapping region
-        assert not np.allclose(straight, rotated[:straight.shape[0], :straight.shape[1]])
+        assert not np.allclose(
+            straight, rotated[: straight.shape[0], : straight.shape[1]]
+        )
 
     def test_interpolation_order_0(self, gradient_volume):
         """Nearest-neighbor interpolation should give integer-like values."""

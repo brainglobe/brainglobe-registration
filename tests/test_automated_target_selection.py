@@ -230,7 +230,9 @@ class TestPlaneSamplingIntegration:
     def test_sample_plane_produces_valid_slice(self):
         """sample_plane with identity rotation should match direct indexing."""
         volume = np.random.default_rng(42).random((20, 30, 40))
-        inv_rotation, offset, _ = compute_rotation_offset(0, 0, 0, volume.shape)
+        inv_rotation, offset, _ = compute_rotation_offset(
+            0, 0, 0, volume.shape
+        )
         result = sample_plane(
             volume,
             z_index=10.0,
@@ -256,8 +258,8 @@ class TestPlaneSamplingIntegration:
             interpolation_order=1,
             mode="nearest",
         )
-        inv_rotation_rot, offset_rot, output_shape_rot = compute_rotation_offset(
-            0, 1.0, 0.5, volume.shape
+        inv_rotation_rot, offset_rot, output_shape_rot = (
+            compute_rotation_offset(0, 1.0, 0.5, volume.shape)
         )
         rotated_slice = sample_plane(
             volume,
@@ -272,14 +274,16 @@ class TestPlaneSamplingIntegration:
         # Shapes may differ due to bounding box expansion
         assert not np.allclose(
             identity_slice,
-            rotated_slice[:identity_slice.shape[0], :identity_slice.shape[1]]
+            rotated_slice[
+                : identity_slice.shape[0], : identity_slice.shape[1]
+            ],
         )
         # But correlated (small rotation) - compare overlapping region
         min_h = min(identity_slice.shape[0], rotated_slice.shape[0])
         min_w = min(identity_slice.shape[1], rotated_slice.shape[1])
         corr = np.corrcoef(
             identity_slice[:min_h, :min_w].ravel(),
-            rotated_slice[:min_h, :min_w].ravel()
+            rotated_slice[:min_h, :min_w].ravel(),
         )[0, 1]
         assert corr > 0.8
 

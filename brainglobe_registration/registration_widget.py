@@ -1298,7 +1298,10 @@ class RegistrationWidget(QScrollArea):
             z_index=current_z,
             inv_rotation=self._plane_inv_rotation,
             offset=self._plane_offset,
-            output_shape=(self._plane_output_shape[1], self._plane_output_shape[2]),
+            output_shape=(
+                self._plane_output_shape[1],
+                self._plane_output_shape[2],
+            ),
         )
 
         if self._sampled_reference_layer is not None:
@@ -1309,7 +1312,10 @@ class RegistrationWidget(QScrollArea):
             z_index=current_z,
             inv_rotation=self._plane_inv_rotation,
             offset=self._plane_offset,
-            output_shape=(self._plane_output_shape[1], self._plane_output_shape[2]),
+            output_shape=(
+                self._plane_output_shape[1],
+                self._plane_output_shape[2],
+            ),
         )
 
         if self._sampled_annotations_layer is not None:

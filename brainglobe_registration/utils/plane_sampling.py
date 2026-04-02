@@ -67,7 +67,7 @@ def compute_rotation_offset(
         "XYZ", [roll, yaw, pitch], degrees=True
     ).as_matrix()
 
-    #inverse=transpose for orthogonal:)
+    # inverse=transpose for orthogonal:)
     inv_rotation = rotation_matrix.T
     input_shape = np.array(volume_shape, dtype=np.float64)
     input_center = input_shape / 2.0
@@ -98,17 +98,18 @@ def compute_rotation_offset(
     min_coords = rotated_corners.min(axis=0)
     max_coords = rotated_corners.max(axis=0)
     output_shape = tuple(np.ceil(max_coords - min_coords).astype(int))
-    
-   
-    # hack: Because we don't generate a new 3D volume, Napari's Z-slider 
-    # doesn't change size. We should anchor the Z-center to the original 
+
+    # hack: Because we don't generate a new 3D volume, Napari's Z-slider
+    # doesn't change size. We should anchor the Z-center to the original
     # input depth, while letting Y and X expand for the canvas.
-   
-    output_center = np.array([
-        input_shape[0] / 2.0,       # Z: Tied to Napari's static slider center
-        output_shape[1] / 2.0,      # Y: New expanded canvas height
-        output_shape[2] / 2.0       # X: New expanded canvas width
-    ])
+
+    output_center = np.array(
+        [
+            input_shape[0] / 2.0,  # Z: Tied to Napari's static slider center
+            output_shape[1] / 2.0,  # Y: New expanded canvas height
+            output_shape[2] / 2.0,  # X: New expanded canvas width
+        ]
+    )
 
     # Offset: map output coords to input coords
     offset = input_center - inv_rotation @ output_center
