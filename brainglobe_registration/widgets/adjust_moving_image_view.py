@@ -169,7 +169,7 @@ class AdjustMovingImageView(QWidget):
         self.adjust_atlas_roll.setTickInterval(900)
         self.adjust_atlas_roll.valueChanged.connect(self._on_slider_changed)
 
-        # Throttle timer for live slider updates (5ms) - fires at consistent rate
+        # Throttle timer for live slider updates (5ms)
         self._rotation_throttle_timer = ThrottledTimer(
             5, self._on_adjust_atlas_rotation, parent=self
         )

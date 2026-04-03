@@ -141,7 +141,7 @@ def test_set_rotation_values(qtbot, adjust_moving_image_view):
 
 
 def test_slider_throttle(qtbot, adjust_moving_image_view):
-    """Test that slider changes are throttled (fires immediately, then rate-limited)."""
+    """Test that slider changes are throttled."""
     qtbot.addWidget(adjust_moving_image_view)
 
     # First change should fire immediately (throttle is ready)
@@ -176,7 +176,9 @@ def test_interpolation_order_changed(qtbot, adjust_moving_image_view):
     with qtbot.waitSignal(
         adjust_moving_image_view.interpolation_order_changed, timeout=1000
     ) as blocker:
-        adjust_moving_image_view.interpolation_order_dropdown.setCurrentIndex(0)
+        adjust_moving_image_view.interpolation_order_dropdown.setCurrentIndex(
+            0
+        )
 
     assert blocker.args == [0]
 
