@@ -120,7 +120,7 @@ class RegistrationWidget(QScrollArea):
         self._dims_slider_connection = None
         self._plane_sampling_timer = QTimer()
         self._plane_sampling_timer.setSingleShot(True)
-        self._plane_sampling_timer.setInterval(30)  # 30ms debounc
+        self._plane_sampling_timer.setInterval(5)  # 5ms debounc
         self._plane_sampling_timer.timeout.connect(self._update_sampled_plane)
 
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
