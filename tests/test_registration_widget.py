@@ -974,9 +974,7 @@ def test_set_optimal_rotation_params_sets_gui_values(
 
     # Mock adjust widget
     adjust_widget_mock = mocker.Mock()
-    adjust_widget_mock.adjust_atlas_pitch.setValue = mocker.Mock()
-    adjust_widget_mock.adjust_atlas_yaw.setValue = mocker.Mock()
-    adjust_widget_mock.adjust_atlas_roll.setValue = mocker.Mock()
+    adjust_widget_mock.set_rotation_values = mocker.Mock()
     adjust_widget_mock.progress_bar.reset = mocker.Mock()
     adjust_widget_mock.progress_bar.setVisible = mocker.Mock()
 
@@ -993,9 +991,7 @@ def test_set_optimal_rotation_params_sets_gui_values(
         5, 10, -2
     )
     viewer_mock.dims.set_point.assert_called_once_with(0, 42)
-    adjust_widget_mock.adjust_atlas_pitch.setValue.assert_called_once_with(5)
-    adjust_widget_mock.adjust_atlas_yaw.setValue.assert_called_once_with(10)
-    adjust_widget_mock.adjust_atlas_roll.setValue.assert_called_once_with(-2)
+    adjust_widget_mock.set_rotation_values.assert_called_once_with(5, 10, -2)
     adjust_widget_mock.progress_bar.reset.assert_called_once()
     adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
 
