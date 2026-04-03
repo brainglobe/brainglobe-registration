@@ -1513,9 +1513,9 @@ class RegistrationWidget(QScrollArea):
             self._viewer.dims.set_point(0, z_slice)
 
             # Update pitch, yaw, roll on GUI display
-            self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(pitch)
-            self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(yaw)
-            self.adjust_moving_image_widget.adjust_atlas_roll.setValue(roll)
+            self.adjust_moving_image_widget.set_rotation_values(
+                pitch, yaw, roll
+            )
 
             self.adjust_moving_image_widget.progress_bar.reset()
             self.adjust_moving_image_widget.progress_bar.setVisible(False)
