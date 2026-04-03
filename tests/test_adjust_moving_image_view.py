@@ -66,6 +66,9 @@ def test_atlas_rotation_changed(
     adjust_moving_image_view.adjust_atlas_pitch.blockSignals(True)
     adjust_moving_image_view.adjust_atlas_yaw.blockSignals(True)
     adjust_moving_image_view.adjust_atlas_roll.blockSignals(True)
+    adjust_moving_image_view.pitch_spinbox.blockSignals(True)
+    adjust_moving_image_view.yaw_spinbox.blockSignals(True)
+    adjust_moving_image_view.roll_spinbox.blockSignals(True)
 
     # Set slider values (in tenths of degrees)
     adjust_moving_image_view.adjust_atlas_pitch.setValue(100)  # 10 deg
@@ -75,13 +78,15 @@ def test_atlas_rotation_changed(
     adjust_moving_image_view.adjust_atlas_pitch.blockSignals(False)
     adjust_moving_image_view.adjust_atlas_yaw.blockSignals(False)
     adjust_moving_image_view.adjust_atlas_roll.blockSignals(False)
+    adjust_moving_image_view.pitch_spinbox.blockSignals(False)
+    adjust_moving_image_view.yaw_spinbox.blockSignals(False)
+    adjust_moving_image_view.roll_spinbox.blockSignals(False)
 
-    # Trigger slider changed to emit signal with all values set
+    # Trigger rotation emit directly
     with qtbot.waitSignal(
         adjust_moving_image_view.atlas_rotation_signal, timeout=1000
     ) as blocker:
-        adjust_moving_image_view._on_slider_changed()
-        qtbot.wait(10)
+        adjust_moving_image_view._on_adjust_atlas_rotation()
 
     # Signal emits degrees (slider value / 10)
     assert blocker.args == [10.0, 20.0, 30.0]
@@ -93,16 +98,24 @@ def test_atlas_reset_button_click(
 ):
     qtbot.addWidget(adjust_moving_image_view)
 
+    # Set some non-zero values first
+    adjust_moving_image_view.set_rotation_values(10.0, 20.0, 30.0)
+
     with qtbot.waitSignal(
         adjust_moving_image_view.reset_atlas_signal, timeout=1000
     ):
         adjust_moving_image_view.reset_atlas_button.click()
 
+    # Sliders should be reset
     assert (
         adjust_moving_image_view.adjust_atlas_pitch.value() == 0
         and adjust_moving_image_view.adjust_atlas_yaw.value() == 0
         and adjust_moving_image_view.adjust_atlas_roll.value() == 0
     )
+    # Spinboxes should also be reset
+    assert adjust_moving_image_view.pitch_spinbox.value() == 0.0
+    assert adjust_moving_image_view.yaw_spinbox.value() == 0.0
+    assert adjust_moving_image_view.roll_spinbox.value() == 0.0
 
 
 def test_moving_image_reset_button_click(qtbot, adjust_moving_image_view):
@@ -129,20 +142,28 @@ def test_set_is_3d_visibility(qtbot, is_3d):
 
 
 def test_set_rotation_values(qtbot, adjust_moving_image_view):
-    """Test programmatic setting of rotation slider values."""
+    """Test programmatic setting of rotation slider and spinbox values."""
     qtbot.addWidget(adjust_moving_image_view)
 
     adjust_moving_image_view.set_rotation_values(15.5, 30.0, -45.0)
 
-    # Values are stored as tenths of degrees
+    # Slider values are stored as tenths of degrees
     assert adjust_moving_image_view.adjust_atlas_pitch.value() == 155
     assert adjust_moving_image_view.adjust_atlas_yaw.value() == 300
     assert adjust_moving_image_view.adjust_atlas_roll.value() == -450
+
+    # Spinbox values are stored as degrees
+    assert adjust_moving_image_view.pitch_spinbox.value() == 15.5
+    assert adjust_moving_image_view.yaw_spinbox.value() == 30.0
+    assert adjust_moving_image_view.roll_spinbox.value() == -45.0
 
 
 def test_slider_throttle(qtbot, adjust_moving_image_view):
     """Test that slider changes are throttled."""
     qtbot.addWidget(adjust_moving_image_view)
+
+    # Block spinbox signals during slider changes
+    adjust_moving_image_view.pitch_spinbox.blockSignals(True)
 
     # First change should fire immediately (throttle is ready)
     with qtbot.waitSignal(
@@ -151,6 +172,9 @@ def test_slider_throttle(qtbot, adjust_moving_image_view):
         adjust_moving_image_view.adjust_atlas_pitch.setValue(100)
 
     assert blocker.args[0] == 10.0  # 100 / 10
+
+    # Spinbox should also be updated
+    assert adjust_moving_image_view.pitch_spinbox.value() == 10.0
 
     # Throttle timer should now be in cooldown
     assert adjust_moving_image_view._rotation_throttle_timer.is_active()
@@ -167,6 +191,8 @@ def test_slider_throttle(qtbot, adjust_moving_image_view):
 
     # Final value should be emitted after cooldown
     assert blocker.args[0] == 30.0  # 300 / 10
+
+    adjust_moving_image_view.pitch_spinbox.blockSignals(False)
 
 
 def test_interpolation_order_changed(qtbot, adjust_moving_image_view):
@@ -192,3 +218,60 @@ def test_get_interpolation_order(qtbot, adjust_moving_image_view):
 
     adjust_moving_image_view.interpolation_order_dropdown.setCurrentIndex(1)
     assert adjust_moving_image_view.get_interpolation_order() == 1
+
+
+def test_spinbox_updates_slider(qtbot, adjust_moving_image_view):
+    """Test that editing spinbox updates slider and triggers rotation."""
+    qtbot.addWidget(adjust_moving_image_view)
+
+    # Set a value in the pitch spinbox
+    adjust_moving_image_view.pitch_spinbox.setValue(45.5)
+
+    # Trigger editingFinished
+    with qtbot.waitSignal(
+        adjust_moving_image_view.atlas_rotation_signal, timeout=1000
+    ) as blocker:
+        adjust_moving_image_view._on_pitch_spinbox_edited()
+
+    # Slider should be updated
+    assert adjust_moving_image_view.adjust_atlas_pitch.value() == 455
+
+    # Signal should be emitted with degrees
+    assert blocker.args[0] == 45.5
+
+
+def test_slider_updates_spinbox(qtbot, adjust_moving_image_view):
+    """Test that moving slider updates spinbox value."""
+    qtbot.addWidget(adjust_moving_image_view)
+
+    # Set slider value directly (in tenths of degrees)
+    with qtbot.waitSignal(
+        adjust_moving_image_view.atlas_rotation_signal, timeout=1000
+    ):
+        adjust_moving_image_view.adjust_atlas_pitch.setValue(225)
+
+    # Spinbox should display degrees
+    assert adjust_moving_image_view.pitch_spinbox.value() == 22.5
+
+
+def test_all_spinbox_handlers(qtbot, adjust_moving_image_view):
+    """Test spinbox handlers for yaw and roll too."""
+    qtbot.addWidget(adjust_moving_image_view)
+
+    # Test yaw spinbox
+    adjust_moving_image_view.yaw_spinbox.setValue(90.0)
+    with qtbot.waitSignal(
+        adjust_moving_image_view.atlas_rotation_signal, timeout=1000
+    ) as blocker:
+        adjust_moving_image_view._on_yaw_spinbox_edited()
+    assert adjust_moving_image_view.adjust_atlas_yaw.value() == 900
+    assert blocker.args[1] == 90.0
+
+    # Test roll spinbox
+    adjust_moving_image_view.roll_spinbox.setValue(-30.0)
+    with qtbot.waitSignal(
+        adjust_moving_image_view.atlas_rotation_signal, timeout=1000
+    ) as blocker:
+        adjust_moving_image_view._on_roll_spinbox_edited()
+    assert adjust_moving_image_view.adjust_atlas_roll.value() == -300
+    assert blocker.args[2] == -30.0
