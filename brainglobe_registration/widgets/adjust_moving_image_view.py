@@ -154,15 +154,15 @@ class AdjustMovingImageView(QWidget):
         # Create slider + spinbox pairs for rotation controls
         # Pitch
         self.adjust_atlas_pitch = QSlider(Qt.Horizontal, parent=self)
-        self.adjust_atlas_pitch.setRange(-3600, 3600)  # -360 to 360 in 0.1 deg
+        self.adjust_atlas_pitch.setRange(-1800, 1800)  # -180 to 180 in 0.1 deg
         self.adjust_atlas_pitch.setValue(0)
-        self.adjust_atlas_pitch.setTickInterval(900)  # Tick every 90 degrees
+        self.adjust_atlas_pitch.setTickInterval(450)  # Tick every 45 degrees
         self.adjust_atlas_pitch.valueChanged.connect(
             self._on_pitch_slider_changed
         )
 
         self.pitch_spinbox = QDoubleSpinBox(parent=self)
-        self.pitch_spinbox.setRange(-360.0, 360.0)
+        self.pitch_spinbox.setRange(-180.0, 180.0)
         self.pitch_spinbox.setDecimals(1)
         self.pitch_spinbox.setSingleStep(0.1)
         self.pitch_spinbox.setValue(0.0)
@@ -174,13 +174,13 @@ class AdjustMovingImageView(QWidget):
 
         # Yaw
         self.adjust_atlas_yaw = QSlider(Qt.Horizontal, parent=self)
-        self.adjust_atlas_yaw.setRange(-3600, 3600)
+        self.adjust_atlas_yaw.setRange(-1800, 1800)
         self.adjust_atlas_yaw.setValue(0)
-        self.adjust_atlas_yaw.setTickInterval(900)
+        self.adjust_atlas_yaw.setTickInterval(450)
         self.adjust_atlas_yaw.valueChanged.connect(self._on_yaw_slider_changed)
 
         self.yaw_spinbox = QDoubleSpinBox(parent=self)
-        self.yaw_spinbox.setRange(-360.0, 360.0)
+        self.yaw_spinbox.setRange(-180.0, 180.0)
         self.yaw_spinbox.setDecimals(1)
         self.yaw_spinbox.setSingleStep(0.1)
         self.yaw_spinbox.setValue(0.0)
@@ -190,15 +190,15 @@ class AdjustMovingImageView(QWidget):
 
         # Roll
         self.adjust_atlas_roll = QSlider(Qt.Horizontal, parent=self)
-        self.adjust_atlas_roll.setRange(-3600, 3600)
+        self.adjust_atlas_roll.setRange(-1800, 1800)
         self.adjust_atlas_roll.setValue(0)
-        self.adjust_atlas_roll.setTickInterval(900)
+        self.adjust_atlas_roll.setTickInterval(450)
         self.adjust_atlas_roll.valueChanged.connect(
             self._on_roll_slider_changed
         )
 
         self.roll_spinbox = QDoubleSpinBox(parent=self)
-        self.roll_spinbox.setRange(-360.0, 360.0)
+        self.roll_spinbox.setRange(-180.0, 180.0)
         self.roll_spinbox.setDecimals(1)
         self.roll_spinbox.setSingleStep(0.1)
         self.roll_spinbox.setValue(0.0)

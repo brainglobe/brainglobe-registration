@@ -20,6 +20,28 @@ def test_init(qtbot, adjust_moving_image_view):
     assert adjust_moving_image_view.layout().rowCount() == 15
 
 
+def test_rotation_control_limits_and_ticks(qtbot, adjust_moving_image_view):
+    qtbot.addWidget(adjust_moving_image_view)
+
+    assert adjust_moving_image_view.adjust_atlas_pitch.minimum() == -1800
+    assert adjust_moving_image_view.adjust_atlas_pitch.maximum() == 1800
+    assert adjust_moving_image_view.adjust_atlas_pitch.tickInterval() == 450
+    assert adjust_moving_image_view.pitch_spinbox.minimum() == -180.0
+    assert adjust_moving_image_view.pitch_spinbox.maximum() == 180.0
+
+    assert adjust_moving_image_view.adjust_atlas_yaw.minimum() == -1800
+    assert adjust_moving_image_view.adjust_atlas_yaw.maximum() == 1800
+    assert adjust_moving_image_view.adjust_atlas_yaw.tickInterval() == 450
+    assert adjust_moving_image_view.yaw_spinbox.minimum() == -180.0
+    assert adjust_moving_image_view.yaw_spinbox.maximum() == 180.0
+
+    assert adjust_moving_image_view.adjust_atlas_roll.minimum() == -1800
+    assert adjust_moving_image_view.adjust_atlas_roll.maximum() == 1800
+    assert adjust_moving_image_view.adjust_atlas_roll.tickInterval() == 450
+    assert adjust_moving_image_view.roll_spinbox.minimum() == -180.0
+    assert adjust_moving_image_view.roll_spinbox.maximum() == 180.0
+
+
 @pytest.mark.parametrize(
     "x_scale, y_scale, z_scale, orientation",
     [
