@@ -17,7 +17,7 @@ def adjust_moving_image_view() -> AdjustMovingImageView:
 def test_init(qtbot, adjust_moving_image_view):
     qtbot.addWidget(adjust_moving_image_view)
 
-    assert adjust_moving_image_view.layout().rowCount() == 15
+    assert adjust_moving_image_view.layout().rowCount() == 18
 
 
 def test_rotation_control_limits_and_ticks(qtbot, adjust_moving_image_view):
