@@ -360,7 +360,6 @@ class RegistrationWidget(QScrollArea):
         self._reset_atlas_attributes()
 
         self.run_button.setEnabled(False)
-        self._viewer.grid.enabled = False
 
     def _reset_atlas_attributes(self):
         self._atlas_transform_matrix = np.eye(3)
@@ -427,8 +426,6 @@ class RegistrationWidget(QScrollArea):
             name="Annotations",
             visible=False,
         )
-
-        self._viewer.grid.enabled = True
 
     def _on_sample_dropdown_index_changed(self, index):
         viewer_index = find_layer_index(
@@ -746,7 +743,6 @@ class RegistrationWidget(QScrollArea):
             )
 
         self._atlas_data_layer.visible = False
-        self._viewer.grid.enabled = False
 
         # Cache image data for QC (avoids repeated layer queries)
         # Improves performance: get_data_from_napari_layer can be slow
@@ -1159,10 +1155,6 @@ class RegistrationWidget(QScrollArea):
         print(f"Original image shape: {self._moving_image_data_backup.shape}")
         print(f"Atlas shape: {self._atlas.reference.shape}")
 
-        # Resets the viewer grid to update the grid to the scaled moving image
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
-
         print(f"Scaled image shape: {self._moving_image.data.shape}")
         print("---")
 
@@ -1180,10 +1172,6 @@ class RegistrationWidget(QScrollArea):
 
         self._moving_image.data = self._moving_image_data_backup.copy()
         self.moving_anatomical_space = None
-
-        # Resets the viewer grid to update the grid to the original image
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
@@ -1266,10 +1254,8 @@ class RegistrationWidget(QScrollArea):
                     np.uint32
                 )
 
-        # Resets the viewer grid to update the grid to the new atlas
+        # Reset the viewer to center the view
         self._viewer.reset_view()
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
 
     def _on_dims_slider_changed(self, event):
         """
@@ -1350,9 +1336,6 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer.visible = True
 
         self._reset_atlas_attributes()
-
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
 
     def _deactivate_plane_sampling(self):
         """Remove sampled plane layers and disconnect the slider listener."""

@@ -103,7 +103,6 @@ def test_atlas_dropdown_index_changed_with_valid_index(
         == ANNOTATION_DTYPE
     )
     assert registration_widget.run_button.isEnabled()
-    assert registration_widget._viewer.grid.enabled
 
 
 def test_atlas_dropdown_index_changed_with_zero_index(
@@ -113,7 +112,6 @@ def test_atlas_dropdown_index_changed_with_zero_index(
 
     assert registration_widget._atlas is None
     assert not registration_widget.run_button.isEnabled()
-    assert not registration_widget._viewer.grid.enabled
 
 
 def test_atlas_dropdown_index_changed_with_existing_atlas(
@@ -128,7 +126,6 @@ def test_atlas_dropdown_index_changed_with_existing_atlas(
         == registration_widget._available_atlases[1]
     )
     assert registration_widget.run_button.isEnabled()
-    assert registration_widget._viewer.grid.enabled
 
 
 def test_sample_dropdown_index_changed_with_valid_index(
