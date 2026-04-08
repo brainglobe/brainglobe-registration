@@ -1,11 +1,7 @@
 from typing import Tuple
 
-import numpy as np
 import numpy.typing as npt
 from skimage.transform import rescale
-
-
-
 
 
 def scale_moving_image(
