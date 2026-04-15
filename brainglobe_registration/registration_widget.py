@@ -475,7 +475,10 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        if self._moving_image == self._atlas_data_layer:
+        if self._moving_image in (
+            self._atlas_data_layer,
+            self._sampled_reference_layer,
+        ):
             display_info(
                 widget=self,
                 title="Warning",
@@ -495,20 +498,35 @@ class RegistrationWidget(QScrollArea):
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.uint16
         )
-        self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
+        self._atlas_2d_slice_index = int(self._viewer.dims.current_step[0])
 
         if self._moving_image.data.ndim == 2:
-            atlas_selection = (
-                slice(
-                    self._atlas_2d_slice_index, self._atlas_2d_slice_index + 1
-                ),
+            using_sampled_plane = (
+                self._plane_sampling_active
+                and self._sampled_reference_layer is not None
+                and self._sampled_annotations_layer is not None
             )
-            atlas_image = get_data_from_napari_layer(
-                self._atlas_data_layer, atlas_selection
-            ).astype(np.float32)
-            annotation_image = get_data_from_napari_layer(
-                self._atlas_annotations_layer, atlas_selection
-            )
+
+            if using_sampled_plane:
+                atlas_image = get_data_from_napari_layer(
+                    self._sampled_reference_layer
+                ).astype(np.float32)
+                annotation_image = get_data_from_napari_layer(
+                    self._sampled_annotations_layer
+                )
+            else:
+                atlas_selection = (
+                    slice(
+                        self._atlas_2d_slice_index,
+                        self._atlas_2d_slice_index + 1,
+                    ),
+                )
+                atlas_image = get_data_from_napari_layer(
+                    self._atlas_data_layer, atlas_selection
+                ).astype(np.float32)
+                annotation_image = get_data_from_napari_layer(
+                    self._atlas_annotations_layer, atlas_selection
+                )
 
             moving_image = moving_image.astype(np.float32)
 
@@ -537,32 +555,39 @@ class RegistrationWidget(QScrollArea):
                         "float"
                     ]
 
-            rotated_shape = np.array(self._atlas_data_layer.data.shape)
-            original_shape = np.array(self._atlas.shape)
-
-            atlas_corners = [
-                [self._atlas_2d_slice_index, 0, 0],
-                [self._atlas_2d_slice_index, 0, atlas_image.shape[1]],
-                [self._atlas_2d_slice_index, atlas_image.shape[0], 0],
+            atlas_corners = np.array(
                 [
-                    self._atlas_2d_slice_index,
-                    atlas_image.shape[0],
-                    atlas_image.shape[1],
+                    [self._atlas_2d_slice_index, 0, 0],
+                    [self._atlas_2d_slice_index, 0, atlas_image.shape[1]],
+                    [self._atlas_2d_slice_index, atlas_image.shape[0], 0],
+                    [
+                        self._atlas_2d_slice_index,
+                        atlas_image.shape[0],
+                        atlas_image.shape[1],
+                    ],
                 ],
-            ]
-
-            # Centers
-            rotated_center = rotated_shape / 2.0
-            original_center = original_shape / 2.0
-
-            # Inverse transform: rotated -> original
-            original_corners = np.trunc(
-                (
-                    self._atlas_transform_matrix
-                    @ (atlas_corners - rotated_center).T
-                ).T
-                + original_center
+                dtype=np.float64,
             )
+
+            if using_sampled_plane:
+                original_corners = np.trunc(
+                    (self._atlas_transform_matrix @ atlas_corners.T).T
+                    + self._atlas_offset
+                )
+            else:
+                rotated_shape = np.array(self._atlas_data_layer.data.shape)
+                original_shape = np.array(self._atlas.shape)
+
+                rotated_center = rotated_shape / 2.0
+                original_center = original_shape / 2.0
+
+                original_corners = np.trunc(
+                    (
+                        self._atlas_transform_matrix
+                        @ (atlas_corners - rotated_center).T
+                    ).T
+                    + original_center
+                )
 
             self._atlas_2d_slice_corners = (
                 original_corners * self._atlas.resolution

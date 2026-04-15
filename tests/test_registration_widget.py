@@ -635,6 +635,25 @@ def test_on_run_button_clicked_moving_equal_atlas(
     )
 
 
+def test_on_run_button_clicked_moving_equal_sampled_atlas(
+    registration_widget_with_example_atlas, mocker
+):
+    widget = registration_widget_with_example_atlas
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    widget._on_adjust_atlas_rotation(10, 5, 3)
+    widget._moving_image = widget._sampled_reference_layer
+
+    widget.run_button.click()
+
+    mocked_display_info.assert_called_once_with(
+        widget=widget,
+        title="Warning",
+        message="Your moving image cannot be an atlas.",
+    )
+
+
 def test_on_run_button_click_2d(registration_widget, tmp_path):
     allen_25_index = registration_widget._available_atlases.index(
         "allen_mouse_25um"
@@ -671,6 +690,63 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
 
     # Check that QC widget is enabled after registration
     assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
+
+def test_on_run_button_click_2d_uses_sampled_plane_when_active(
+    registration_widget_with_example_atlas, mocker, tmp_path
+):
+    widget = registration_widget_with_example_atlas
+    widget._viewer.dims.set_current_step(0, 42)
+    widget._moving_image = widget._viewer.layers[0]
+    widget.output_directory = tmp_path
+    widget._on_adjust_atlas_rotation(15, 10, 5)
+
+    sampled_ref = np.full((32, 48), 7.0, dtype=np.float32)
+    sampled_ann = np.full((32, 48), 3, dtype=np.uint32)
+    widget._sampled_reference_layer.data = sampled_ref
+    widget._sampled_annotations_layer.data = sampled_ann
+
+    captured = {}
+
+    def _run_registration(
+        atlas_image,
+        moving_image,
+        transform_selections,
+        output_directory,
+        filter_images=False,
+    ):
+        captured["atlas_image"] = atlas_image
+        captured["moving_image"] = moving_image
+        return ["params"]
+
+    mocker.patch(
+        "brainglobe_registration.elastix.register.run_registration",
+        side_effect=_run_registration,
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.transform_image",
+        side_effect=lambda image, _: image,
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.invert_transformation",
+        return_value=["inv-params"],
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.transform_annotation_image",
+        side_effect=lambda image, _: image,
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.calculate_deformation_field",
+        side_effect=lambda image, _: np.zeros((*image.shape, 2), dtype=np.float32),
+    )
+    mocker.patch(
+        "brainglobe_registration.registration_widget.calculate_region_size"
+    )
+
+    widget.run_button.click()
+
+    np.testing.assert_array_equal(captured["atlas_image"], sampled_ref)
+    assert captured["atlas_image"].dtype == np.float32
 
 
 def test_on_run_button_clicked_no_transform_selected(
