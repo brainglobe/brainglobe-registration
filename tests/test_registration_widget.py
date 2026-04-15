@@ -737,7 +737,9 @@ def test_on_run_button_click_2d_uses_sampled_plane_when_active(
     )
     mocker.patch(
         "brainglobe_registration.elastix.register.calculate_deformation_field",
-        side_effect=lambda image, _: np.zeros((*image.shape, 2), dtype=np.float32),
+        side_effect=lambda image, _: np.zeros(
+            (*image.shape, 2), dtype=np.float32
+        ),
     )
     mocker.patch(
         "brainglobe_registration.registration_widget.calculate_region_size"
