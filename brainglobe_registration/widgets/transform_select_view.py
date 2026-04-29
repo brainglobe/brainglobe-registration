@@ -64,12 +64,12 @@ class TransformSelectView(QTableWidget):
         # Create signal mappers for the transform type and file option
         # dropdown menus
         self.transform_type_signaller = QSignalMapper(self)
-        self.transform_type_signaller.mapped[int].connect(
+        self.transform_type_signaller.mappedInt.connect(
             self._on_transform_type_change
         )
 
         self.file_signaller = QSignalMapper(self)
-        self.file_signaller.mapped[int].connect(self._on_file_change)
+        self.file_signaller.mappedInt.connect(self._on_file_change)
 
         # Initialize lists to hold the dropdown menus
         self.transform_type_selections = []
