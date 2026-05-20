@@ -1,3 +1,4 @@
+import numpy as np
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QDoubleSpinBox,
@@ -7,13 +8,13 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
-    QWidget,
     QSizePolicy,
+    QWidget,
 )
+
 from brainglobe_registration.widgets.mask_regions import (
     AtlasRegionMaskWidget,
 )
-import numpy as np
 
 
 class AdjustMovingImageView(QWidget):
@@ -186,8 +187,7 @@ class AdjustMovingImageView(QWidget):
 
         self.atlas_region_mask_widget = AtlasRegionMaskWidget()
         self.atlas_region_mask_widget.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding
+            QSizePolicy.Expanding, QSizePolicy.Expanding
         )
         self.atlas_region_mask_widget.setMinimumHeight(180)
         self.layout().addRow(

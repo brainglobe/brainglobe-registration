@@ -378,8 +378,9 @@ class RegistrationWidget(QScrollArea):
         self._atlas = BrainGlobeAtlas(atlas_name)
 
         # Populate the masking tree with the new atlas region hierarchy.
-        self.adjust_moving_image_widget.atlas_region_mask_widget \
-            .populate_from_atlas(self._atlas)
+        self.adjust_moving_image_widget.atlas_region_mask_widget.populate_from_atlas(
+            self._atlas
+        )
 
         # Give the view the raw label volume so that it can
         # recompute masks when the user changes their region selection.
@@ -505,9 +506,7 @@ class RegistrationWidget(QScrollArea):
             annotation_image = get_data_from_napari_layer(
                 self._atlas_annotations_layer, atlas_selection
             )
-            fixed_mask = self._generate_atlas_mask(
-                annotation_image
-            )
+            fixed_mask = self._generate_atlas_mask(annotation_image)
 
             moving_image = moving_image.astype(np.float32)
 
@@ -573,9 +572,7 @@ class RegistrationWidget(QScrollArea):
                 self._atlas_annotations_layer
             )
 
-            fixed_mask = self._generate_atlas_mask(
-                annotation_image
-            )
+            fixed_mask = self._generate_atlas_mask(annotation_image)
 
         for transform_selection in self.transform_selections:
             if "FixedImageDimension" not in transform_selection[1]:

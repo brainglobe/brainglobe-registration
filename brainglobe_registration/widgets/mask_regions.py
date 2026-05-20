@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
-    QScrollArea,
     QPushButton,
     QSizePolicy,
     QTreeWidget,
@@ -10,6 +9,7 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
 
 class AtlasRegionMaskWidget(QWidget):
     """
@@ -26,7 +26,9 @@ class AtlasRegionMaskWidget(QWidget):
         Emitted whenever the checked set changes (after all child
         propagation is complete).
     """
+
     regions_changed = Signal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
@@ -40,9 +42,7 @@ class AtlasRegionMaskWidget(QWidget):
         outer_layout.setSpacing(0)
 
         # toggle button (acts as the "dropdown" header)
-        self._toggle_button = QPushButton(
-            "▶  Mask atlas regions (optional)"
-        )
+        self._toggle_button = QPushButton("▶  Mask atlas regions (optional)")
         self._toggle_button.setCheckable(True)
         self._toggle_button.setChecked(False)
         self._toggle_button.setSizePolicy(
@@ -112,16 +112,14 @@ class AtlasRegionMaskWidget(QWidget):
     def _on_toggle(self, checked: bool) -> None:
         self.tree.setVisible(checked)
         arrow = "▼" if checked else "▶"
-        self._toggle_button.setText(
-            f"{arrow}  Mask atlas regions (optional)"
-        )
+        self._toggle_button.setText(f"{arrow}  Mask atlas regions (optional)")
 
     def _add_structure_recursive(
-            self,
-            parent_item: QTreeWidgetItem | None,
-            structure_id: int,
-            structures: dict,
-            children_lookup: dict,
+        self,
+        parent_item: QTreeWidgetItem | None,
+        structure_id: int,
+        structures: dict,
+        children_lookup: dict,
     ) -> None:
         structure = structures[structure_id]
 
@@ -167,7 +165,7 @@ class AtlasRegionMaskWidget(QWidget):
         self.regions_changed.emit()
 
     def _set_subtree_checkstate(
-            self, item: QTreeWidgetItem, state: Qt.CheckState
+        self, item: QTreeWidgetItem, state: Qt.CheckState
     ) -> None:
         """
         Recursively apply state to every descendant of item.
