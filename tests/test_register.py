@@ -8,6 +8,7 @@ from tifffile import imread
 
 from brainglobe_registration.elastix.register import (
     calculate_deformation_field,
+    crop_atlas,
     invert_transformation,
     run_registration,
     setup_parameter_object,
@@ -291,3 +292,98 @@ def test_run_registration_creates_directory(
 
     assert non_existent_folder.exists()
     assert (non_existent_folder / "TransformParameters.0.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "brain_geometry",
+    [
+        "full",
+        "hemisphere_l",
+        "hemisphere_r",
+        "quarter_al",
+        "quarter_ar",
+        "quarter_pl",
+        "quarter_pr",
+    ],
+)
+def test_crop_atlas(atlas, brain_geometry):
+    """Test that crop_atlas returns valid atlases for all geometry types."""
+    cropped = crop_atlas(atlas, brain_geometry)
+
+    assert isinstance(cropped, BrainGlobeAtlas)
+
+    # Assert shapes are preserved
+    assert cropped.reference.shape == atlas.reference.shape
+    assert cropped.annotation.shape == atlas.annotation.shape
+    assert cropped.hemispheres.shape == atlas.hemispheres.shape
+
+    # For full brain, should be identical
+    if brain_geometry == "full":
+        assert np.array_equal(cropped.reference, atlas.reference)
+        assert np.array_equal(cropped.annotation, atlas.annotation)
+    else:
+        # For partial brains, some regions should be masked (set to 0)
+        # The masked atlas should have fewer non-zero voxels
+        assert np.sum(cropped.reference == 0) > np.sum(atlas.reference == 0)
+
+
+def test_crop_atlas_hemisphere_l(atlas):
+    """Test that left hemisphere keeps left side masked."""
+    cropped = crop_atlas(atlas, "hemisphere_l")
+
+    right_hem_locations = atlas.hemispheres == atlas.right_hemisphere_value
+    assert np.all(cropped.reference[right_hem_locations] == 0)
+    assert np.all(cropped.annotation[right_hem_locations] == 0)
+
+    left_hem_locations = atlas.hemispheres == atlas.left_hemisphere_value
+    assert np.any(cropped.reference[left_hem_locations] != 0)
+
+
+def test_crop_atlas_hemisphere_r(atlas):
+    """Test that right hemisphere keeps right side masked."""
+    cropped = crop_atlas(atlas, "hemisphere_r")
+
+    left_hem_locations = atlas.hemispheres == atlas.left_hemisphere_value
+    assert np.all(cropped.reference[left_hem_locations] == 0)
+    assert np.all(cropped.annotation[left_hem_locations] == 0)
+
+    right_hem_locations = atlas.hemispheres == atlas.right_hemisphere_value
+    assert np.any(cropped.reference[right_hem_locations] != 0)
+
+
+def test_crop_atlas_quarter_al(atlas):
+    """Test that anterior-left quarter masks correctly.
+
+    BrainGlobe "asr" orientation:
+    - Index 0 (AP): 0=Anterior, max=Posterior
+    - Index 2 (ML): 0=Right, max=Left
+    So Anterior-Left means: keep small indices on axis 0,
+    and keep large indices on axis 2.
+    """
+    cropped = crop_atlas(atlas, "quarter_al")
+
+    cropped_nonzero = np.sum(cropped.reference != 0)
+    full_nonzero = np.sum(atlas.reference != 0)
+    assert cropped_nonzero < full_nonzero
+
+    # Posterior (large indices on axis 0) should be completely masked
+    ap_axis = 0
+    ap_midpoint = atlas.reference.shape[ap_axis] // 2
+    posterior_locations = np.arange(
+        ap_midpoint, atlas.reference.shape[ap_axis]
+    )
+    posterior_slice = (posterior_locations, slice(None), slice(None))
+    assert np.all(cropped.reference[posterior_slice] == 0)
+
+    # Right (small indices on axis 2) should be completely masked
+    ml_axis = 2
+    ml_midpoint = atlas.reference.shape[ml_axis] // 2
+    right_locations = np.arange(0, ml_midpoint)
+    right_slice = (slice(None), slice(None), right_locations)
+    assert np.all(cropped.reference[right_slice] == 0)
+
+
+def test_crop_atlas_invalid_geometry(atlas):
+    """Test that invalid geometry raises ValueError."""
+    with pytest.raises(ValueError):
+        crop_atlas(atlas, "invalid_geometry")
