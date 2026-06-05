@@ -27,7 +27,6 @@ from dask_image.ndinterp import affine_transform as dask_affine_transform
 from fancylog import fancylog
 from napari.qt.threading import (
     create_worker,
-    thread_worker,
 )
 from napari.utils.events import Event
 from napari.utils.notifications import show_error
@@ -69,9 +68,10 @@ from brainglobe_registration.utils.napari import (
     get_data_from_napari_layer,
     get_image_layer_names,
 )
-from brainglobe_registration.utils.transforms import (
-    create_rotation_matrix,
-    rotate_volume,
+from brainglobe_registration.utils.plane_sampling import (
+    compute_rotation_offset,
+    sample_annotation_plane,
+    sample_plane,
 )
 from brainglobe_registration.utils.visuals import generate_checkerboard
 from brainglobe_registration.widgets.adjust_moving_image_view import (
@@ -106,6 +106,22 @@ class RegistrationWidget(QScrollArea):
         self._atlas_2d_slice_corners: npt.NDArray = np.zeros((4, 3))
         self._moving_image: Optional[napari.layers.Image] = None
         self._moving_image_data_backup: Optional[npt.NDArray] = None
+
+        # Plane sampling state :
+        self._plane_sampling_active: bool = False
+        self._plane_inv_rotation: npt.NDArray = np.eye(3)
+        self._plane_offset: npt.NDArray = np.zeros(3)
+        self._plane_output_shape: Tuple[int, int, int] = (0, 0, 0)
+        self._interpolation_order: int = (
+            1  # Default to linear (0=nearest, 1=linear)
+        )
+        self._sampled_reference_layer: Optional[napari.layers.Image] = None
+        self._sampled_annotations_layer: Optional[napari.layers.Labels] = None
+        self._dims_slider_connection = None
+        self._plane_sampling_timer = QTimer()
+        self._plane_sampling_timer.setSingleShot(True)
+        self._plane_sampling_timer.setInterval(5)  # 5ms debounc
+        self._plane_sampling_timer.timeout.connect(self._update_sampled_plane)
 
         self.moving_anatomical_space: Optional[AnatomicalSpace] = None
         # Flag to differentiate between manual and automatic atlas deletion
@@ -185,6 +201,9 @@ class RegistrationWidget(QScrollArea):
         )
         self.adjust_moving_image_widget.reset_moving_image_signal.connect(
             self._on_moving_image_reset
+        )
+        self.adjust_moving_image_widget.interpolation_order_changed.connect(
+            self._on_interpolation_order_changed
         )
 
         self.transform_select_view = TransformSelectView()
@@ -322,6 +341,9 @@ class RegistrationWidget(QScrollArea):
             self.get_atlas_widget.reset_atlas_combobox()
 
     def _delete_atlas_layers(self):
+        # Clean up plane sampling state first
+        self._deactivate_plane_sampling()
+
         # Delete atlas reference layer if it exists
         if self._atlas_data_layer in self._viewer.layers:
             self._viewer.layers.remove(self._atlas_data_layer)
@@ -338,7 +360,6 @@ class RegistrationWidget(QScrollArea):
         self._reset_atlas_attributes()
 
         self.run_button.setEnabled(False)
-        self._viewer.grid.enabled = False
 
     def _reset_atlas_attributes(self):
         self._atlas_transform_matrix = np.eye(3)
@@ -406,8 +427,6 @@ class RegistrationWidget(QScrollArea):
             visible=False,
         )
 
-        self._viewer.grid.enabled = True
-
     def _on_sample_dropdown_index_changed(self, index):
         viewer_index = find_layer_index(
             self._viewer, self._sample_images[index]
@@ -456,7 +475,10 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        if self._moving_image == self._atlas_data_layer:
+        if self._moving_image in (
+            self._atlas_data_layer,
+            self._sampled_reference_layer,
+        ):
             display_info(
                 widget=self,
                 title="Warning",
@@ -476,20 +498,35 @@ class RegistrationWidget(QScrollArea):
         moving_image = get_data_from_napari_layer(self._moving_image).astype(
             np.uint16
         )
-        self._atlas_2d_slice_index = self._viewer.dims.current_step[0]
+        self._atlas_2d_slice_index = int(self._viewer.dims.current_step[0])
 
         if self._moving_image.data.ndim == 2:
-            atlas_selection = (
-                slice(
-                    self._atlas_2d_slice_index, self._atlas_2d_slice_index + 1
-                ),
+            using_sampled_plane = (
+                self._plane_sampling_active
+                and self._sampled_reference_layer is not None
+                and self._sampled_annotations_layer is not None
             )
-            atlas_image = get_data_from_napari_layer(
-                self._atlas_data_layer, atlas_selection
-            ).astype(np.float32)
-            annotation_image = get_data_from_napari_layer(
-                self._atlas_annotations_layer, atlas_selection
-            )
+
+            if using_sampled_plane:
+                atlas_image = get_data_from_napari_layer(
+                    self._sampled_reference_layer
+                ).astype(np.float32)
+                annotation_image = get_data_from_napari_layer(
+                    self._sampled_annotations_layer
+                )
+            else:
+                atlas_selection = (
+                    slice(
+                        self._atlas_2d_slice_index,
+                        self._atlas_2d_slice_index + 1,
+                    ),
+                )
+                atlas_image = get_data_from_napari_layer(
+                    self._atlas_data_layer, atlas_selection
+                ).astype(np.float32)
+                annotation_image = get_data_from_napari_layer(
+                    self._atlas_annotations_layer, atlas_selection
+                )
 
             moving_image = moving_image.astype(np.float32)
 
@@ -518,32 +555,39 @@ class RegistrationWidget(QScrollArea):
                         "float"
                     ]
 
-            rotated_shape = np.array(self._atlas_data_layer.data.shape)
-            original_shape = np.array(self._atlas.shape)
-
-            atlas_corners = [
-                [self._atlas_2d_slice_index, 0, 0],
-                [self._atlas_2d_slice_index, 0, atlas_image.shape[1]],
-                [self._atlas_2d_slice_index, atlas_image.shape[0], 0],
+            atlas_corners = np.array(
                 [
-                    self._atlas_2d_slice_index,
-                    atlas_image.shape[0],
-                    atlas_image.shape[1],
+                    [self._atlas_2d_slice_index, 0, 0],
+                    [self._atlas_2d_slice_index, 0, atlas_image.shape[1]],
+                    [self._atlas_2d_slice_index, atlas_image.shape[0], 0],
+                    [
+                        self._atlas_2d_slice_index,
+                        atlas_image.shape[0],
+                        atlas_image.shape[1],
+                    ],
                 ],
-            ]
-
-            # Centers
-            rotated_center = rotated_shape / 2.0
-            original_center = original_shape / 2.0
-
-            # Inverse transform: rotated -> original
-            original_corners = np.trunc(
-                (
-                    self._atlas_transform_matrix
-                    @ (atlas_corners - rotated_center).T
-                ).T
-                + original_center
+                dtype=np.float64,
             )
+
+            if using_sampled_plane:
+                original_corners = np.trunc(
+                    (self._atlas_transform_matrix @ atlas_corners.T).T
+                    + self._atlas_offset
+                )
+            else:
+                rotated_shape = np.array(self._atlas_data_layer.data.shape)
+                original_shape = np.array(self._atlas.shape)
+
+                rotated_center = rotated_shape / 2.0
+                original_center = original_shape / 2.0
+
+                original_corners = np.trunc(
+                    (
+                        self._atlas_transform_matrix
+                        @ (atlas_corners - rotated_center).T
+                    ).T
+                    + original_center
+                )
 
             self._atlas_2d_slice_corners = (
                 original_corners * self._atlas.resolution
@@ -724,7 +768,6 @@ class RegistrationWidget(QScrollArea):
             )
 
         self._atlas_data_layer.visible = False
-        self._viewer.grid.enabled = False
 
         # Cache image data for QC (avoids repeated layer queries)
         # Improves performance: get_data_from_napari_layer can be slow
@@ -1137,10 +1180,6 @@ class RegistrationWidget(QScrollArea):
         print(f"Original image shape: {self._moving_image_data_backup.shape}")
         print(f"Atlas shape: {self._atlas.reference.shape}")
 
-        # Resets the viewer grid to update the grid to the scaled moving image
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
-
         print(f"Scaled image shape: {self._moving_image.data.shape}")
         print("---")
 
@@ -1159,10 +1198,6 @@ class RegistrationWidget(QScrollArea):
         self._moving_image.data = self._moving_image_data_backup.copy()
         self.moving_anatomical_space = None
 
-        # Resets the viewer grid to update the grid to the original image
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
-
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
         if not (
             self._atlas
@@ -1174,60 +1209,142 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
-        transform_matrix, offset, bounding_box = create_rotation_matrix(
-            roll,
-            yaw,
-            pitch,
-            self._atlas.reference.shape,
+        # Compute rotation parameters using the new API that fixes clipping
+        # at extreme angles (e.g., 90° pitch)
+        inv_rotation, offset, output_shape_3d = compute_rotation_offset(
+            roll, yaw, pitch, self._atlas.reference.shape
         )
 
-        rotated_reference = rotate_volume(
-            data=self._atlas.reference,
-            reference_shape=self._atlas.reference.shape,
-            final_transform=transform_matrix,
-            bounding_box=bounding_box,
-            interpolation_order=2,
-            offset=offset,
-        )
-
-        rotated_annotations = rotate_volume(
-            data=self._atlas.annotation,
-            reference_shape=self._atlas.reference.shape,
-            final_transform=transform_matrix,
-            bounding_box=bounding_box,
-            interpolation_order=0,
-            offset=offset,
-        )
-
-        self._atlas_transform_matrix = transform_matrix
+        # Store for registration use
+        self._atlas_transform_matrix = inv_rotation
         self._atlas_offset = offset
-        self._atlas_data_layer.data = rotated_reference
-        self._atlas_annotations_layer.data = rotated_annotations
 
-        # Resets the viewer grid to update the grid to the new atlas
-        # The grid is disabled and re-enabled to force the grid to update
+        # Store for plane sampling updates
+        self._plane_inv_rotation = inv_rotation
+        self._plane_offset = offset
+        self._plane_output_shape = output_shape_3d
+
+        # Get the current z-index from the viewer's dimension slider
+        current_z = self._viewer.dims.current_step[0]
+
+        # Sample 2D planes from the static atlas volumes
+        sampled_ref = sample_plane(
+            self._atlas.reference,
+            z_index=float(current_z),
+            inv_rotation=inv_rotation,
+            offset=offset,
+            output_shape=(output_shape_3d[1], output_shape_3d[2]),
+            interpolation_order=self._interpolation_order,
+        )
+        sampled_ann = sample_annotation_plane(
+            self._atlas.annotation,
+            z_index=float(current_z),
+            inv_rotation=inv_rotation,
+            offset=offset,
+            output_shape=(output_shape_3d[1], output_shape_3d[2]),
+        )
+
+        if not self._plane_sampling_active:
+            # First call: hide 3D layers and create sampled 2D layers.
+            self._atlas_data_layer.visible = False
+            self._atlas_annotations_layer.visible = False
+
+            # create a 2d image layer..
+            self._sampled_reference_layer = self._viewer.add_image(
+                sampled_ref,
+                name=f"{self._atlas_data_layer.name} (sampled plane)",
+                colormap="gray",
+                blending="translucent",
+            )
+            self._sampled_annotations_layer = self._viewer.add_labels(
+                sampled_ann.astype(np.uint32),
+                name="Annotations (sampled plane)",
+                visible=False,
+            )
+
+            # Connect dimension slider listener
+            self._dims_slider_connection = (
+                self._viewer.dims.events.current_step.connect(
+                    self._on_dims_slider_changed
+                )
+            )
+
+            self._plane_sampling_active = True
+        else:
+            # Update existing sampled layers
+            if self._sampled_reference_layer is not None:
+                self._sampled_reference_layer.data = sampled_ref
+            if self._sampled_annotations_layer is not None:
+                self._sampled_annotations_layer.data = sampled_ann.astype(
+                    np.uint32
+                )
+
+        # Reset the viewer to center the view
         self._viewer.reset_view()
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
 
-        worker = self.compute_atlas_rotation(self._atlas_data_layer.data)
-        worker.returned.connect(self.set_atlas_layer_data)
-        worker.start()
+    def _on_dims_slider_changed(self, event):
+        """
+        Called on EVERY slider tick. Does NOT compute anything —
+        just restarts the debounce timer.
+        """
+        if not self._plane_sampling_active:
+            return
 
-    @thread_worker
-    def compute_atlas_rotation(self, dask_array: da.Array):
-        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
-        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(False)
+        # Restart timer. If the user is still dragging, the timer keeps
+        self._plane_sampling_timer.start()
 
-        computed_array = dask_array.compute()
+    def _update_sampled_plane(self):
+        """
+        re-samples the plane. Only called by the debounce timer,
+        """
+        if not self._plane_sampling_active:
+            return
 
-        self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
-        self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(True)
+        current_z = float(self._viewer.dims.current_step[0])
 
-        return computed_array
+        # only recompute if z actually changed
+        if (
+            hasattr(self, "_last_sampled_z")
+            and self._last_sampled_z == current_z
+        ):
+            return
+        self._last_sampled_z = current_z
 
-    def set_atlas_layer_data(self, new_data):
-        self._atlas_data_layer.data = new_data
+        sampled_ref = sample_plane(
+            self._atlas.reference,
+            z_index=current_z,
+            inv_rotation=self._plane_inv_rotation,
+            offset=self._plane_offset,
+            output_shape=(
+                self._plane_output_shape[1],
+                self._plane_output_shape[2],
+            ),
+            interpolation_order=self._interpolation_order,
+        )
+
+        if self._sampled_reference_layer is not None:
+            self._sampled_reference_layer.data = sampled_ref
+
+        sampled_annot = sample_annotation_plane(
+            self._atlas.annotation,
+            z_index=current_z,
+            inv_rotation=self._plane_inv_rotation,
+            offset=self._plane_offset,
+            output_shape=(
+                self._plane_output_shape[1],
+                self._plane_output_shape[2],
+            ),
+        )
+
+        if self._sampled_annotations_layer is not None:
+            self._sampled_annotations_layer.data = sampled_annot
+
+    def _on_interpolation_order_changed(self, order: int):
+        """Handle interpolation order change from the UI."""
+        self._interpolation_order = order
+        # Re-sample if plane sampling is active
+        if self._plane_sampling_active:
+            self._update_sampled_plane()
 
     def _on_atlas_reset(self):
         if not self._atlas:
@@ -1236,13 +1353,39 @@ class RegistrationWidget(QScrollArea):
             )
             return
 
+        self._deactivate_plane_sampling()
+
         self._atlas_data_layer.data = self._atlas.reference
+        self._atlas_data_layer.visible = True
         self._atlas_annotations_layer.data = self._atlas.annotation
+        self._atlas_annotations_layer.visible = True
 
         self._reset_atlas_attributes()
 
-        self._viewer.grid.enabled = False
-        self._viewer.grid.enabled = True
+    def _deactivate_plane_sampling(self):
+        """Remove sampled plane layers and disconnect the slider listener."""
+        if self._dims_slider_connection is not None:
+            self._viewer.dims.events.current_step.disconnect(
+                self._on_dims_slider_changed
+            )
+            self._dims_slider_connection = None
+
+        if (
+            self._sampled_reference_layer is not None
+            and self._sampled_reference_layer in self._viewer.layers
+        ):
+            self._viewer.layers.remove(self._sampled_reference_layer)
+        self._sampled_reference_layer = None
+
+        if (
+            self._sampled_annotations_layer is not None
+            and self._sampled_annotations_layer in self._viewer.layers
+        ):
+            self._viewer.layers.remove(self._sampled_annotations_layer)
+        self._sampled_annotations_layer = None
+
+        self._plane_sampling_active = False
+        self._plane_rotation_matrix = np.eye(3)
 
     def _open_auto_slice_dialog(self):
         if not (self._atlas and self._atlas_data_layer):
@@ -1335,6 +1478,7 @@ class RegistrationWidget(QScrollArea):
             params["n_iter"],
             params["metric"],
             params["weights"],
+            params.get("interpolation_order", 1),
         )
 
         i = 0
@@ -1377,9 +1521,9 @@ class RegistrationWidget(QScrollArea):
             self._viewer.dims.set_point(0, z_slice)
 
             # Update pitch, yaw, roll on GUI display
-            self.adjust_moving_image_widget.adjust_atlas_pitch.setValue(pitch)
-            self.adjust_moving_image_widget.adjust_atlas_yaw.setValue(yaw)
-            self.adjust_moving_image_widget.adjust_atlas_roll.setValue(roll)
+            self.adjust_moving_image_widget.set_rotation_values(
+                pitch, yaw, roll
+            )
 
             self.adjust_moving_image_widget.progress_bar.reset()
             self.adjust_moving_image_widget.progress_bar.setVisible(False)
