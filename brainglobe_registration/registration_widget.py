@@ -292,6 +292,10 @@ class RegistrationWidget(QScrollArea):
         self.setWidget(self._widget)
         self._update_is_3d_flag()
 
+        self.adjust_moving_image_widget.region_mask_updated.connect(
+            self._on_region_mask_updated
+        )
+
     def _update_is_3d_flag(self):
         if self._moving_image is None:
             return
@@ -372,6 +376,18 @@ class RegistrationWidget(QScrollArea):
         self.run_button.setEnabled(True)
 
         self._atlas = BrainGlobeAtlas(atlas_name)
+
+        # Populate the masking tree with the new atlas region hierarchy.
+        self.adjust_moving_image_widget.atlas_region_mask_widget.populate_from_atlas(
+            self._atlas
+        )
+
+        # Give the view the raw label volume so that it can
+        # recompute masks when the user changes their region selection.
+        self.adjust_moving_image_widget.full_atlas_labels = (
+            self._atlas.annotation.copy()
+        )
+
         dask_reference = da.from_array(
             self._atlas.reference,
             chunks=(
@@ -490,6 +506,7 @@ class RegistrationWidget(QScrollArea):
             annotation_image = get_data_from_napari_layer(
                 self._atlas_annotations_layer, atlas_selection
             )
+            fixed_mask = self._generate_atlas_mask(annotation_image)
 
             moving_image = moving_image.astype(np.float32)
 
@@ -555,6 +572,8 @@ class RegistrationWidget(QScrollArea):
                 self._atlas_annotations_layer
             )
 
+            fixed_mask = self._generate_atlas_mask(annotation_image)
+
         for transform_selection in self.transform_selections:
             if "FixedImageDimension" not in transform_selection[1]:
                 transform_selection[1]["FixedImageDimension"] = [
@@ -591,6 +610,7 @@ class RegistrationWidget(QScrollArea):
             self.transform_selections,
             self.output_directory,
             filter_images=self.filter_checkbox.isChecked(),
+            moving_mask=fixed_mask,
         )
 
         atlas_in_data_space = da.from_array(
@@ -1383,6 +1403,48 @@ class RegistrationWidget(QScrollArea):
 
             self.adjust_moving_image_widget.progress_bar.reset()
             self.adjust_moving_image_widget.progress_bar.setVisible(False)
+
+    def _generate_atlas_mask(self, annotation_image) -> np.ndarray:
+        """
+        Generate a binary registration mask from the user-selected regions.
+
+        Voxels belonging to a selected region (or any of its descendants)
+        are set to 0 (ignored during registration); all other voxels are 1.
+
+        Returns
+        -------
+        mask : np.ndarray of dtype uint8
+            Same spatial shape as annotation_image.
+        """
+        widget = self.adjust_moving_image_widget.atlas_region_mask_widget
+        selected_ids = widget.selected_region_ids
+
+        mask = np.ones_like(annotation_image, dtype=np.uint8)
+
+        if not selected_ids:
+            return mask
+
+        structures = self._atlas.structures
+        all_ids_to_mask: set[int] = set()
+
+        def collect_descendants(region_id: int) -> None:
+            all_ids_to_mask.add(region_id)
+            for sid, structure in structures.items():
+                if structure.get("parent_structure_id") == region_id:
+                    collect_descendants(sid)
+
+        for region_id in selected_ids:
+            collect_descendants(region_id)
+
+        mask[np.isin(annotation_image, list(all_ids_to_mask))] = 0
+        return mask
+
+    def _on_region_mask_updated(self, mask: np.ndarray):
+        """
+        React to a change in the user's region mask selection.
+        """
+        # mask will be applied at registration time via _generate_atlas_mask
+        pass
 
     def save_outputs(
         self,
