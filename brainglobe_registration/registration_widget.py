@@ -292,8 +292,11 @@ class RegistrationWidget(QScrollArea):
         self.setWidget(self._widget)
         self._update_is_3d_flag()
 
-        self.adjust_moving_image_widget.region_mask_updated.connect(
-            self._on_region_mask_updated
+        self._atlas_base_reference: Optional[npt.NDArray] = None
+        self._atlas_base_annotation: Optional[npt.NDArray] = None
+
+        self.adjust_moving_image_widget.atlas_region_mask_widget.region_toggled.connect(
+            self._on_region_mask_toggled
         )
 
     def _update_is_3d_flag(self):
@@ -339,6 +342,9 @@ class RegistrationWidget(QScrollArea):
         self._atlas_data_layer = None
         self._atlas_annotations_layer = None
 
+        self._atlas_base_reference = None
+        self._atlas_base_annotation = None
+
         self._reset_atlas_attributes()
 
         self.run_button.setEnabled(False)
@@ -378,13 +384,8 @@ class RegistrationWidget(QScrollArea):
         self._atlas = BrainGlobeAtlas(atlas_name)
 
         # Populate the masking tree with the new atlas region hierarchy.
-        self.adjust_moving_image_widget.atlas_region_mask_widget \
-            .populate_from_atlas(self._atlas)
-
-        # Give the view the raw label volume so that it can
-        # recompute masks when the user changes their region selection.
-        self.adjust_moving_image_widget.full_atlas_labels = (
-            self._atlas.annotation.copy()
+        self.adjust_moving_image_widget.atlas_region_mask_widget.populate_from_atlas(
+            self._atlas
         )
 
         dask_reference = da.from_array(
@@ -420,6 +421,9 @@ class RegistrationWidget(QScrollArea):
             name="Annotations",
             visible=False,
         )
+
+        self._atlas_base_reference = dask_reference
+        self._atlas_base_annotation = dask_annotations
 
         self._viewer.grid.enabled = True
 
@@ -499,6 +503,8 @@ class RegistrationWidget(QScrollArea):
                     self._atlas_2d_slice_index, self._atlas_2d_slice_index + 1
                 ),
             )
+
+            """
             atlas_image = get_data_from_napari_layer(
                 self._atlas_data_layer, atlas_selection
             ).astype(np.float32)
@@ -508,6 +514,15 @@ class RegistrationWidget(QScrollArea):
             fixed_mask = self._generate_atlas_mask(
                 annotation_image
             )
+            """
+
+            atlas_image = self._get_unmasked_atlas_array(
+                self._atlas_base_reference, atlas_selection
+            ).astype(np.float32)
+            annotation_image = self._get_unmasked_atlas_array(
+                self._atlas_base_annotation, atlas_selection
+            )
+            fixed_mask = self._generate_atlas_mask(annotation_image)
 
             moving_image = moving_image.astype(np.float32)
 
@@ -568,6 +583,7 @@ class RegistrationWidget(QScrollArea):
             )
 
         else:
+            """
             atlas_image = get_data_from_napari_layer(self._atlas_data_layer)
             annotation_image = get_data_from_napari_layer(
                 self._atlas_annotations_layer
@@ -576,6 +592,15 @@ class RegistrationWidget(QScrollArea):
             fixed_mask = self._generate_atlas_mask(
                 annotation_image
             )
+            """
+            atlas_image = self._get_unmasked_atlas_array(
+                self._atlas_base_reference
+            )
+            annotation_image = self._get_unmasked_atlas_array(
+                self._atlas_base_annotation
+            )
+
+            fixed_mask = self._generate_atlas_mask(annotation_image)
 
         for transform_selection in self.transform_selections:
             if "FixedImageDimension" not in transform_selection[1]:
@@ -1226,6 +1251,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas_offset = offset
         self._atlas_data_layer.data = rotated_reference
         self._atlas_annotations_layer.data = rotated_annotations
+        self._apply_region_mask()
 
         # Resets the viewer grid to update the grid to the new atlas
         # The grid is disabled and re-enabled to force the grid to update
@@ -1250,7 +1276,10 @@ class RegistrationWidget(QScrollArea):
         return computed_array
 
     def set_atlas_layer_data(self, new_data):
-        self._atlas_data_layer.data = new_data
+        # self._atlas_data_layer.data = new_data
+        # self._refresh_region_mask_layers()
+        self._atlas_base_reference = new_data
+        self._apply_region_mask()
 
     def _on_atlas_reset(self):
         if not self._atlas:
@@ -1263,6 +1292,7 @@ class RegistrationWidget(QScrollArea):
         self._atlas_annotations_layer.data = self._atlas.annotation
 
         self._reset_atlas_attributes()
+        self._apply_region_mask()
 
         self._viewer.grid.enabled = False
         self._viewer.grid.enabled = True
@@ -1407,12 +1437,75 @@ class RegistrationWidget(QScrollArea):
             self.adjust_moving_image_widget.progress_bar.reset()
             self.adjust_moving_image_widget.progress_bar.setVisible(False)
 
+    def _on_region_mask_toggled(
+        self, region_id: int, region_name: str, checked: bool
+    ) -> None:
+        """
+        Re-apply the combined region mask whenever a region is checked
+        or unchecked.
+        """
+        self._apply_region_mask()
+
+    def _apply_region_mask(self) -> None:
+        """
+        Mask (zero) the voxels belonging to every currently-checked
+        region (and its descendants) directly on the displayed atlas
+        reference and annotation layers. If nothing is checked, the
+        layers are restored to their unmasked (but still rotated, if
+        applicable) state.
+
+        Note: this only ever touches what is displayed on Napari.
+        The actual arrays used for registration are read from
+        _atlas_base_reference and _atlas_base_annotation, which
+        this method does not touch. This masking therefore
+        cannot corrupt the registered output.
+        """
+        if (
+            self._atlas_data_layer is None
+            or self._atlas_annotations_layer is None
+            or self._atlas_base_reference is None
+            or self._atlas_base_annotation is None
+        ):
+            return
+
+        widget = self.adjust_moving_image_widget.atlas_region_mask_widget
+        selected_ids = widget.selected_region_ids
+
+        if not selected_ids:
+            self._atlas_data_layer.data = self._atlas_base_reference
+            self._atlas_annotations_layer.data = self._atlas_base_annotation
+            return
+
+        all_ids_to_mask: set[int] = set()
+        for region_id in selected_ids:
+            all_ids_to_mask |= widget.get_descendant_ids(region_id)
+
+        xp = da if isinstance(self._atlas_base_annotation, da.Array) else np
+        keep = ~xp.isin(self._atlas_base_annotation, list(all_ids_to_mask))
+
+        # n_masked = int((~keep).sum()) if not isinstance(keep, da.Array) else
+        # int((~keep).sum().compute())
+
+        # print(f"Region mask: masking {len(all_ids_to_mask)} ids,
+        # {n_masked} voxels")
+
+        # print(f"ids to mask: {all_ids_to_mask}")
+
+        self._atlas_data_layer.data = xp.where(
+            keep, self._atlas_base_reference, 0
+        ).astype(self._atlas_base_reference.dtype)
+        self._atlas_annotations_layer.data = xp.where(
+            keep, self._atlas_base_annotation, 0
+        ).astype(self._atlas_base_annotation.dtype)
+
     def _generate_atlas_mask(self, annotation_image) -> np.ndarray:
         """
-        Generate a binary registration mask from the user-selected regions.
+        Generate a binary registration mask from the
+        user-selected regions.
 
-        Voxels belonging to a selected region (or any of its descendants)
-        are set to 0 (ignored during registration); all other voxels are 1.
+        Voxels belonging to a selected region (or any of its
+        descendants) are set to 0 (ignored during registration);
+        all other voxels are 1.
 
         Returns
         -------
@@ -1423,31 +1516,29 @@ class RegistrationWidget(QScrollArea):
         selected_ids = widget.selected_region_ids
 
         mask = np.ones_like(annotation_image, dtype=np.uint8)
-
         if not selected_ids:
             return mask
 
-        structures = self._atlas.structures
         all_ids_to_mask: set[int] = set()
-
-        def collect_descendants(region_id: int) -> None:
-            all_ids_to_mask.add(region_id)
-            for sid, structure in structures.items():
-                if structure.get("parent_structure_id") == region_id:
-                    collect_descendants(sid)
-
         for region_id in selected_ids:
-            collect_descendants(region_id)
+            all_ids_to_mask |= widget.get_descendant_ids(region_id)
 
         mask[np.isin(annotation_image, list(all_ids_to_mask))] = 0
         return mask
 
-    def _on_region_mask_updated(self, mask: np.ndarray):
+    @staticmethod
+    def _get_unmasked_atlas_array(
+        array: npt.NDArray, selection: Optional[Tuple] = None
+    ) -> npt.NDArray:
         """
-        React to a change in the user's region mask selection.
+        Fetch (optionally sliced) data from one of the unmasked base
+        atlas arrays, computing it if it's still dask-backed.
         """
-        # mask will be applied at registration time via _generate_atlas_mask
-        pass
+        if selection is not None:
+            array = array[selection]
+        if isinstance(array, da.Array):
+            array = array.compute()
+        return np.asarray(array)
 
     def save_outputs(
         self,
