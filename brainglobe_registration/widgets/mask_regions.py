@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
-    QScrollArea,
     QPushButton,
     QSizePolicy,
     QTreeWidget,
@@ -11,28 +10,32 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+
 class AtlasRegionMaskWidget(QWidget):
     """
-    A collapsible widget that displays a hierarchical tree of atlas regions.
+    A collapsible widget that displays a hierarchical
+    tree of atlas regions.
 
-    Users can check individual regions (and their descendants) to exclude them
-    from registration via a binary mask.
-    selected_region_ids is the set of directly checked region IDs; descendants
-    are collected when building the actual mask.
+    Users can check individual regions (and their descendants)
+    to exclude them from registration via a binary mask.
+    selected_region_ids is the set of directly checked region IDs;
+    descendants are collected when building the actual mask.
 
     Signals
     -------
-    regions_changed : Signal()
-        Emitted whenever the checked set changes (after all child
-        propagation is complete).
+    region_toggled : Signal(int, str, bool)
+        Emitted whenever a region is (un)checked by the user.
+        Carries (region_id, region_name, checked).
     """
-    regions_changed = Signal()
+
+    region_toggled = Signal(int, str, bool)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         self._selected_region_ids: set[int] = set()
-        # guard that prevents _on_item_changed from re-entering itself while
-        # it is programmatically toggling child check-states.
+        self._children_lookup: dict[int, list[int]] = {}
+        self._item_by_id: dict[int, QTreeWidgetItem] = {}
         self._propagating = False
 
         outer_layout = QVBoxLayout(self)
@@ -40,9 +43,7 @@ class AtlasRegionMaskWidget(QWidget):
         outer_layout.setSpacing(0)
 
         # toggle button (acts as the "dropdown" header)
-        self._toggle_button = QPushButton(
-            "▶  Mask atlas regions (optional)"
-        )
+        self._toggle_button = QPushButton("▶  Mask atlas regions (optional)")
         self._toggle_button.setCheckable(True)
         self._toggle_button.setChecked(False)
         self._toggle_button.setSizePolicy(
@@ -77,26 +78,24 @@ class AtlasRegionMaskWidget(QWidget):
         return self._selected_region_ids
 
     def populate_from_atlas(self, atlas) -> None:
-        """
-        Populate the tree from a BrainGlobe atlas object.
-
-        Parameters
-        ----------
-        atlas :
-            A BrainGlobeAtlas instance whose .structures attribute
-            provides the region hierarchy.
-        """
-        # disconnect signal while rebuilding
         self.tree.itemChanged.disconnect(self._on_item_changed)
         self.tree.clear()
         self._selected_region_ids.clear()
+        self._item_by_id.clear()
 
         structures = atlas.structures
 
         children_lookup: dict[int | None, list[int]] = {}
         for sid, structure in structures.items():
-            parent_id = structure.get("parent_structure_id")
+            path = structure.get("structure_id_path") or [sid]
+            # path is [root_id, ..., parent_id, sid]; second-last is
+            # the direct parent, or None if this is itself the root.
+            parent_id = path[-2] if len(path) > 1 else None
             children_lookup.setdefault(parent_id, []).append(sid)
+
+        self._children_lookup = {
+            k: v for k, v in children_lookup.items() if k is not None
+        }
 
         for root_id in children_lookup.get(None, []):
             self._add_structure_recursive(
@@ -109,19 +108,35 @@ class AtlasRegionMaskWidget(QWidget):
         self.tree.expandToDepth(1)
         self.tree.itemChanged.connect(self._on_item_changed)
 
+    def get_descendant_ids(self, region_id: int) -> set[int]:
+        """
+        Return `region_id` together with every id in its subtree.
+        """
+        ids = {region_id}
+        for child_id in self._children_lookup.get(region_id, []):
+            ids |= self.get_descendant_ids(child_id)
+        return ids
+
+    def uncheck_region(self, region_id: int) -> None:
+        """
+        Programmatically uncheck a region (e.g. if its mask layer was
+        deleted directly from the napari viewer) without recursing.
+        """
+        item = self._item_by_id.get(region_id)
+        if item is not None:
+            item.setCheckState(0, Qt.Unchecked)
+
     def _on_toggle(self, checked: bool) -> None:
         self.tree.setVisible(checked)
         arrow = "▼" if checked else "▶"
-        self._toggle_button.setText(
-            f"{arrow}  Mask atlas regions (optional)"
-        )
+        self._toggle_button.setText(f"{arrow}  Mask atlas regions (optional)")
 
     def _add_structure_recursive(
-            self,
-            parent_item: QTreeWidgetItem | None,
-            structure_id: int,
-            structures: dict,
-            children_lookup: dict,
+        self,
+        parent_item: QTreeWidgetItem | None,
+        structure_id: int,
+        structures: dict,
+        children_lookup: dict,
     ) -> None:
         structure = structures[structure_id]
 
@@ -130,6 +145,7 @@ class AtlasRegionMaskWidget(QWidget):
         item.setData(0, Qt.UserRole, structure_id)
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
         item.setCheckState(0, Qt.Unchecked)
+        self._item_by_id[structure_id] = item
 
         if parent_item is None:
             self.tree.addTopLevelItem(item)
@@ -156,22 +172,17 @@ class AtlasRegionMaskWidget(QWidget):
         else:
             self._selected_region_ids.discard(region_id)
 
-        # propagate the new check-state to all descendants without triggering
-        # this handler recursively (which would corrupt _selected_region_ids).
         self._propagating = True
         try:
             self._set_subtree_checkstate(item, item.checkState(0))
         finally:
             self._propagating = False
 
-        self.regions_changed.emit()
+        self.region_toggled.emit(region_id, item.text(0), checked)
 
     def _set_subtree_checkstate(
-            self, item: QTreeWidgetItem, state: Qt.CheckState
+        self, item: QTreeWidgetItem, state: Qt.CheckState
     ) -> None:
-        """
-        Recursively apply state to every descendant of item.
-        """
         for i in range(item.childCount()):
             child = item.child(i)
             child.setCheckState(0, state)
