@@ -7,13 +7,13 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
-    QWidget,
     QSizePolicy,
+    QWidget,
 )
+
 from brainglobe_registration.widgets.mask_regions import (
     AtlasRegionMaskWidget,
 )
-import numpy as np
 
 
 class AdjustMovingImageView(QWidget):
@@ -51,7 +51,6 @@ class AdjustMovingImageView(QWidget):
     atlas_rotation_signal = Signal(float, float, float)
     reset_atlas_signal = Signal()
     reset_moving_image_signal = Signal()
-    region_mask_updated = Signal(np.ndarray)
 
     def __init__(self, parent=None, auto_slice_callback=None):
         """
@@ -186,20 +185,13 @@ class AdjustMovingImageView(QWidget):
 
         self.atlas_region_mask_widget = AtlasRegionMaskWidget()
         self.atlas_region_mask_widget.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding
+            QSizePolicy.Expanding, QSizePolicy.Expanding
         )
         self.atlas_region_mask_widget.setMinimumHeight(180)
         self.layout().addRow(
             QLabel("Mask atlas regions during registration (optional):")
         )
         self.layout().addRow(self.atlas_region_mask_widget)
-
-        # Internal state needed to recompute the mask array on demand.
-        self.full_atlas_labels: np.ndarray | None = None
-        self.atlas_region_mask_widget.regions_changed.connect(
-            self._on_regions_changed
-        )
 
     def set_is_3d(self, is_3d: bool):
         """
@@ -246,26 +238,6 @@ class AdjustMovingImageView(QWidget):
         Emit the reset_moving_image_signal to restore moving image data.
         """
         self.reset_moving_image_signal.emit()
-
-    def _on_regions_changed(self) -> None:
-        """
-        Recompute the boolean mask and emit `region_mask_updated`.
-        """
-        if self.full_atlas_labels is None:
-            return
-        mask = self._compute_mask()
-        self.region_mask_updated.emit(mask)
-
-    def _compute_mask(self) -> np.ndarray:
-        """
-        Build a boolean mask from the currently selected region IDs.
-        The mask has the same shape as `full_atlas_labels`.
-        """
-        mask = np.ones_like(self.full_atlas_labels, dtype=bool)
-        selected = self.atlas_region_mask_widget.selected_region_ids
-        if selected:
-            mask[np.isin(self.full_atlas_labels, list(selected))] = False
-        return mask
 
     def __dict__(self):
         return {
