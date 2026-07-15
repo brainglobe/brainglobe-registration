@@ -1,5 +1,6 @@
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import Qt, QTimer, Signal
 from qtpy.QtWidgets import (
+    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
@@ -7,8 +8,68 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
+    QSlider,
     QWidget,
 )
+
+
+class ThrottledTimer:
+    """
+    A throttling timer using QTimer.
+
+    Throttling ensures a function is called at most once per interval,
+    providing consistent update rate during rapid changes (e.g., slider drag).
+    Unlike debouncing which waits for activity to stop, throttling fires
+    immediately and then blocks further calls until the interval passes.
+    """
+
+    def __init__(self, interval_ms: int, callback, parent=None):
+        """
+        Initialize the throttled timer.
+
+        Parameters
+        ----------
+        interval_ms : int
+            Minimum interval between callback invocations in milliseconds.
+        callback : callable
+            Function to call when throttle fires.
+        parent : QObject, optional
+            Parent for the internal QTimer.
+        """
+        self._interval = interval_ms
+        self._timer = QTimer(parent)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._on_timeout)
+        self._callback = callback
+        self._is_ready = True
+        self._pending = False
+
+    def trigger(self):
+        """
+        Request a callback invocation.
+
+        If ready, fires immediately and starts cooldown.
+        If in cooldown, marks as pending for execution when cooldown ends.
+        """
+        if self._is_ready:
+            self._is_ready = False
+            self._callback()
+            self._timer.start(self._interval)
+        else:
+            self._pending = True
+
+    def _on_timeout(self):
+        """Handle cooldown timeout."""
+        if self._pending:
+            self._pending = False
+            self._callback()
+            self._timer.start(self._interval)
+        else:
+            self._is_ready = True
+
+    def is_active(self) -> bool:
+        """Return True if timer is in cooldown period."""
+        return self._timer.isActive()
 
 
 class AdjustMovingImageView(QWidget):
@@ -29,6 +90,8 @@ class AdjustMovingImageView(QWidget):
         and roll.
     reset_atlas_signal : Signal
         Emitted when the atlas is reset.
+    interpolation_order_changed : Signal
+        Emitted when the interpolation order changes. Emits 0 or 1.
 
     Methods
     -------
@@ -44,6 +107,7 @@ class AdjustMovingImageView(QWidget):
     atlas_rotation_signal = Signal(float, float, float)
     reset_atlas_signal = Signal()
     reset_moving_image_signal = Signal()
+    interpolation_order_changed = Signal(int)
 
     def __init__(self, parent=None, auto_slice_callback=None):
         """
@@ -58,8 +122,6 @@ class AdjustMovingImageView(QWidget):
 
         self.setLayout(QFormLayout())
         self.layout().setLabelAlignment(Qt.AlignLeft)
-
-        rotation_range = 360
 
         self.adjust_moving_image_pixel_size_x = QDoubleSpinBox(parent=self)
         self.adjust_moving_image_pixel_size_x.setDecimals(3)
@@ -89,23 +151,74 @@ class AdjustMovingImageView(QWidget):
             self._on_moving_image_reset
         )
 
-        self.adjust_atlas_pitch = QDoubleSpinBox(parent=self)
-        self.adjust_atlas_pitch.setSingleStep(0.1)
-        self.adjust_atlas_pitch.setRange(-rotation_range, rotation_range)
+        # Create slider + spinbox pairs for rotation controls
+        # Pitch
+        self.adjust_atlas_pitch = QSlider(Qt.Horizontal, parent=self)
+        self.adjust_atlas_pitch.setRange(-1800, 1800)  # -180 to 180 in 0.1 deg
+        self.adjust_atlas_pitch.setValue(0)
+        self.adjust_atlas_pitch.setTickInterval(450)  # Tick every 45 degrees
+        self.adjust_atlas_pitch.valueChanged.connect(
+            self._on_pitch_slider_changed
+        )
 
-        self.adjust_atlas_yaw = QDoubleSpinBox(parent=self)
-        self.adjust_atlas_yaw.setSingleStep(0.1)
-        self.adjust_atlas_yaw.setRange(-rotation_range, rotation_range)
+        self.pitch_spinbox = QDoubleSpinBox(parent=self)
+        self.pitch_spinbox.setRange(-180.0, 180.0)
+        self.pitch_spinbox.setDecimals(1)
+        self.pitch_spinbox.setSingleStep(0.1)
+        self.pitch_spinbox.setValue(0.0)
+        self.pitch_spinbox.setSuffix("°")
+        self.pitch_spinbox.setFixedWidth(80)
+        self.pitch_spinbox.editingFinished.connect(
+            self._on_pitch_spinbox_edited
+        )
 
-        self.adjust_atlas_roll = QDoubleSpinBox(parent=self)
-        self.adjust_atlas_roll.setSingleStep(0.1)
-        self.adjust_atlas_roll.setRange(-rotation_range, rotation_range)
+        # Yaw
+        self.adjust_atlas_yaw = QSlider(Qt.Horizontal, parent=self)
+        self.adjust_atlas_yaw.setRange(-1800, 1800)
+        self.adjust_atlas_yaw.setValue(0)
+        self.adjust_atlas_yaw.setTickInterval(450)
+        self.adjust_atlas_yaw.valueChanged.connect(self._on_yaw_slider_changed)
 
-        self.adjust_atlas_rotation = QPushButton()
-        self.adjust_atlas_rotation.setText("Rotate Atlas")
-        self.adjust_atlas_rotation.clicked.connect(
+        self.yaw_spinbox = QDoubleSpinBox(parent=self)
+        self.yaw_spinbox.setRange(-180.0, 180.0)
+        self.yaw_spinbox.setDecimals(1)
+        self.yaw_spinbox.setSingleStep(0.1)
+        self.yaw_spinbox.setValue(0.0)
+        self.yaw_spinbox.setSuffix("°")
+        self.yaw_spinbox.setFixedWidth(80)
+        self.yaw_spinbox.editingFinished.connect(self._on_yaw_spinbox_edited)
+
+        # Roll
+        self.adjust_atlas_roll = QSlider(Qt.Horizontal, parent=self)
+        self.adjust_atlas_roll.setRange(-1800, 1800)
+        self.adjust_atlas_roll.setValue(0)
+        self.adjust_atlas_roll.setTickInterval(450)
+        self.adjust_atlas_roll.valueChanged.connect(
+            self._on_roll_slider_changed
+        )
+
+        self.roll_spinbox = QDoubleSpinBox(parent=self)
+        self.roll_spinbox.setRange(-180.0, 180.0)
+        self.roll_spinbox.setDecimals(1)
+        self.roll_spinbox.setSingleStep(0.1)
+        self.roll_spinbox.setValue(0.0)
+        self.roll_spinbox.setSuffix("°")
+        self.roll_spinbox.setFixedWidth(80)
+        self.roll_spinbox.editingFinished.connect(self._on_roll_spinbox_edited)
+
+        # Throttle timer for live slider updates (5ms)
+        self._rotation_throttle_timer = ThrottledTimer(
+            5, self._on_adjust_atlas_rotation, parent=self
+        )
+
+        # Debounce timer (kept but not used) - waits for activity to stop
+        self._rotation_debounce_timer = QTimer(self)
+        self._rotation_debounce_timer.setSingleShot(True)
+        self._rotation_debounce_timer.setInterval(5)
+        self._rotation_debounce_timer.timeout.connect(
             self._on_adjust_atlas_rotation
         )
+
         self.reset_atlas_button = QPushButton()
         self.reset_atlas_button.setText("Reset Atlas")
         self.reset_atlas_button.clicked.connect(self._on_atlas_reset)
@@ -170,10 +283,49 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(
             QLabel("Manually refine the atlas pitch and yaw: ")
         )
-        self.layout().addRow("Pitch:", self.adjust_atlas_pitch)
-        self.layout().addRow("Yaw:", self.adjust_atlas_yaw)
-        self.layout().addRow("Roll:", self.adjust_atlas_roll)
-        self.layout().addRow(self.adjust_atlas_rotation)
+
+        # Create horizontal layouts for slider + spinbox pairs
+        pitch_layout = QHBoxLayout()
+        pitch_layout.setContentsMargins(0, 0, 0, 0)
+        pitch_layout.addWidget(self.adjust_atlas_pitch, stretch=1)
+        pitch_layout.addWidget(self.pitch_spinbox)
+        pitch_container = QWidget(self)
+        pitch_container.setLayout(pitch_layout)
+        self.layout().addRow(QLabel("Pitch:"))
+        self.layout().addRow(pitch_container)
+
+        yaw_layout = QHBoxLayout()
+        yaw_layout.setContentsMargins(0, 0, 0, 0)
+        yaw_layout.addWidget(self.adjust_atlas_yaw, stretch=1)
+        yaw_layout.addWidget(self.yaw_spinbox)
+        yaw_container = QWidget(self)
+        yaw_container.setLayout(yaw_layout)
+        self.layout().addRow(QLabel("Yaw:"))
+        self.layout().addRow(yaw_container)
+
+        roll_layout = QHBoxLayout()
+        roll_layout.setContentsMargins(0, 0, 0, 0)
+        roll_layout.addWidget(self.adjust_atlas_roll, stretch=1)
+        roll_layout.addWidget(self.roll_spinbox)
+        roll_container = QWidget(self)
+        roll_container.setLayout(roll_layout)
+        self.layout().addRow(QLabel("Roll:"))
+        self.layout().addRow(roll_container)
+
+        # Interpolation order dropdown (0=Nearest, 1=Linear)
+        self.interpolation_order_dropdown = QComboBox(parent=self)
+        self.interpolation_order_dropdown.addItem("0", 0)
+        self.interpolation_order_dropdown.addItem("1", 1)
+        self.interpolation_order_dropdown.setCurrentIndex(
+            1
+        )  # Default to Linear
+        self.interpolation_order_dropdown.currentIndexChanged.connect(
+            self._on_interpolation_order_changed
+        )
+        self.layout().addRow(
+            "Interpolation:", self.interpolation_order_dropdown
+        )
+
         self.layout().addRow(self.reset_atlas_button)
 
     def set_is_3d(self, is_3d: bool):
@@ -196,23 +348,108 @@ class AdjustMovingImageView(QWidget):
             self.data_orientation_field.text(),
         )
 
+    def _on_pitch_slider_changed(self, value: int):
+        """
+        Handle pitch slider value changes.
+        Update spinbox and trigger rotation with throttling.
+        """
+        degrees = value / 10.0
+        self.pitch_spinbox.blockSignals(True)
+        self.pitch_spinbox.setValue(degrees)
+        self.pitch_spinbox.blockSignals(False)
+        self._rotation_throttle_timer.trigger()
+
+    def _on_yaw_slider_changed(self, value: int):
+        """
+        Handle yaw slider value changes.
+        Update spinbox and trigger rotation with throttling.
+        """
+        degrees = value / 10.0
+        self.yaw_spinbox.blockSignals(True)
+        self.yaw_spinbox.setValue(degrees)
+        self.yaw_spinbox.blockSignals(False)
+        self._rotation_throttle_timer.trigger()
+
+    def _on_roll_slider_changed(self, value: int):
+        """
+        Handle roll slider value changes.
+        Update spinbox and trigger rotation with throttling.
+        """
+        degrees = value / 10.0
+        self.roll_spinbox.blockSignals(True)
+        self.roll_spinbox.setValue(degrees)
+        self.roll_spinbox.blockSignals(False)
+        self._rotation_throttle_timer.trigger()
+
+    def _on_pitch_spinbox_edited(self):
+        """
+        Handle pitch spinbox editing finished (Enter or focus lost).
+        Update slider and trigger rotation.
+        """
+        degrees = self.pitch_spinbox.value()
+        self.adjust_atlas_pitch.blockSignals(True)
+        self.adjust_atlas_pitch.setValue(int(degrees * 10))
+        self.adjust_atlas_pitch.blockSignals(False)
+        self._on_adjust_atlas_rotation()
+
+    def _on_yaw_spinbox_edited(self):
+        """
+        Handle yaw spinbox editing finished (Enter or focus lost).
+        Update slider and trigger rotation.
+        """
+        degrees = self.yaw_spinbox.value()
+        self.adjust_atlas_yaw.blockSignals(True)
+        self.adjust_atlas_yaw.setValue(int(degrees * 10))
+        self.adjust_atlas_yaw.blockSignals(False)
+        self._on_adjust_atlas_rotation()
+
+    def _on_roll_spinbox_edited(self):
+        """
+        Handle roll spinbox editing finished (Enter or focus lost).
+        Update slider and trigger rotation.
+        """
+        degrees = self.roll_spinbox.value()
+        self.adjust_atlas_roll.blockSignals(True)
+        self.adjust_atlas_roll.setValue(int(degrees * 10))
+        self.adjust_atlas_roll.blockSignals(False)
+        self._on_adjust_atlas_rotation()
+
     def _on_adjust_atlas_rotation(self):
         """
-        Emit the atlas_rotation_signal with the entered pitch and yaw.
+        Emit the atlas_rotation_signal with the current slider values.
+        Slider values are in tenths of degrees, so divide by 10.
         """
         self.atlas_rotation_signal.emit(
-            self.adjust_atlas_pitch.value(),
-            self.adjust_atlas_yaw.value(),
-            self.adjust_atlas_roll.value(),
+            self.adjust_atlas_pitch.value() / 10.0,
+            self.adjust_atlas_yaw.value() / 10.0,
+            self.adjust_atlas_roll.value() / 10.0,
         )
 
     def _on_atlas_reset(self):
         """
         Reset the pitch, yaw, and roll to 0 and emit the atlas_reset_signal.
         """
+        # Block signals to avoid triggering rotation during reset
+        self.adjust_atlas_yaw.blockSignals(True)
+        self.adjust_atlas_pitch.blockSignals(True)
+        self.adjust_atlas_roll.blockSignals(True)
+        self.pitch_spinbox.blockSignals(True)
+        self.yaw_spinbox.blockSignals(True)
+        self.roll_spinbox.blockSignals(True)
+
         self.adjust_atlas_yaw.setValue(0)
         self.adjust_atlas_pitch.setValue(0)
         self.adjust_atlas_roll.setValue(0)
+        self.pitch_spinbox.setValue(0.0)
+        self.yaw_spinbox.setValue(0.0)
+        self.roll_spinbox.setValue(0.0)
+
+        self.adjust_atlas_yaw.blockSignals(False)
+        self.adjust_atlas_pitch.blockSignals(False)
+        self.adjust_atlas_roll.blockSignals(False)
+        self.pitch_spinbox.blockSignals(False)
+        self.yaw_spinbox.blockSignals(False)
+        self.roll_spinbox.blockSignals(False)
 
         self.reset_atlas_signal.emit()
 
@@ -222,12 +459,53 @@ class AdjustMovingImageView(QWidget):
         """
         self.reset_moving_image_signal.emit()
 
+    def _on_interpolation_order_changed(self, index: int):
+        """
+        Emit interpolation_order_changed signal with the selected order.
+        """
+        order = self.interpolation_order_dropdown.currentData()
+        self.interpolation_order_changed.emit(order)
+
+    def get_interpolation_order(self) -> int:
+        """Return the currently selected interpolation order (0 or 1)."""
+        return self.interpolation_order_dropdown.currentData()
+
+    def set_rotation_values(self, pitch: float, yaw: float, roll: float):
+        """
+        Set slider and spinbox values programmatically.
+        Values are in degrees; converted to tenths internally for sliders.
+        """
+        # Block signals to avoid triggering live updates
+        self.adjust_atlas_pitch.blockSignals(True)
+        self.adjust_atlas_yaw.blockSignals(True)
+        self.adjust_atlas_roll.blockSignals(True)
+        self.pitch_spinbox.blockSignals(True)
+        self.yaw_spinbox.blockSignals(True)
+        self.roll_spinbox.blockSignals(True)
+
+        self.adjust_atlas_pitch.setValue(int(pitch * 10))
+        self.adjust_atlas_yaw.setValue(int(yaw * 10))
+        self.adjust_atlas_roll.setValue(int(roll * 10))
+        self.pitch_spinbox.setValue(pitch)
+        self.yaw_spinbox.setValue(yaw)
+        self.roll_spinbox.setValue(roll)
+
+        self.adjust_atlas_pitch.blockSignals(False)
+        self.adjust_atlas_yaw.blockSignals(False)
+        self.adjust_atlas_roll.blockSignals(False)
+        self.pitch_spinbox.blockSignals(False)
+        self.yaw_spinbox.blockSignals(False)
+        self.roll_spinbox.blockSignals(False)
+
     def __dict__(self):
         return {
             "pixel_size_x": self.adjust_moving_image_pixel_size_x.value(),
             "pixel_size_y": self.adjust_moving_image_pixel_size_y.value(),
             "pixel_size_z": self.adjust_moving_image_pixel_size_z.value(),
-            "atlas_pitch": self.adjust_atlas_pitch.value(),
-            "atlas_yaw": self.adjust_atlas_yaw.value(),
-            "atlas_roll": self.adjust_atlas_roll.value(),
+            "atlas_pitch": self.adjust_atlas_pitch.value() / 10.0,
+            "atlas_yaw": self.adjust_atlas_yaw.value() / 10.0,
+            "atlas_roll": self.adjust_atlas_roll.value() / 10.0,
+            "interpolation_order": (
+                self.interpolation_order_dropdown.currentData()
+            ),
         }
