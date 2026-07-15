@@ -64,6 +64,14 @@ class QCWidget(QWidget):
         )
         self.layout().addWidget(self.checkerboard_checkbox)
 
+        self.intensity_map_checkbox = QCheckBox("Intensity Difference Map")
+        self.intensity_map_checkbox.setEnabled(False)
+        self.intensity_map_checkbox.setChecked(False)
+        self.intensity_map_checkbox.setToolTip(
+            "Select to generate intensity-difference visualization"
+        )
+        self.layout().addWidget(self.intensity_map_checkbox)
+
         # Checkerboard square size parameter
         square_size_layout = QHBoxLayout()
         square_size_layout.setContentsMargins(0, 0, 0, 0)
@@ -107,7 +115,9 @@ class QCWidget(QWidget):
         enabled : bool
             Whether to enable the QC controls.
         """
+
         self.checkerboard_checkbox.setEnabled(enabled)
+        self.intensity_map_checkbox.setEnabled(enabled)
         self.square_size_spinbox.setEnabled(enabled)
         self.plot_qc_button.setEnabled(enabled)
         self.clear_qc_button.setEnabled(enabled)
