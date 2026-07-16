@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
+    QDialog,
+    QLabel,
     QPushButton,
-    QSizePolicy,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -11,10 +12,9 @@ from qtpy.QtWidgets import (
 )
 
 
-class AtlasRegionMaskWidget(QWidget):
+class MaskRegionsDialog(QDialog):
     """
-    A collapsible widget that displays a hierarchical
-    tree of atlas regions.
+    A dialog that displays a hierarchical tree of atlas regions.
 
     Users can check individual regions (and their descendants)
     to exclude them from registration via a binary mask.
@@ -32,42 +32,46 @@ class AtlasRegionMaskWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setWindowTitle("Mask Atlas Regions")
+        layout = QVBoxLayout(self)
+
+        self.info_label = QLabel(
+            "Instructions:\n1. Move your moving image to the side using the "
+            "transform tool, which has automatically been activated.\n"
+            "2. Use the region hierarchy tree to select the region(s) you "
+            "would like to exclude from registration.\n3. To refine region "
+            "edges or to manually mask areas of the atlas, navigate to the "
+            "'Masking' layer on the left.\n4. After selecting the 'Masking' "
+            "layer, use the paint tool to manually refine the areas you would"
+            " like to mask. You may wish to outline using the paint tool, and"
+            " fill using the bucket tool.\n5. Press 'Done' when you are happy"
+            " to proceed.\n"
+        )
+        self.info_label.setWordWrap(True)
+        self.info_label.setStyleSheet("color: #ffffff;")
+        layout.addWidget(self.info_label)
 
         self._selected_region_ids: set[int] = set()
         self._children_lookup: dict[int, list[int]] = {}
         self._item_by_id: dict[int, QTreeWidgetItem] = {}
         self._propagating = False
 
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.setSpacing(0)
-
-        # toggle button (acts as the "dropdown" header)
-        self._toggle_button = QPushButton("▶  Mask atlas regions (optional)")
-        self._toggle_button.setCheckable(True)
-        self._toggle_button.setChecked(False)
-        self._toggle_button.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Expanding
-        )
-        self._toggle_button.setStyleSheet(
-            "QPushButton { text-align: left; padding: 4px 8px; }"
-        )
-        self._toggle_button.toggled.connect(self._on_toggle)
-        outer_layout.addWidget(self._toggle_button)
-
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.setRootIsDecorated(True)
         self.tree.setUniformRowHeights(True)
         self.tree.setVerticalScrollMode(QTreeWidget.ScrollPerPixel)
-        self.tree.setMinimumHeight(180)
+        self.tree.setMinimumHeight(400)
 
         self.tree.itemChanged.connect(self._on_item_changed)
+        layout.addWidget(self.tree)
 
-        outer_layout.addWidget(self.tree)
+        self.close_button = QPushButton("Done")
+        self.close_button.clicked.connect(self.accept)
+        layout.addWidget(self.close_button)
 
-        self.tree.setVisible(False)
-        self.setLayout(outer_layout)
+        self.setLayout(layout)
+        self.resize(400, 500)
 
     @property
     def selected_region_ids(self) -> set[int]:
@@ -89,7 +93,7 @@ class AtlasRegionMaskWidget(QWidget):
         for sid, structure in structures.items():
             path = structure.get("structure_id_path") or [sid]
             # path is [root_id, ..., parent_id, sid]; second-last is
-            # the direct parent, or None if this is itself the root.
+            # the direct parent, or None if this is itself the root
             parent_id = path[-2] if len(path) > 1 else None
             children_lookup.setdefault(parent_id, []).append(sid)
 
