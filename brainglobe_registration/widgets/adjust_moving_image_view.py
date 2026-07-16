@@ -7,12 +7,7 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QProgressBar,
     QPushButton,
-    QSizePolicy,
     QWidget,
-)
-
-from brainglobe_registration.widgets.mask_regions import (
-    AtlasRegionMaskWidget,
 )
 
 
@@ -34,8 +29,6 @@ class AdjustMovingImageView(QWidget):
         and roll.
     reset_atlas_signal : Signal
         Emitted when the atlas is reset.
-    region_mask_updated : Signal(np.ndarray)
-        Emitted when the set of masked regions changes.
 
     Methods
     -------
@@ -52,7 +45,12 @@ class AdjustMovingImageView(QWidget):
     reset_atlas_signal = Signal()
     reset_moving_image_signal = Signal()
 
-    def __init__(self, parent=None, auto_slice_callback=None):
+    def __init__(
+        self,
+        parent=None,
+        auto_slice_callback=None,
+        masking_callback=None,
+    ):
         """
         Initialize the widget.
 
@@ -183,15 +181,16 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)
 
-        self.atlas_region_mask_widget = AtlasRegionMaskWidget()
-        self.atlas_region_mask_widget.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Expanding
+        masking_label = QLabel(
+            "Optionally mask atlas regions that "
+            "you would like to exclude from registration:"
         )
-        self.atlas_region_mask_widget.setMinimumHeight(180)
-        self.layout().addRow(
-            QLabel("Mask atlas regions during registration (optional):")
-        )
-        self.layout().addRow(self.atlas_region_mask_widget)
+        masking_label.setWordWrap(True)
+        self.layout().addRow(masking_label)
+        if masking_callback is not None:
+            self.mask_button = QPushButton("Mask Atlas Regions")
+            self.mask_button.clicked.connect(masking_callback)
+            self.layout().addRow(self.mask_button)
 
     def set_is_3d(self, is_3d: bool):
         """
