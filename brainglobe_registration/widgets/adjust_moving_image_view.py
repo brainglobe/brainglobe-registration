@@ -112,7 +112,7 @@ class AdjustMovingImageView(QWidget):
             self._on_adjust_atlas_rotation
         )
         self.reset_atlas_button = QPushButton()
-        self.reset_atlas_button.setText("Reset Atlas")
+        self.reset_atlas_button.setText("Reset Atlas Rotations")
         self.reset_atlas_button.clicked.connect(self._on_atlas_reset)
 
         self.layout().addRow(QLabel("Prepare the moving image:"))
