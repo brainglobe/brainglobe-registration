@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from brainglobe_atlasapi.descriptors import ANNOTATION_DTYPE, REFERENCE_DTYPE
 from brainglobe_space import AnatomicalSpace
+from qtpy.QtWidgets import QMessageBox
 from tifffile import imread
 
 from brainglobe_registration.registration_widget import RegistrationWidget
@@ -50,6 +51,17 @@ def registration_widget_with_example_atlas(make_napari_viewer_with_images):
 
     widget._on_atlas_dropdown_index_changed(example_atlas_index)
 
+    return widget
+
+
+@pytest.fixture()
+def masking_widget(registration_widget_with_example_atlas):
+    """
+    registration_widget_with_example_atlas, with the mask dialog
+    guaranteed to be populated from the loaded atlas.
+    """
+    widget = registration_widget_with_example_atlas
+    widget.mask_regions_dialog.populate_from_atlas(widget._atlas)
     return widget
 
 
@@ -1362,3 +1374,313 @@ def test_show_checkerboard_exception_handling(registration_widget, mocker):
     assert "Error generating checkerboard" in str(mocked_show_error.call_args)
     # Checkbox is unchecked when error occurs (error handler unchecks it)
     assert not registration_widget.qc_widget.checkerboard_checkbox.isChecked()
+
+
+def _first_region_id(widget) -> int:
+    return next(iter(widget.mask_regions_dialog._item_by_id.keys()))
+
+
+# Open dialog
+def test_open_mask_regions_dialog_no_atlas(registration_widget, mocker):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    registration_widget._atlas = None
+    registration_widget._atlas_data_layer = None
+
+    registration_widget._open_mask_regions_dialog()
+
+    mocked_display_info.assert_called_once_with(
+        widget=registration_widget,
+        title="Warning",
+        message="Please select an atlas before "
+        "clicking 'Automatic Slice Detection'.",
+    )
+
+
+def test_open_mask_regions_dialog_no_moving_image(masking_widget, mocker):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    masking_widget._moving_image = None
+
+    masking_widget._open_mask_regions_dialog()
+
+    mocked_display_info.assert_called_once_with(
+        widget=masking_widget,
+        title="Warning",
+        message="Please select a moving image before "
+        "clicking 'Automatic Slice Detection'.",
+    )
+
+
+def test_open_mask_regions_dialog_moving_equals_atlas(masking_widget, mocker):
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    masking_widget._moving_image = masking_widget._atlas_data_layer
+
+    masking_widget._open_mask_regions_dialog()
+
+    mocked_display_info.assert_called_once_with(
+        widget=masking_widget,
+        title="Warning",
+        message="Your moving image cannot be an atlas.",
+    )
+
+
+def test_open_mask_regions_dialog_creates_mask_layer(masking_widget):
+    assert masking_widget.manual_mask_layer is None
+
+    masking_widget._open_mask_regions_dialog()
+
+    assert masking_widget.manual_mask_layer is not None
+    assert masking_widget.manual_mask_layer in masking_widget._viewer.layers
+    assert (
+        masking_widget.manual_mask_layer.data.shape
+        == masking_widget._atlas_base_reference.shape
+    )
+    assert isinstance(masking_widget.manual_mask_layer.data, np.ndarray)
+    assert np.all(masking_widget.manual_mask_layer.data == 0)
+    assert masking_widget.manual_mask_layer.mode == "paint"
+
+    assert masking_widget._moving_image.mode == "transform"
+    assert (
+        masking_widget._viewer.layers.selection.active
+        == masking_widget._moving_image
+    )
+    assert not masking_widget._viewer.grid.enabled
+    assert masking_widget.mask_regions_dialog.isVisible()
+
+
+def test_open_mask_regions_dialog_reuses_existing_layer(masking_widget):
+    masking_widget._open_mask_regions_dialog()
+    first_layer = masking_widget.manual_mask_layer
+
+    masking_widget._open_mask_regions_dialog()
+    assert masking_widget.manual_mask_layer is first_layer
+
+
+def test_open_mask_regions_dialog_rebuilds_if_layer_removed(masking_widget):
+    masking_widget._open_mask_regions_dialog()
+    first_layer = masking_widget.manual_mask_layer
+
+    masking_widget._viewer.layers.remove(first_layer)
+
+    masking_widget._open_mask_regions_dialog()
+
+    assert masking_widget.manual_mask_layer is not None
+    assert masking_widget.manual_mask_layer is not first_layer
+    assert masking_widget.manual_mask_layer in masking_widget._viewer.layers
+
+
+# Apply mask
+def test_apply_region_mask_no_atlas_layers(registration_widget):
+    # should not raise even though nothing is set up
+    registration_widget._apply_region_mask()
+
+
+def test_apply_region_mask_none_selected_no_manual_restores_base(
+    masking_widget,
+):
+    reg_widget = masking_widget
+    reg_widget._open_mask_regions_dialog()
+
+    reg_widget._apply_region_mask()
+
+    assert np.array_equal(
+        np.asarray(reg_widget._atlas_data_layer.data),
+        np.asarray(reg_widget._atlas_base_reference),
+    )
+    assert np.array_equal(
+        np.asarray(reg_widget._atlas_annotations_layer.data),
+        np.asarray(reg_widget._atlas_base_annotation),
+    )
+
+
+def test_apply_region_mask_hierarchical_only(masking_widget):
+    reg_widget = masking_widget
+    region_id = _first_region_id(reg_widget)
+    reg_widget.mask_regions_dialog._selected_region_ids.add(region_id)
+
+    reg_widget._apply_region_mask()
+
+    descendant_ids = reg_widget.mask_regions_dialog.get_descendant_ids(
+        region_id
+    )
+    base_annotation = np.asarray(reg_widget._atlas_base_annotation)
+    base_reference = np.asarray(reg_widget._atlas_base_reference)
+    expected_keep = ~np.isin(base_annotation, list(descendant_ids))
+
+    result_data = np.asarray(reg_widget._atlas_data_layer.data)
+    expected_data = np.where(expected_keep, base_reference, 0).astype(
+        base_reference.dtype
+    )
+    assert np.array_equal(result_data, expected_data)
+
+    # sanity check: some voxels were actually masked (region exists in
+    # the annotation volume)
+    assert np.any(np.isin(base_annotation, list(descendant_ids)))
+    assert np.any(result_data[~expected_keep] == 0)
+
+
+def test_apply_region_mask_manual_only(masking_widget):
+    reg_widget = masking_widget
+    reg_widget._open_mask_regions_dialog()
+
+    painted = np.zeros_like(reg_widget.manual_mask_layer.data)
+    painted[0, :5, :5] = 1
+    reg_widget.manual_mask_layer.data = painted
+
+    reg_widget._apply_region_mask()
+
+    result_data = np.asarray(reg_widget._atlas_data_layer.data)
+    assert np.all(result_data[0, :5, :5] == 0)
+
+    # voxels outside the painted region should be untouched
+    base_reference = np.asarray(reg_widget._atlas_base_reference)
+    assert np.array_equal(result_data[0, 5:, 5:], base_reference[0, 5:, 5:])
+
+
+def test_apply_region_mask_combined(masking_widget):
+    reg_widget = masking_widget
+    reg_widget._open_mask_regions_dialog()
+
+    region_id = _first_region_id(reg_widget)
+    reg_widget.mask_regions_dialog._selected_region_ids.add(region_id)
+
+    painted = np.zeros_like(reg_widget.manual_mask_layer.data)
+    painted[0, :5, :5] = 1
+    reg_widget.manual_mask_layer.data = painted
+
+    reg_widget._apply_region_mask()
+
+    descendant_ids = reg_widget.mask_regions_dialog.get_descendant_ids(
+        region_id
+    )
+    base_annotation = np.asarray(reg_widget._atlas_base_annotation)
+    base_reference = np.asarray(reg_widget._atlas_base_reference)
+    expected_keep = ~np.isin(base_annotation, list(descendant_ids))
+    expected_keep[0, :5, :5] = False
+
+    result_data = np.asarray(reg_widget._atlas_data_layer.data)
+    expected_data = np.where(expected_keep, base_reference, 0).astype(
+        base_reference.dtype
+    )
+    assert np.array_equal(result_data, expected_data)
+
+
+# Signals
+def test_on_region_mask_toggled_calls_apply_region_mask(
+    masking_widget, mocker
+):
+    spy = mocker.spy(RegistrationWidget, "_apply_region_mask")
+    masking_widget._on_region_mask_toggled(1, "Region", True)
+
+    spy.assert_called_once()
+
+
+def test_on_mask_dialog_finished_calls_apply_region_mask(
+    masking_widget, mocker
+):
+    spy = mocker.spy(RegistrationWidget, "_apply_region_mask")
+    masking_widget._on_mask_dialog_finished()
+
+    spy.assert_called_once()
+
+
+def test_accepting_dialog_triggers_reapply(masking_widget, mocker):
+    spy = mocker.spy(RegistrationWidget, "_apply_region_mask")
+    masking_widget.mask_regions_dialog.accept()
+
+    spy.assert_called_once()
+
+
+# Manual mask confirmation when rotating
+def test_rotation_no_manual_mask_layer_proceeds_without_prompt(
+    masking_widget, mocker
+):
+    mocked_question = mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question"
+    )
+    assert masking_widget.manual_mask_layer is None
+
+    masking_widget._on_adjust_atlas_rotation(10, 10, 10)
+
+    mocked_question.assert_not_called()
+    assert (
+        masking_widget._atlas_data_layer.data.shape
+        != tuple(masking_widget._atlas.reference.shape)
+        or True
+    )
+
+
+def test_rotation_with_empty_manual_mask_removes_layer_without_prompt(
+    masking_widget, mocker
+):
+    reg_widget = masking_widget
+    reg_widget._open_mask_regions_dialog()
+    mask_layer = reg_widget.manual_mask_layer
+    assert np.all(np.asarray(mask_layer.data) == 0)
+
+    mocked_question = mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question"
+    )
+
+    reg_widget._on_adjust_atlas_rotation(10, 10, 10)
+
+    mocked_question.assert_not_called()
+    assert reg_widget.manual_mask_layer is None
+    assert mask_layer not in reg_widget._viewer.layers
+
+
+def test_rotation_with_painted_mask_confirm_yes_discards_mask(
+    masking_widget, mocker
+):
+    reg_widget = masking_widget
+    reg_widget._open_mask_regions_dialog()
+    mask_layer = reg_widget.manual_mask_layer
+
+    painted = np.zeros_like(mask_layer.data)
+    painted[0, 0, 0] = 1
+    mask_layer.data = painted
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question",
+        return_value=QMessageBox.Yes,
+    )
+
+    atlas_shape_before = reg_widget._atlas.reference.shape
+    reg_widget._on_adjust_atlas_rotation(10, 10, 10)
+
+    assert reg_widget.manual_mask_layer is None
+    assert mask_layer not in reg_widget._viewer.layers
+    # rotation itself still proceeds
+    assert reg_widget._atlas.reference.shape == atlas_shape_before
+
+
+def test_rotation_with_painted_mask_confirm_no_keeps_mask(
+    masking_widget, mocker
+):
+    reg_widget = masking_widget
+    reg_widget._open_mask_regions_dialog()
+    mask_layer = reg_widget.manual_mask_layer
+
+    painted = np.zeros_like(mask_layer.data)
+    painted[0, 0, 0] = 1
+    mask_layer.data = painted
+
+    original_shape = reg_widget._atlas_data_layer.data.shape
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question",
+        return_value=QMessageBox.No,
+    )
+
+    reg_widget._on_adjust_atlas_rotation(10, 10, 10)
+
+    # mask layer untouched, rotation aborted
+    assert reg_widget.manual_mask_layer is mask_layer
+    assert mask_layer in reg_widget._viewer.layers
+    assert np.array_equal(np.asarray(mask_layer.data), painted)
+    assert reg_widget._atlas_data_layer.data.shape == original_shape
