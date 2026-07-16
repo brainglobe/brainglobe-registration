@@ -174,6 +174,8 @@ class RegistrationWidget(QScrollArea):
             self._on_sample_popup_about_to_show
         )
 
+        self._atlas_rotation_generation = 0
+
         self.mask_regions_dialog = MaskRegionsDialog(parent=self)
         self.mask_regions_dialog.region_toggled.connect(
             self._on_region_mask_toggled
@@ -751,8 +753,9 @@ class RegistrationWidget(QScrollArea):
                 deformation_field[..., i],
             )
 
+        if self.manual_mask_layer is not None:
+            self.manual_mask_layer.visible = False
         self._atlas_data_layer.visible = False
-        self.manual_mask_layer.visible = False
         self._viewer.grid.enabled = False
 
         # Find a way to reset transforms on moving image
@@ -1196,6 +1199,9 @@ class RegistrationWidget(QScrollArea):
         self._viewer.grid.enabled = True
 
     def _on_adjust_atlas_rotation(self, pitch: float, yaw: float, roll: float):
+        self._atlas_rotation_generation += 1
+        generation = self._atlas_rotation_generation
+
         if not (
             self._atlas
             and self._atlas_data_layer
@@ -1270,12 +1276,12 @@ class RegistrationWidget(QScrollArea):
 
         # pass rotated_reference (unmasked), not self._atlas_data_layer.data
         # (which may now be masked after _apply_region_mask ran above)
-        worker = self.compute_atlas_rotation(rotated_reference)
+        worker = self.compute_atlas_rotation(rotated_reference, generation)
         worker.returned.connect(self.set_atlas_layer_data)
         worker.start()
 
     @thread_worker
-    def compute_atlas_rotation(self, dask_array: da.Array):
+    def compute_atlas_rotation(self, dask_array: da.Array, generation):
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(False)
         self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(False)
 
@@ -1284,23 +1290,51 @@ class RegistrationWidget(QScrollArea):
         self.adjust_moving_image_widget.reset_atlas_button.setEnabled(True)
         self.adjust_moving_image_widget.adjust_atlas_rotation.setEnabled(True)
 
-        return computed_array
+        return generation, computed_array
 
-    def set_atlas_layer_data(self, new_data):
+    def set_atlas_layer_data(self, result):
         # new_data is the unmasked rotated reference
         # update the base, then re-apply mask on top for display
+        generation, new_data = result
+
+        # ignore stale results
+        if generation != self._atlas_rotation_generation:
+            return
+
         self._atlas_base_reference = new_data
         self._apply_region_mask()
 
     def _on_atlas_reset(self):
+        self._atlas_rotation_generation += 1
         if not self._atlas:
             show_error(
                 "No atlas selected. Please select an atlas before resetting"
             )
             return
 
+        if self.manual_mask_layer is not None:
+            if bool(np.any(np.asarray(self.manual_mask_layer.data))):
+                # Warn the user if a manual mask has been painted
+                confirmation = QMessageBox.question(
+                    self,
+                    "Warning",
+                    "You will lose your painted annotations if you reset "
+                    "the atlas rotations. Would you like to proceed?",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.No,
+                )
+                if confirmation != QMessageBox.Yes:
+                    return
+
+            if self.manual_mask_layer in self._viewer.layers:
+                self._viewer.layers.remove(self.manual_mask_layer)
+            self.manual_mask_layer = None
+
         self._atlas_data_layer.data = self._atlas.reference
         self._atlas_annotations_layer.data = self._atlas.annotation
+
+        self._atlas_base_reference = self._atlas.reference
+        self._atlas_base_annotation = self._atlas.annotation
 
         self._reset_atlas_attributes()
         self._apply_region_mask()

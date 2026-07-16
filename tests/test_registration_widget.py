@@ -412,6 +412,8 @@ def test_on_atlas_reset(registration_widget_with_example_atlas):
     assert reg_widget._atlas_data_layer.data.shape == atlas_shape
     assert reg_widget._atlas.reference.shape == atlas_shape
     assert reg_widget._atlas_annotations_layer.data.shape == atlas_shape
+    assert reg_widget._atlas_base_reference.shape == atlas_shape
+    assert reg_widget._atlas_base_annotation.shape == atlas_shape
     assert (
         reg_widget._atlas_data_layer.data.dtype
         == reg_widget._atlas.reference.dtype
@@ -431,6 +433,90 @@ def test_on_atlas_reset_no_atlas(registration_widget, mocker):
     mocked_show_error.assert_called_once_with(
         "No atlas selected. Please select an atlas before resetting"
     )
+
+
+def test_on_atlas_reset_no_manual_mask_layer_proceeds_without_prompt(
+    registration_widget_with_example_atlas, mocker
+):
+    reg_widget = registration_widget_with_example_atlas
+    mocked_question = mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question"
+    )
+    assert reg_widget.manual_mask_layer is None
+
+    reg_widget._on_atlas_reset()
+    mocked_question.assert_not_called()
+
+
+def test_on_atlas_reset_with_empty_manual_mask_removes_layer_without_prompt(
+    registration_widget_with_example_atlas, mocker
+):
+    reg_widget = registration_widget_with_example_atlas
+    reg_widget._open_mask_regions_dialog()
+    mask_layer = reg_widget.manual_mask_layer
+    assert np.all(np.asarray(mask_layer.data) == 0)
+
+    mocked_question = mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question"
+    )
+
+    reg_widget._on_atlas_reset()
+    mocked_question.assert_not_called()
+    assert reg_widget.manual_mask_layer is None
+    assert mask_layer not in reg_widget._viewer.layers
+
+
+def test_on_atlas_reset_with_painted_mask_confirm_yes(
+    registration_widget_with_example_atlas, mocker
+):
+    reg_widget = registration_widget_with_example_atlas
+    reg_widget._open_mask_regions_dialog()
+    mask_layer = reg_widget.manual_mask_layer
+
+    painted = np.zeros_like(mask_layer.data)
+    painted[0, 0, 0] = 1
+    mask_layer.data = painted
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question",
+        return_value=QMessageBox.Yes,
+    )
+
+    atlas_shape = reg_widget._atlas.reference.shape
+
+    reg_widget._on_atlas_reset()
+
+    assert reg_widget.manual_mask_layer is None
+    assert mask_layer not in reg_widget._viewer.layers
+    assert reg_widget._atlas_data_layer.data.shape == atlas_shape
+
+
+def test_on_atlas_reset_with_painted_mask_confirm_no(
+    registration_widget_with_example_atlas, mocker
+):
+    reg_widget = registration_widget_with_example_atlas
+    reg_widget._on_adjust_atlas_rotation(10, 10, 10)
+    reg_widget._open_mask_regions_dialog()
+    mask_layer = reg_widget.manual_mask_layer
+
+    painted = np.zeros_like(mask_layer.data)
+    painted[0, 0, 0] = 1
+    mask_layer.data = painted
+
+    shape_before_reset = reg_widget._atlas_data_layer.data.shape
+
+    mocker.patch(
+        "brainglobe_registration.registration_widget.QMessageBox.question",
+        return_value=QMessageBox.No,
+    )
+
+    reg_widget._on_atlas_reset()
+
+    # mask untouched, atlas shape unchanged (still rotated)
+    assert reg_widget.manual_mask_layer is mask_layer
+    assert mask_layer in reg_widget._viewer.layers
+    assert np.array_equal(np.asarray(mask_layer.data), painted)
+    assert reg_widget._atlas_data_layer.data.shape == shape_before_reset
 
 
 def test_on_moving_image_reset_no_sample_image(registration_widget, mocker):
