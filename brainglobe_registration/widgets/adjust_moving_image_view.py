@@ -45,7 +45,12 @@ class AdjustMovingImageView(QWidget):
     reset_atlas_signal = Signal()
     reset_moving_image_signal = Signal()
 
-    def __init__(self, parent=None, auto_slice_callback=None):
+    def __init__(
+        self,
+        parent=None,
+        auto_slice_callback=None,
+        masking_callback=None,
+    ):
         """
         Initialize the widget.
 
@@ -107,7 +112,7 @@ class AdjustMovingImageView(QWidget):
             self._on_adjust_atlas_rotation
         )
         self.reset_atlas_button = QPushButton()
-        self.reset_atlas_button.setText("Reset Atlas")
+        self.reset_atlas_button.setText("Reset Atlas Rotations")
         self.reset_atlas_button.clicked.connect(self._on_atlas_reset)
 
         self.layout().addRow(QLabel("Prepare the moving image:"))
@@ -175,6 +180,17 @@ class AdjustMovingImageView(QWidget):
         self.layout().addRow("Roll:", self.adjust_atlas_roll)
         self.layout().addRow(self.adjust_atlas_rotation)
         self.layout().addRow(self.reset_atlas_button)
+
+        masking_label = QLabel(
+            "Optionally mask atlas regions that "
+            "you would like to exclude from registration:"
+        )
+        masking_label.setWordWrap(True)
+        self.layout().addRow(masking_label)
+        if masking_callback is not None:
+            self.mask_button = QPushButton("Mask Atlas Regions")
+            self.mask_button.clicked.connect(masking_callback)
+            self.layout().addRow(self.mask_button)
 
     def set_is_3d(self, is_3d: bool):
         """
