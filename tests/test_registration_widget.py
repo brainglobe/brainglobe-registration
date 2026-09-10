@@ -503,6 +503,39 @@ def test_on_open_file_dialog_cancelled(registration_widget, mocker):
     mocked_open_dialog.assert_called_once()
 
 
+def test_on_sample_geometry_changed_sets_brain_geometry(registration_widget):
+    registration_widget._brain_geometry = "full"
+
+    registration_widget._on_sample_geometry_changed("quarter_al")
+
+    assert registration_widget._brain_geometry == "quarter_al"
+
+
+def test_get_atlas_for_registration_non_full_uses_crop(
+    registration_widget, mocker
+):
+    mock_atlas = mocker.Mock()
+    cropped_atlas = mocker.Mock()
+    registration_widget._atlas = mock_atlas
+    registration_widget._brain_geometry = "quarter_al"
+
+    mock_crop = mocker.patch(
+        "brainglobe_registration.elastix.register.crop_atlas",
+        return_value=cropped_atlas,
+    )
+    mock_log_info = mocker.patch(
+        "brainglobe_registration.registration_widget.logging.info"
+    )
+
+    result = registration_widget._get_atlas_for_registration()
+
+    assert result is cropped_atlas
+    mock_crop.assert_called_once_with(mock_atlas, "quarter_al")
+    mock_log_info.assert_called_once_with(
+        "Atlas cropped for quarter_al registration"
+    )
+
+
 def test_on_run_button_clicked_no_atlas(registration_widget, mocker):
     mocked_display_info = mocker.patch(
         "brainglobe_registration.registration_widget.display_info"
@@ -776,6 +809,11 @@ def test_run_auto_slice_thread_logs_and_yields_results(
         side_effect=[atlas_image, moving_image],
     )
 
+    # use mock atlas.
+    mock_atlas = mocker.Mock()
+    registration_widget._atlas = mock_atlas
+    registration_widget._brain_geometry = "full"
+
     logging_dir = Path("/tmp/fake_logging_dir")
     mocker.patch(
         "brainglobe_registration.registration_widget.get_brainglobe_dir",
@@ -945,8 +983,7 @@ def test_checkerboard_checkbox_enabled_after_registration(
     assert not registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
 
     # Simulate registration completion by manually enabling the QC widget
-    # (This is what happens after registration completes in
-    # _on_run_button_click)
+
     registration_widget.qc_widget.set_enabled(True)
 
     # After registration, checkbox should be enabled
@@ -974,7 +1011,7 @@ def test_show_checkerboard_no_moving_image(registration_widget, mocker):
     mocked_show_error.assert_called_once()
     # Worker should not be created since error occurs before
     mocked_create_worker.assert_not_called()
-    # Checkbox remains checked (user selection preserved)
+    # Checkbox remains checked
     assert registration_widget.qc_widget.checkerboard_checkbox.isChecked()
 
 
