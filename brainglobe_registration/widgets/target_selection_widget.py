@@ -122,6 +122,15 @@ class AutoSliceDialog(QDialog):
         )
         form.addRow("Similarity metric:", self.metric_dropdown)
 
+        # Interpolation order dropdown (0=Nearest, 1=Linear)
+        self.interpolation_order_dropdown = QComboBox()
+        self.interpolation_order_dropdown.addItem("0", 0)
+        self.interpolation_order_dropdown.addItem("1", 1)
+        self.interpolation_order_dropdown.setCurrentIndex(
+            1
+        )  # Default to Linear
+        form.addRow("Interpolation:", self.interpolation_order_dropdown)
+
         # Combined metric weights (initially hidden)
         self.weights_layout = QHBoxLayout()
         self.mi_weight = QDoubleSpinBox()
@@ -200,6 +209,9 @@ class AutoSliceDialog(QDialog):
             "n_iter": self.n_iter.value(),
             "metric": metric_value,
             "weights": weights,
+            "interpolation_order": (
+                self.interpolation_order_dropdown.currentData()
+            ),
         }
 
         self.parameters_confirmed.emit(params)
