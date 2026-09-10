@@ -18,6 +18,22 @@ from brainglobe_registration.elastix.register import (
 SLICE_NUMBER = 293
 
 
+def _normalize_pixel_type(value):
+    if isinstance(value, tuple):
+        if len(value) == 0:
+            return value
+        token = value[0].strip().lower()
+    else:
+        token = str(value).strip().lower()
+
+    aliases = {
+        "uint16": "uint16",
+        "unsigned short": "uint16",
+        "unsigned_short": "uint16",
+    }
+    return aliases.get(token, token)
+
+
 def compare_parameter_objects(param_obj1, param_obj2):
     assert (
         param_obj1.GetNumberOfParameterMaps()
@@ -40,6 +56,14 @@ def compare_parameter_objects(param_obj1, param_obj2):
                     np.array(submap_2[key], dtype=np.double),
                     atol=0.4,
                 )
+            elif key in {
+                "FixedInternalImagePixelType",
+                "MovingInternalImagePixelType",
+                "ResultImagePixelType",
+            }:
+                assert _normalize_pixel_type(
+                    submap_1[key]
+                ) == _normalize_pixel_type(submap_2[key])
             else:
                 assert submap_1[key] == submap_2[key]
 
