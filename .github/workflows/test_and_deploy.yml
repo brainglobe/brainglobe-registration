@@ -39,13 +39,13 @@ jobs:
     strategy:
       matrix:
         # Run all supported Python versions on linux
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
         os: [ubuntu-latest]
         include:
         - os: macos-latest # ARM Mac
-          python-version: "3.13"
+          python-version: "3.14"
         - os: windows-latest
-          python-version: "3.13"
+          python-version: "3.14"
 
     steps:
       - name: Cache Atlases
