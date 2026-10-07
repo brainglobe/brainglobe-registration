@@ -1,49 +1,41 @@
-"""
-Tests for visualization utilities in brainglobe_registration.utils.visuals.
+"""Tests for visualization utilities in
+`brainglobe_registration.utils.visuals`.
 """
 
 import numpy as np
 import pytest
 
-from brainglobe_registration.utils.visuals import generate_checkerboard
+from brainglobe_registration.utils.visuals import (
+    generate_checkerboard,
+    generate_intensity_difference_map,
+)
 
 
 def test_generate_checkerboard_2d_basic():
     """Test basic 2D checkerboard generation."""
-    # Use non-constant images to ensure pattern variation
     image1 = np.ones((100, 100), dtype=np.uint8) * 255
     image2 = np.zeros((100, 100), dtype=np.uint8)
-    # Add some variation to image1 to avoid constant normalization
     image1[0:50, :] = 200
 
     checkerboard = generate_checkerboard(image1, image2, square_size=32)
 
-    # Check shape
     assert checkerboard.shape == (100, 100)
-
-    # Check that values are normalized (uint16 range: 0-65535)
     assert checkerboard.min() >= 0
     assert checkerboard.max() <= 65535
     assert checkerboard.dtype == np.uint16
-
-    # Check that it's not all zeros or all max (should have pattern)
     assert checkerboard.min() < checkerboard.max()
 
 
 def test_generate_checkerboard_2d_square_pattern():
     """Test that checkerboard creates alternating pattern."""
-    # Create images with distinct values (non-constant for variation)
     image1 = np.ones((64, 64), dtype=np.uint8) * 255
     image2 = np.ones((64, 64), dtype=np.uint8) * 100
-    # Add some variation to image2 so they normalize differently
     image2[0:32, 0:32] = 200
 
     checkerboard = generate_checkerboard(
         image1, image2, square_size=16, normalize=True
     )
 
-    # Check that there's variation (pattern exists)
-    # Even with normalization, alternating pattern should create variation
     assert np.std(checkerboard) > 0
 
 
@@ -54,10 +46,7 @@ def test_generate_checkerboard_3d():
 
     checkerboard = generate_checkerboard(image1, image2, square_size=32)
 
-    # Check shape
     assert checkerboard.shape == (10, 100, 100)
-
-    # Check that values are normalized (uint16 range: 0-65535)
     assert checkerboard.min() >= 0
     assert checkerboard.max() <= 65535
     assert checkerboard.dtype == np.uint16
@@ -66,17 +55,16 @@ def test_generate_checkerboard_3d():
 def test_generate_checkerboard_shape_mismatch():
     """Test that checkerboard crops to minimum shape for mismatched shapes."""
     image1 = np.ones((100, 100), dtype=np.uint8)
-    image2 = np.ones((100, 101), dtype=np.uint8)  # Different width
+    image2 = np.ones((100, 101), dtype=np.uint8)
 
     checkerboard = generate_checkerboard(image1, image2)
 
-    # Should crop to minimum shape (100, 100)
     assert checkerboard.shape == (100, 100)
 
 
 def test_generate_checkerboard_unsupported_dimension():
     """Test that checkerboard raises error for unsupported dimensions."""
-    image1 = np.ones((10, 10, 10, 10), dtype=np.uint8)  # 4D
+    image1 = np.ones((10, 10, 10, 10), dtype=np.uint8)
     image2 = np.ones((10, 10, 10, 10), dtype=np.uint8)
 
     with pytest.raises(ValueError, match="Unsupported image dimensionality"):
@@ -92,9 +80,7 @@ def test_generate_checkerboard_normalize_false():
         image1, image2, square_size=32, normalize=False
     )
 
-    # Should preserve original dtype and value range
     assert checkerboard.dtype == np.uint16
-    # Values should be from the input images
     assert checkerboard.min() >= 0
     assert checkerboard.max() <= 1000
 
@@ -106,11 +92,7 @@ def test_generate_checkerboard_all_same_values():
 
     checkerboard = generate_checkerboard(image1, image2, square_size=32)
 
-    # When all values are the same, normalized output should be mid-range
-    # For uint16 normalization, identical values normalize to mid-range
-    # (~32767). Due to normalization, both images normalize to similar value
     assert checkerboard.dtype == np.uint16
-    # Check that all values are the same (normalized to mid-range)
     assert np.all(checkerboard == checkerboard.flat[0])
 
 
@@ -145,10 +127,64 @@ def test_generate_checkerboard_3d_multiple_slices():
 
     checkerboard = generate_checkerboard(image1, image2, square_size=16)
 
-    # All slices should have the same pattern
     slice_0 = checkerboard[0, :, :]
     slice_2 = checkerboard[2, :, :]
     slice_4 = checkerboard[4, :, :]
 
     np.testing.assert_array_equal(slice_0, slice_2)
     np.testing.assert_array_equal(slice_2, slice_4)
+
+
+def test_generate_intensity_difference_map_2d_basic():
+    """Same shape, normalized: output in [0,1], float32."""
+    a = np.array([[0.0, 1.0], [2.0, 3.0]], dtype=np.float32)
+    b = np.array([[0.0, 2.0], [1.0, 3.0]], dtype=np.float32)
+    out = generate_intensity_difference_map(a, b, normalize=True)
+    assert out.shape == (2, 2)
+    assert out.dtype == np.float32
+    assert 0 <= out.min() and out.max() <= 1.0
+    np.testing.assert_allclose(out[0, 1], 1.0 / 3.0, rtol=1e-5)
+    np.testing.assert_allclose(out[1, 0], 1.0 / 3.0, rtol=1e-5)
+
+
+def test_generate_intensity_difference_map_2d_shape_mismatch():
+    """Different shapes: crop to overlap."""
+    a = np.ones((10, 10), dtype=np.uint8)
+    b = np.ones((10, 12), dtype=np.uint8)
+    out = generate_intensity_difference_map(a, b, normalize=True)
+    assert out.shape == (10, 10)
+
+
+def test_generate_intensity_difference_map_3d():
+    """3D same shape."""
+    a = np.random.rand(4, 5, 6).astype(np.float32)
+    b = np.random.rand(4, 5, 6).astype(np.float32)
+    out = generate_intensity_difference_map(a, b, normalize=True)
+    assert out.shape == (4, 5, 6)
+    assert out.dtype == np.float32
+    assert 0 <= out.min() and out.max() <= 1.0
+
+
+def test_generate_intensity_difference_map_normalize_false():
+    """Without normalization, output reflects raw abs difference."""
+    a = np.array([[10, 20]], dtype=np.int32)
+    b = np.array([[12, 18]], dtype=np.int32)
+    out = generate_intensity_difference_map(a, b, normalize=False)
+    assert out.dtype == np.float32
+    np.testing.assert_array_almost_equal(out, [[2, 2]])
+
+
+def test_generate_intensity_difference_map_ndim_mismatch():
+    """2D vs 3D raises ValueError."""
+    a = np.ones((5, 5))
+    b = np.ones((2, 5, 5))
+    with pytest.raises(ValueError, match="same number of dimensions"):
+        generate_intensity_difference_map(a, b)
+
+
+def test_generate_intensity_difference_map_unsupported_ndim():
+    """1D raises ValueError."""
+    a = np.ones(10)
+    b = np.ones(10)
+    with pytest.raises(ValueError, match="Only 2D and 3D"):
+        generate_intensity_difference_map(a, b)
