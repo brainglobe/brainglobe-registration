@@ -58,6 +58,7 @@ from brainglobe_registration.utils.atlas import calculate_region_size
 from brainglobe_registration.utils.file import (
     open_parameter_file,
     serialize_registration_widget,
+    write_parameter_file,
 )
 from brainglobe_registration.utils.logging import (
     StripANSIColorFilter,
@@ -197,6 +198,12 @@ class RegistrationWidget(QScrollArea):
         self.transform_select_view.file_option_changed_signal.connect(
             self._on_default_file_selection_change
         )
+        self.transform_select_view.import_button_clicked_signal.connect(
+            self._on_load_parameter_file_clicked
+        )
+        self.transform_select_view.export_button_clicked_signal.connect(
+            self._on_save_parameter_file_clicked
+        )
 
         # Use decorator to connect to layer deletion event
         self._connect_events()
@@ -272,7 +279,6 @@ class RegistrationWidget(QScrollArea):
         self._widget.add_widget(
             self.parameters_tab, widget_title="Advanced Settings (optional)"
         )
-
         # Add QC widget after Advanced Settings
         self._widget.add_widget(self.qc_widget, widget_title="Quality Control")
 
@@ -1032,26 +1038,102 @@ class RegistrationWidget(QScrollArea):
         if index >= len(self.transform_selections):
             raise IndexError("Transform file selection out of order")
 
-        transform_type = self.transform_selections[index][0]
-        file_path = (
-            Path(__file__).parent.resolve()
-            / "parameters"
-            / default_file_type
-            / f"{transform_type}.txt"
-        )
+        if default_file_type.startswith("(Custom)"):
+            return
 
-        if not file_path.exists():
+        self.transform_select_view.clear_custom_file(index)
+
+        transform_type = self.transform_selections[index][0]
+        selected_value_path = Path(default_file_type)
+        if selected_value_path.exists() and selected_value_path.is_file():
+            file_path = selected_value_path
+        else:
             file_path = (
                 Path(__file__).parent.resolve()
                 / "parameters"
-                / "elastix_default"
+                / default_file_type
                 / f"{transform_type}.txt"
             )
+
+            if not file_path.exists():
+                file_path = (
+                    Path(__file__).parent.resolve()
+                    / "parameters"
+                    / "elastix_default"
+                    / f"{transform_type}.txt"
+                )
 
         param_dict = open_parameter_file(file_path)
 
         self.transform_selections[index] = (transform_type, param_dict)
         self.parameter_setting_tabs_lists[index].set_data(param_dict)
+
+    def _on_load_parameter_file_clicked(self, index: int) -> None:
+        if index < 0 or index >= len(self.transform_selections):
+            raise IndexError("Transform file selection out of order")
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load elastix parameter file",
+            "",
+            "Elastix parameter files (*.txt);;All Files (*)",
+        )
+        if not file_path:
+            return
+
+        selected_file_path = Path(file_path)
+        param_dict = open_parameter_file(selected_file_path)
+        transform_type = (
+            self._get_transform_type_from_param_dict(param_dict)
+            or self.transform_selections[index][0]
+        )
+
+        self.transform_select_view.set_transform_type_selection(
+            index, transform_type
+        )
+        self.transform_selections[index] = (transform_type, param_dict)
+        self.parameter_setting_tabs_lists[index].set_data(param_dict)
+        self.parameters_tab.setTabText(index, transform_type)
+        self.transform_select_view.set_custom_file_path(
+            index, str(selected_file_path)
+        )
+
+    def _on_save_parameter_file_clicked(self, index: int) -> None:
+        if index < 0 or index >= len(self.transform_selections):
+            raise IndexError("Transform file selection out of order")
+
+        transform_type = self.transform_selections[index][0]
+        suggested_name = f"{transform_type}.txt"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save elastix parameter file",
+            suggested_name,
+            "Elastix parameter files (*.txt);;All Files (*)",
+        )
+        if not file_path:
+            return
+
+        save_path = Path(file_path)
+        if save_path.suffix == "":
+            save_path = save_path.with_suffix(".txt")
+
+        param_dict = self.parameter_setting_tabs_lists[index].param_dict
+        write_parameter_file(save_path, param_dict)
+
+    def _get_transform_type_from_param_dict(
+        self, param_dict: dict[str, list[str]]
+    ) -> Optional[str]:
+        transform_values = param_dict.get("Transform", [])
+        if not transform_values:
+            return None
+
+        normalized_transform_value = transform_values[0].lower()
+        transform_mapping = {
+            "affinetransform": "affine",
+            "bsplinetransform": "bspline",
+        }
+
+        return transform_mapping.get(normalized_transform_value)
 
     def _on_sample_popup_about_to_show(self):
         self._sample_images = get_image_layer_names(self._viewer)
