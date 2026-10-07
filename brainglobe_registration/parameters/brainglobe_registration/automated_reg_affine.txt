@@ -13,7 +13,7 @@
 (Optimizer "AdaptiveStochasticGradientDescent")
 (ResampleInterpolator "FinalBSplineInterpolator")
 (Resampler "DefaultResampler")
-(Transform "AffineTransform")
+(Transform "EulerTransform")
 
 (ErodeMask "false" )
 
@@ -31,7 +31,7 @@
 (ShowExactMetricValue "false")
 
 //Maximum number of iterations in each resolution level:
-(MaximumNumberOfIterations 500 )
+(MaximumNumberOfIterations 400 200 50 )
 
 //Number of grey level bins in each resolution level:
 (NumberOfHistogramBins 32 )

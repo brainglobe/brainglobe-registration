@@ -103,7 +103,6 @@ def test_atlas_dropdown_index_changed_with_valid_index(
         == ANNOTATION_DTYPE
     )
     assert registration_widget.run_button.isEnabled()
-    assert registration_widget._viewer.grid.enabled
 
 
 def test_atlas_dropdown_index_changed_with_zero_index(
@@ -113,7 +112,6 @@ def test_atlas_dropdown_index_changed_with_zero_index(
 
     assert registration_widget._atlas is None
     assert not registration_widget.run_button.isEnabled()
-    assert not registration_widget._viewer.grid.enabled
 
 
 def test_atlas_dropdown_index_changed_with_existing_atlas(
@@ -128,7 +126,6 @@ def test_atlas_dropdown_index_changed_with_existing_atlas(
         == registration_widget._available_atlases[1]
     )
     assert registration_widget.run_button.isEnabled()
-    assert registration_widget._viewer.grid.enabled
 
 
 def test_sample_dropdown_index_changed_with_valid_index(
@@ -346,13 +343,13 @@ def test_invalid_sample_orientation(
 
 
 @pytest.mark.parametrize(
-    "pitch, yaw, roll, expected_shape",
+    "pitch, yaw, roll",
     [
-        (0, 0, 0, (132, 80, 114)),
-        (45, 0, 0, (150, 150, 114)),
-        (0, 45, 0, (174, 80, 174)),
-        (0, 0, 45, (132, 138, 138)),
-        (0, 90, 90, (115, 133, 81)),
+        (0, 0, 0),
+        (45, 0, 0),
+        (0, 45, 0),
+        (0, 0, 45),
+        (0, 90, 90),
     ],
 )
 def test_on_adjust_atlas_rotation(
@@ -360,24 +357,38 @@ def test_on_adjust_atlas_rotation(
     pitch,
     yaw,
     roll,
-    expected_shape,
 ):
     reg_widget = registration_widget_with_example_atlas
     atlas_shape = reg_widget._atlas.reference.shape
 
     reg_widget._on_adjust_atlas_rotation(pitch, yaw, roll)
 
-    assert reg_widget._atlas_data_layer.data.shape == expected_shape
-    assert reg_widget._atlas_annotations_layer.data.shape == expected_shape
+    # Original atlas data should be unchanged
     assert reg_widget._atlas.reference.shape == atlas_shape
-    assert (
-        reg_widget._atlas_data_layer.data.dtype
-        == reg_widget._atlas.reference.dtype
+
+    # Plane sampling should be active
+    assert reg_widget._plane_sampling_active is True
+
+    # Sampled layers should exist and be 2D
+    assert reg_widget._sampled_reference_layer is not None
+    assert reg_widget._sampled_annotations_layer is not None
+    assert reg_widget._sampled_reference_layer.data.ndim == 2
+    assert reg_widget._sampled_annotations_layer.data.ndim == 2
+
+    # Sampled reference plane shape should match the computed output shape
+    # (dynamically expanded bounding box to prevent clipping at extreme angles)
+    expected_shape = (
+        reg_widget._plane_output_shape[1],
+        reg_widget._plane_output_shape[2],
     )
-    assert (
-        reg_widget._atlas_annotations_layer.data.dtype
-        == reg_widget._atlas.annotation.dtype
-    )
+    assert reg_widget._sampled_reference_layer.data.shape == expected_shape
+
+    # Original 3D layers should be hidden
+    assert reg_widget._atlas_data_layer.visible is False
+    assert reg_widget._atlas_annotations_layer.visible is False
+
+    # Atlas data layer data should still be the original (unchanged)
+    assert reg_widget._atlas_data_layer.data.shape == atlas_shape
 
 
 def test_on_adjust_atlas_rotation_no_atlas(registration_widget, mocker):
@@ -395,7 +406,19 @@ def test_on_atlas_reset(registration_widget_with_example_atlas):
     atlas_shape = reg_widget._atlas.reference.shape
     reg_widget._on_adjust_atlas_rotation(10, 10, 10)
 
+    # Plane sampling should be active after rotation
+    assert reg_widget._plane_sampling_active is True
+
     reg_widget._on_atlas_reset()
+
+    # Plane sampling should be deactivated
+    assert reg_widget._plane_sampling_active is False
+    assert reg_widget._sampled_reference_layer is None
+    assert reg_widget._sampled_annotations_layer is None
+
+    # Original layers should be visible again
+    assert reg_widget._atlas_data_layer.visible is True
+    assert reg_widget._atlas_annotations_layer.visible is True
 
     assert reg_widget._atlas_data_layer.data.shape == atlas_shape
     assert reg_widget._atlas.reference.shape == atlas_shape
@@ -408,6 +431,49 @@ def test_on_atlas_reset(registration_widget_with_example_atlas):
         reg_widget._atlas_annotations_layer.data.dtype
         == reg_widget._atlas.annotation.dtype
     )
+
+
+def test_plane_sampling_updates_on_slider_change(
+    registration_widget_with_example_atlas,
+    qtbot,
+):
+    """Test that scrolling the dimension slider updates the sampled plane."""
+    reg_widget = registration_widget_with_example_atlas
+
+    # Activate plane sampling
+    reg_widget._on_adjust_atlas_rotation(10, 5, 3)
+    assert reg_widget._plane_sampling_active is True
+
+    # Get initial sampled data
+    initial_data = reg_widget._sampled_reference_layer.data.copy()
+
+    # Change the slider position
+    reg_widget._viewer.dims.set_current_step(0, 50)
+    qtbot.wait(100)
+
+    # The sampled plane should have been updated
+    updated_data = reg_widget._sampled_reference_layer.data
+    # With rotation + different z, data should differ
+    assert not np.array_equal(initial_data, updated_data)
+
+
+def test_multiple_rotations_reuse_sampled_layers(
+    registration_widget_with_example_atlas,
+):
+    """Test that calling rotation multiple times reuses layers."""
+    reg_widget = registration_widget_with_example_atlas
+
+    reg_widget._on_adjust_atlas_rotation(10, 5, 3)
+    first_ref_layer = reg_widget._sampled_reference_layer
+    first_ann_layer = reg_widget._sampled_annotations_layer
+
+    reg_widget._on_adjust_atlas_rotation(20, 10, 5)
+    second_ref_layer = reg_widget._sampled_reference_layer
+    second_ann_layer = reg_widget._sampled_annotations_layer
+
+    # Should be the same layer objects (updated in place)
+    assert first_ref_layer is second_ref_layer
+    assert first_ann_layer is second_ann_layer
 
 
 def test_on_atlas_reset_no_atlas(registration_widget, mocker):
@@ -569,6 +635,25 @@ def test_on_run_button_clicked_moving_equal_atlas(
     )
 
 
+def test_on_run_button_clicked_moving_equal_sampled_atlas(
+    registration_widget_with_example_atlas, mocker
+):
+    widget = registration_widget_with_example_atlas
+    mocked_display_info = mocker.patch(
+        "brainglobe_registration.registration_widget.display_info"
+    )
+    widget._on_adjust_atlas_rotation(10, 5, 3)
+    widget._moving_image = widget._sampled_reference_layer
+
+    widget.run_button.click()
+
+    mocked_display_info.assert_called_once_with(
+        widget=widget,
+        title="Warning",
+        message="Your moving image cannot be an atlas.",
+    )
+
+
 def test_on_run_button_click_2d(registration_widget, tmp_path):
     allen_25_index = registration_widget._available_atlases.index(
         "allen_mouse_25um"
@@ -605,6 +690,65 @@ def test_on_run_button_click_2d(registration_widget, tmp_path):
 
     # Check that QC widget is enabled after registration
     assert registration_widget.qc_widget.checkerboard_checkbox.isEnabled()
+
+
+def test_on_run_button_click_2d_uses_sampled_plane_when_active(
+    registration_widget_with_example_atlas, mocker, tmp_path
+):
+    widget = registration_widget_with_example_atlas
+    widget._viewer.dims.set_current_step(0, 42)
+    widget._moving_image = widget._viewer.layers[0]
+    widget.output_directory = tmp_path
+    widget._on_adjust_atlas_rotation(15, 10, 5)
+
+    sampled_ref = np.full((32, 48), 7.0, dtype=np.float32)
+    sampled_ann = np.full((32, 48), 3, dtype=np.uint32)
+    widget._sampled_reference_layer.data = sampled_ref
+    widget._sampled_annotations_layer.data = sampled_ann
+
+    captured = {}
+
+    def _run_registration(
+        atlas_image,
+        moving_image,
+        transform_selections,
+        output_directory,
+        filter_images=False,
+    ):
+        captured["atlas_image"] = atlas_image
+        captured["moving_image"] = moving_image
+        return ["params"]
+
+    mocker.patch(
+        "brainglobe_registration.elastix.register.run_registration",
+        side_effect=_run_registration,
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.transform_image",
+        side_effect=lambda image, _: image,
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.invert_transformation",
+        return_value=["inv-params"],
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.transform_annotation_image",
+        side_effect=lambda image, _: image,
+    )
+    mocker.patch(
+        "brainglobe_registration.elastix.register.calculate_deformation_field",
+        side_effect=lambda image, _: np.zeros(
+            (*image.shape, 2), dtype=np.float32
+        ),
+    )
+    mocker.patch(
+        "brainglobe_registration.registration_widget.calculate_region_size"
+    )
+
+    widget.run_button.click()
+
+    np.testing.assert_array_equal(captured["atlas_image"], sampled_ref)
+    assert captured["atlas_image"].dtype == np.float32
 
 
 def test_on_run_button_clicked_no_transform_selected(
@@ -905,9 +1049,7 @@ def test_set_optimal_rotation_params_sets_gui_values(
 
     # Mock adjust widget
     adjust_widget_mock = mocker.Mock()
-    adjust_widget_mock.adjust_atlas_pitch.setValue = mocker.Mock()
-    adjust_widget_mock.adjust_atlas_yaw.setValue = mocker.Mock()
-    adjust_widget_mock.adjust_atlas_roll.setValue = mocker.Mock()
+    adjust_widget_mock.set_rotation_values = mocker.Mock()
     adjust_widget_mock.progress_bar.reset = mocker.Mock()
     adjust_widget_mock.progress_bar.setVisible = mocker.Mock()
 
@@ -924,9 +1066,7 @@ def test_set_optimal_rotation_params_sets_gui_values(
         5, 10, -2
     )
     viewer_mock.dims.set_point.assert_called_once_with(0, 42)
-    adjust_widget_mock.adjust_atlas_pitch.setValue.assert_called_once_with(5)
-    adjust_widget_mock.adjust_atlas_yaw.setValue.assert_called_once_with(10)
-    adjust_widget_mock.adjust_atlas_roll.setValue.assert_called_once_with(-2)
+    adjust_widget_mock.set_rotation_values.assert_called_once_with(5, 10, -2)
     adjust_widget_mock.progress_bar.reset.assert_called_once()
     adjust_widget_mock.progress_bar.setVisible.assert_called_once_with(False)
 
