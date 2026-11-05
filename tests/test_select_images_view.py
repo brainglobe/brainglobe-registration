@@ -45,6 +45,16 @@ def test_select_images_view(select_images_view, qtbot):
         select_images_view.available_sample_dropdown_label.text()
         == "Select sample:"
     )
+    # test sample geometry dropdown
+    assert (
+        select_images_view.sample_geometry_label.text() == "Sample Geometry:"
+    )
+    # total
+    assert select_images_view.sample_geometry_dropdown.count() == 7
+    assert (
+        select_images_view.sample_geometry_dropdown.currentText()
+        == "Full Brain"
+    )
 
 
 @pytest.mark.parametrize(
@@ -143,3 +153,65 @@ def test_select_images_view_moving_image_index_change_multi(
         for index in image_indexes:
             expected = index
             select_images_view.available_atlas_dropdown.setCurrentIndex(index)
+
+
+@pytest.mark.parametrize(
+    "geometry_index, expected_geometry",
+    [
+        (0, "full"),
+        (1, "hemisphere_l"),
+        (2, "hemisphere_r"),
+        (3, "quarter_al"),
+        (4, "quarter_ar"),
+        (5, "quarter_pl"),
+        (6, "quarter_pr"),
+    ],
+)
+def test_select_images_view_sample_geometry_change(
+    select_images_view, qtbot, geometry_index, expected_geometry
+):
+    qtbot.addWidget(select_images_view)
+
+    # For index 0, we need to set it to a different value first,
+    # because Qt doesn't emit currentIndexChanged when setting
+    # to the current index.
+    if geometry_index == 0:
+        select_images_view.sample_geometry_dropdown.setCurrentIndex(1)
+
+    with qtbot.waitSignal(
+        select_images_view.sample_geometry_change, timeout=1000
+    ) as blocker:
+        select_images_view.sample_geometry_dropdown.setCurrentIndex(
+            geometry_index
+        )
+    assert blocker.args == [expected_geometry]
+
+
+def test_select_images_view_default_geometry(select_images_view, qtbot):
+    qtbot.addWidget(select_images_view)
+
+    # Default should be "full" (index 0)
+    assert select_images_view.sample_geometry_dropdown.currentIndex() == 0
+    assert (
+        select_images_view.sample_geometry_dropdown.currentText()
+        == "Full Brain"
+    )
+
+
+def test_select_images_view_invalid_geometry_index_falls_back_to_full(
+    select_images_view, qtbot, mocker
+):
+    qtbot.addWidget(select_images_view)
+
+    mocker.patch.object(
+        select_images_view.sample_geometry_dropdown,
+        "currentIndex",
+        return_value=999,
+    )
+
+    with qtbot.waitSignal(
+        select_images_view.sample_geometry_change, timeout=1000
+    ) as blocker:
+        select_images_view._on_geometry_index_change()
+
+    assert blocker.args == ["full"]
